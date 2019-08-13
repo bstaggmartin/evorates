@@ -1,0 +1,64 @@
+plot.simBM<-function(sim,tree,n.sample=10,
+                     base.col=palette()[1],lwd=1,zoom.window=F,add=F,col.clades=NULL,alph=1,
+                     xlab="time",ylab="trait value",rev.time=F,
+                     xlim=c(0,max(sim$ts[length(sim$ts)],node.depth.edgelength(tree),na.rm=T)),
+                     ylim=c(min(sim$edges[,sim$ts>=xlim[1]&sim$ts<=xlim[2],],
+                                sim$nodes[node.depth.edgelength(tree)>=xlim[1]&node.depth.edgelength(tree)<=xlim[2],],na.rm=T),
+                            max(sim$edges[,sim$ts>=xlim[1]&sim$ts<=xlim[2],],
+                                sim$nodes[node.depth.edgelength(tree)>=xlim[1]&node.depth.edgelength(tree)<=xlim[2],],na.rm=T))){
+  samp<-sample(1:ncol(sim$nodes),n.sample)
+  if(!(is.null(col.clades))){
+    if(is.vector(col.clades)){
+      col.clades<-data.frame(clades=col.clades,cols=palette()[2:(length(col.clades)+1)])
+    }
+    get.clade.edges<-function(tree,MRCA){
+      return(which(tree$edge[,2]%in%getDescendants(tree,MRCA)))
+    }
+    clade.edges<-lapply(c(length(tree$tip.label)+1,col.clades[,1]),get.clade.edges,tree=tree)
+    inc.ord<-order(lengths(clade.edges),decreasing=T)
+    clade.edges<-clade.edges[inc.ord]
+    for(c in 1:length(clade.edges)){
+      clade.edges[[c]]<-clade.edges[[c]][!(clade.edges[[c]]%in%unlist(clade.edges[-c]))]
+    }
+    clade.edges[inc.ord]<-clade.edges
+    clade.score<-rep(1:length(clade.edges),lengths(clade.edges))
+    edge.map<-cbind(clade.score,unlist(clade.edges))
+    edge.map<-edge.map[order(edge.map[,2]),]
+    col.vec<-c(base.col,as.character(col.clades[,2]))[edge.map[,1]]
+  }else{
+    col.vec<-rep(base.col,nrow(tree$edge))
+  }
+  if(length(alph)>1){
+    names(alph)<-c(base.col,as.character(col.clades[,2]))
+    alph.vec<-alph[col.vec]
+  }else{
+    alph.vec<-rep(alph,length(col.vec))
+  }
+  col.vec<-col2rgb(col.vec,alpha=T)/255
+  col.vec[4,]<-alph.vec
+  col.vec<-mapply(rgb,red=col.vec[1,],green=col.vec[2,],blue=col.vec[3,],alpha=col.vec[4,])
+  if(zoom.window){
+    ylim=c(min(sim$edges[,sim$ts>=xlim[1]&sim$ts<=xlim[2],samp],
+               sim$nodes[node.depth.edgelength(tree)>=xlim[1]&node.depth.edgelength(tree)<=xlim[2],samp],na.rm=T),
+           max(sim$edges[,sim$ts>=xlim[1]&sim$ts<=xlim[2],samp],
+               sim$nodes[node.depth.edgelength(tree)>=xlim[1]&node.depth.edgelength(tree)<=xlim[2],samp],na.rm=T))
+  }
+  if(!add){
+    plot(0,xlim=xlim,ylim=ylim,xlab=xlab,ylab=ylab,type='n',xaxt='n')
+    if(rev.time){
+      axis(1,at=(max(node.depth.edgelength(tree))-ceiling(max(node.depth.edgelength(tree)))):
+             ceiling(max(node.depth.edgelength(tree))),
+           labels=ceiling(max(node.depth.edgelength(tree))):0,tick=F,padj=-1)
+    }else{
+      axis(1,at=round(xlim[1]):round(xlim[2]),labels=round(xlim[1]):round(xlim[2]),tick=F,padj=-1)
+    }
+  }
+  edges<-tree$edge
+  for(i in samp){
+    for(e in 1:nrow(edges)){
+      lines(c(sim$nodes[edges[e,1],i],sim$edges[e,,i][!is.na(sim$edges[e,,i])],sim$nodes[edges[e,2],i])~
+              c(node.depth.edgelength(tree)[edges[e,1]],sim$ts[!is.na(sim$edges[e,,i])],node.depth.edgelength(tree)[edges[e,2]]),
+            col=col.vec[e],lwd=lwd)
+    }
+  }
+}
