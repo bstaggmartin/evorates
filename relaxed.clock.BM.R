@@ -121,7 +121,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,
     blocks<-split(sample((1:(tree$Nnode*2+1))[-(length(tree$tip.label)+1)]),rep(1:n.blocks,block.sizes))
     theta.prime<-pars[4:length(pars)]
     for(j in 1:length(blocks)){
-      sf<-exp(runif(block.sizes[j],-win[5],win[5]));theta.prime[blocks[[j]]]<-sf*pars[blocks[[j]]+3]
+      theta.prime[blocks[[j]]]<-runif(block.sizes[j],pars[blocks[[j]]+3]-win[5]/2,pars[blocks[[j]]+3]+win[5]/2)
       edge.rates.prime<-exp(apply(cbind(theta.prime[tree$edge[,1]],theta.prime[tree$edge[,2]]),1,mean))
       R<-dmvnorm(x,
                  mean=rep(pars[3],length(x)),
