@@ -1,5 +1,5 @@
 relaxed.clock.BM<-function(tree,x,n.iter=1e5,
-                           r0.prior.var=1e6,rtrend.prior.var=1e6,rvar.prior.var=1e6,root.prior.var=1e6,
+                           r0.prior.var=log(1e6),rtrend.prior.var=log(1e6),rvar.prior.var=log(1e6),root.prior.var=1e6,
                            block.size=5,win=rep(1,5),tune.period=1e4,thin=100,win.update=50,adapt.decay=0.5,report.every=100){
   
   
@@ -9,6 +9,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,
     return(apply(array(sapply(1:length(rates),function(e) C[,,e]*rates[e]),dim=dim(C)),c(1,2),sum))
   }
   
+  #get the (log) posterior probability of a 
   get.post<-function(pars,xx=x,CC=C,tt=tree,
                      r0.pri=r0.prior.var,rtrend.pri=rtrend.prior.var,rvar.pri=rvar.prior.var,root.pri=root.prior.var){
     edge.rates<-exp(apply(cbind(pars[4:length(pars)][tt$edge[,1]],pars[4:length(pars)][tt$edge[,2]]),1,mean))
@@ -36,7 +37,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,
   pics<-pic(x,tree)^2
   
   pars<-c(0,var(log(pics))/node.depth.edgelength(tree)[1],mean(x),
-          fastBM(tree,a=mean(log(pics)),sig2=var(log(pics))/node.depth.edgelength(tree)[1],internal=T))
+          c(log(pics)[as.character(tree$edge[which(tree$edge[,2]%in%(1:length(tree$tip.label))),1])],log(pics)))
   names(pars)<-NULL
   edge.rates<-exp(apply(cbind(pars[4:length(pars)][tree$edge[,1]],pars[4:length(pars)][tree$edge[,2]]),1,mean))
   
@@ -134,8 +135,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,
                 sigma=trans.C(C[-(length(tree$tip.label)+1),-(length(tree$tip.label)+1),],rep(pars[2],dim(C)[3])),log=T)-
         dmvnorm(pars[4:length(pars)][-(length(tree$tip.label)+1)],
                 mean=pars[length(tree$tip.label)+4]+pars[1]*node.depth.edgelength(tree)[-(length(tree$tip.label)+1)],
-                sigma=trans.C(C[-(length(tree$tip.label)+1),-(length(tree$tip.label)+1),],rep(pars[2],dim(C)[3])),log=T)+
-        sum(log(sf))
+                sigma=trans.C(C[-(length(tree$tip.label)+1),-(length(tree$tip.label)+1),],rep(pars[2],dim(C)[3])),log=T)
       
       
       if(exp(R)>runif(1,0,1)){
@@ -162,8 +162,8 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,
       old.win<-win
       win<-exp(log(win)+ifelse(accept/prop-c(0.44,0.44,0.44,0.44,0.44)>0,1,-1)*min(0.1,n.update^-adapt.decay))
       
-      cat("r0: ",old.win[1]," -> ",win[1],"\n","rtrend: ",old.win[2]," -> ",win[2],"\n","rvar: ",old.win[3]," -> ",win[3],"\n",
-          "root: ",old.win[4]," -> ",win[4],"\n","rate: ",old.win[5]," -> ",win[5],"\n")
+      cat("r0: ",old.win[4]," -> ",win[4],"\n","rtrend: ",old.win[1]," -> ",win[1],"\n","rvar: ",old.win[2]," -> ",win[2],"\n",
+          "root: ",old.win[3]," -> ",win[3],"\n","rate: ",old.win[5]," -> ",win[5],"\n")
       
       accept<-rep(0,5)
       prop<-rep(0,5)
