@@ -6,7 +6,7 @@ gen.corateBM<-function(tree,r0=0,rtrend=0,rvar=1,x0=0,xtrend=0,internal=F){
   }
   edge.rates<-exp(apply(cbind(node.rates[tree$edge[,1]],node.rates[tree$edge[,2]]),1,mean))
   
-  traits<-rep(NA,tree$Nnode*2+1);trait[length(tree$tip.label)+1]<-x0
+  traits<-rep(NA,tree$Nnode*2+1);traits[length(tree$tip.label)+1]<-x0
   for(e in 1:nrow(tree$edge)){
     traits[tree$edge[e,2]]<-traits[tree$edge[e,1]]+rnorm(1,xtrend*tree$edge.length[e],edge.rates[e]*tree$edge.length[e])
   }
@@ -14,7 +14,7 @@ gen.corateBM<-function(tree,r0=0,rtrend=0,rvar=1,x0=0,xtrend=0,internal=F){
   if(internal){
     names(traits)<-c(tree$tip.label,(length(tree$tip.label)+1):(2*tree$Nnode+1))
   }else{
-    traits<-trait[1:length(tree$tip.label)]
+    traits<-traits[1:length(tree$tip.label)]
     names(traits)<-tree$tip.label
   }
   
@@ -25,8 +25,8 @@ gen.corateBM<-function(tree,r0=0,rtrend=0,rvar=1,x0=0,xtrend=0,internal=F){
 }
 
 
-plot.corateBM<-function(corateBM,tree,cols=heat.colors(100),log=F,
-                        norm.lb=NULL,norm.ub=NULL,...){
+plot.corateBM<-function(corateBM,tree,cols=colorRampPalette(c("skyblue2","cyan","chartreuse2","goldenrod","red"))(100),log=F,
+                        norm.lb=NULL,norm.ub=NULL,phenogram=F,xlab="time",ylab="trait",...){
   if(!is.list(corateBM)){
     corateBM<-list(edge.rates=corateBM)
   }
@@ -51,5 +51,17 @@ plot.corateBM<-function(corateBM,tree,cols=heat.colors(100),log=F,
   }
   rates.norm<-rates.norm*(length(cols)-1)+1
   col.vec<-cols[round(rates.norm)]
-  plot(tree,edge.color=col.vec,...)
+  if(!phenogram){
+    plot(tree,edge.color=col.vec,...)
+  }else{
+    if(!corateBM$params$internal){
+      trait.vec<-c(corateBM$traits,fastAnc(tree,corateBM$traits))
+    }else{
+      trait.vec<-corateBM$traits
+    }
+    plot(1,type='n',xlab=xlab,ylab=ylab,
+         xlim=c(0,node.depth.edgelength(tree)[1]),ylim=c(min(corateBM$traits),max(corateBM$traits)))
+    segments(x0=node.depth.edgelength(tree)[tree$edge[,1]],x1=node.depth.edgelength(tree)[tree$edge[,2]],
+             y0=trait.vec[tree$edge[,1]],y1=trait.vec[tree$edge[,2]],col=col.vec,...)
+  }
 }

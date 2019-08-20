@@ -8,12 +8,12 @@ get.edge.rates<-function(tree,par.mat){
 
 
 start<-proc.time()
-par.mat<-relaxed.clock.BM(tree,corateBM$traits,n.iter=1e5,thin=25,tune.period=1e4,report.every=50,win.update=100,block.size=39)
+par.mat3<-relaxed.clock.BM(tree,corateBM$traits,n.iter=1e5,thin=25,tune.period=1e4,report.every=50,win.update=100,block.size=5)
 elapsed<-proc.time()-start
 
-thin<-par.mat[,seq(1200,ncol(par.mat),2)]
+thin<-par.mat3[,seq(1,ncol(par.mat3),30)]
 edge.rates<-get.edge.rates(tree,thin)
-pdf("promising initial results2.pdf",height=10,width=10)
+pdf("promising initial results3.pdf",height=10,width=10)
 par(mfrow=c(2,2))
 plot(log(apply(edge.rates,1,median))~log(corateBM$edge.rates),pch=19,xlab="true ln(rate)",ylab="ln(rate) from posterior sample",
      ylim=c(min(log(apply(edge.rates,1,quantile,probs=0.025))),max(log(apply(edge.rates,1,quantile,probs=0.975)))),cex=1.5,
