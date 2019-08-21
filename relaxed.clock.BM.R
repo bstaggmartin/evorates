@@ -1,6 +1,7 @@
 relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
                            r0.prior.var=log(1e6),rtrend.prior.var=log(1e6),rvar.prior.var=log(1e6),root.prior.var=1e6,
-                           block.size=5,win=rep(1,5),tune.period=1e4,win.update=50,prop.mix=0.9,adapt.decay=0.5){
+                           block.size=5,win=rep(1,5),prop.mix=0.9,
+                           tune.period=1e4,win.update=50,adapt.decay=0.5,targ.accept=rep(0.234,5)){
   
   
   ##CREATING SOME HELPFUL FUNCTIONS##
@@ -49,31 +50,31 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
     #update "complex" rate prior
     ##if either rtrend or rvar is updated, the likelihood of each node rate parameter is affected and must be re-calculated
     if(any((1:2)%in%update.indices)){
-      rate.prior<-dmvnorm(pars.prime[4:length(pars.prime)][-(length(tt$tip.label)+1)],
-                          mean=pars.prime[length(tt$tip.label)+4]+
-                            pars.prime[1]*node.depth.edgelength(tt)[-(length(tt$tip.label)+1)],
-                          sigma=trans.C(CC[-(length(tt$tip.label)+1),-(length(tt$tip.label)+1),],
-                                        rep(pars.prime[2],dim(CC)[3])),log=T)-
-        dmvnorm(pars[4:length(pars.prime)][-(length(tt$tip.label)+1)],
-                mean=pars[length(tt$tip.label)+4]+
-                  pars[1]*node.depth.edgelength(tt)[-(length(tt$tip.label)+1)],
-                sigma=trans.C(CC[-(length(tt$tip.label)+1),-(length(tt$tip.label)+1),],
-                              rep(pars[2],dim(CC)[3])),log=T)
+      rate.prior<-dmvn(pars.prime[4:length(pars.prime)][-(length(tt$tip.label)+1)],
+                       mu=pars.prime[length(tt$tip.label)+4]+
+                         pars.prime[1]*node.depth.edgelength(tt)[-(length(tt$tip.label)+1)],
+                       sigma=trans.C(CC[-(length(tt$tip.label)+1),-(length(tt$tip.label)+1),],
+                                     rep(pars.prime[2],dim(CC)[3])),log=T)-
+        dmvn(pars[4:length(pars.prime)][-(length(tt$tip.label)+1)],
+             mu=pars[length(tt$tip.label)+4]+
+               pars[1]*node.depth.edgelength(tt)[-(length(tt$tip.label)+1)],
+             sigma=trans.C(CC[-(length(tt$tip.label)+1),-(length(tt$tip.label)+1),],
+                           rep(pars[2],dim(CC)[3])),log=T)
     ##if neither rtrend nor rvar is updated, but some node rate parameters are updated, then the likelihood of the rate
     ##parameters for these nodes and adjacent nodes must be re-calculated
     }else if(any((4:length(pars))%in%update.indices)){
       nodes<-unique(as.vector(nn[(update.indices-3)[update.indices>3],]))
       nodes<-nodes[(nodes!=length(tt$tip.label)+1)&(!(is.na(nodes)))]
-      rate.prior<-dmvnorm(pars.prime[nodes+3],
-                          mean=pars.prime[length(tt$tip.label)+4]+
-                            pars.prime[1]*node.depth.edgelength(tt)[nodes],
-                          sigma=trans.C(CC[nodes,nodes,],
-                                        rep(pars.prime[2],dim(CC)[3])),log=T)-
-        dmvnorm(pars[nodes+3],
-                mean=pars[length(tt$tip.label)+4]+
-                  pars[1]*node.depth.edgelength(tt)[nodes],
-                sigma=trans.C(CC[nodes,nodes,],
-                              rep(pars[2],dim(CC)[3])),log=T)
+      rate.prior<-dmvn(pars.prime[nodes+3],
+                       mu=pars.prime[length(tt$tip.label)+4]+
+                         pars.prime[1]*node.depth.edgelength(tt)[nodes],
+                       sigma=trans.C(CC[nodes,nodes,],
+                                     rep(pars.prime[2],dim(CC)[3])),log=T)-
+        dmvn(pars[nodes+3],
+             mu=pars[length(tt$tip.label)+4]+
+               pars[1]*node.depth.edgelength(tt)[nodes],
+             sigma=trans.C(CC[nodes,nodes,],
+                           rep(pars[2],dim(CC)[3])),log=T)
     }else{rate.prior<-0}
     #update likelihood
     ##note that, since ancestral trait values are not being explicitly estimated, these multivariate normal likelihoods cannot
@@ -87,12 +88,12 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
         edges<-edges[!(is.na(edges))]
         edge.rates.prime[edges]<-exp(sapply(edges,function(e) mean(c(pars.prime[tt$edge[e,1]+3],pars.prime[tt$edge[e,2]+3]))))
       }
-      log.lik<-dmvnorm(xx,
-                       mean=rep(pars.prime[3],length(xx)),
-                       sigma=trans.C(CC[1:length(xx),1:length(xx),],edge.rates.prime),log=T)-
-        dmvnorm(xx,
-                mean=rep(pars[3],length(xx)),
-                sigma=trans.C(CC[1:length(xx),1:length(xx),],edge.rates),log=T)
+      log.lik<-dmvn(xx,
+                    mu=rep(pars.prime[3],length(xx)),
+                    sigma=trans.C(CC[1:length(xx),1:length(xx),],edge.rates.prime),log=T)-
+        dmvn(xx,
+             mu=rep(pars[3],length(xx)),
+             sigma=trans.C(CC[1:length(xx),1:length(xx),],edge.rates),log=T)
     }else{log.lik<-0}
     #return sum of all (log) prior/likelihood ratios
     sum(rtrend.prior,rvar.prior,root.prior,r0.prior,rate.prior,log.lik)
@@ -107,14 +108,14 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
     root.prior<-dnorm(pars[3],0,root.pri,log=T)
     r0.prior<-dnorm(pars[length(tt$tip.label)+4],0,r0.pri,log=T)
     #"complex" prior
-    rate.prior<-dmvnorm(pars[4:length(pars)][-(length(tt$tip.label)+1)],
-                        mean=pars[length(tt$tip.label)+4]+pars[1]*node.depth.edgelength(tt)[-(length(tt$tip.label)+1)],
-                        sigma=trans.C(CC[-(length(tt$tip.label)+1),-(length(tt$tip.label)+1),],rep(pars[2],dim(CC)[3])),log=T)
+    rate.prior<-dmvn(pars[4:length(pars)][-(length(tt$tip.label)+1)],
+                     mu=pars[length(tt$tip.label)+4]+pars[1]*node.depth.edgelength(tt)[-(length(tt$tip.label)+1)],
+                     sigma=trans.C(CC[-(length(tt$tip.label)+1),-(length(tt$tip.label)+1),],rep(pars[2],dim(CC)[3])),log=T)
     #getting edge-wise rates and calculating likelihood
     edge.rates<-exp(apply(cbind(pars[4:length(pars)][tt$edge[,1]],pars[4:length(pars)][tt$edge[,2]]),1,mean))
-    log.lik<-dmvnorm(xx,
-                     mean=rep(pars[3],length(xx)),
-                     sigma=trans.C(CC[1:length(xx),1:length(xx),],edge.rates),log=T)
+    log.lik<-dmvn(xx,
+                  mu=rep(pars[3],length(xx)),
+                  sigma=trans.C(CC[1:length(xx),1:length(xx),],edge.rates),log=T)
     #return the sum
     sum(rtrend.prior,rvar.prior,root.prior,r0.prior,rate.prior,log.lik)
   }
@@ -182,7 +183,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
       n.update<-i/win.update
       cat("updating proposal windows...\n")
       old.win<-win
-      win<-exp(log(win)+ifelse(accept/prop-c(0.234,0.234,0.234,0.234,0.234)>0,1,-1)*min(0.1,n.update^-adapt.decay))
+      win<-exp(log(win)+ifelse(accept/prop-targ.accept>0,1,-1)*min(0.1,n.update^-adapt.decay))
       cat("r0: ",old.win[4]," -> ",win[4],"\n","rtrend: ",old.win[1]," -> ",win[1],"\n","rvar: ",old.win[2]," -> ",win[2],"\n",
           "root: ",old.win[3]," -> ",win[3],"\n","rate: ",old.win[5]," -> ",win[5],"\n")
       accept<-rep(0,5)

@@ -27,9 +27,6 @@ gen.corateBM<-function(tree,r0=0,rtrend=0,rvar=1,x0=0,xtrend=0,internal=F){
 
 plot.corateBM<-function(corateBM,tree,cols=colorRampPalette(c("skyblue2","cyan","chartreuse2","goldenrod","red"))(100),log=F,
                         norm.lb=NULL,norm.ub=NULL,phenogram=F,xlab="time",ylab="trait",...){
-  if(!is.list(corateBM)){
-    corateBM<-list(edge.rates=corateBM)
-  }
   if(is.null(norm.lb)){
     if(log){
       norm.lb<-min(log(corateBM$edge.rates))
