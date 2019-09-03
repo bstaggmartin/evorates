@@ -1,11 +1,16 @@
 simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
-                correction.factor=1,lb=-Inf,ub=Inf,lb.reflective=F,ub.reflective=F){
+                lb=-Inf,ub=Inf,lb.reflective=F,ub.reflective=F){
   
   ##EXTRACTING USEFUL PARAMETERS##
   ntax<-length(tree$tip.label)
   edges<-tree$edge
   edge.lens<-tree$edge.length
   tip.states<-x[tree$tip.label];names(tip.states)<-1:ntax
+  get.no.D<-function(node,tree){
+    tmp<-getDescendants(tree,node)
+    length(tmp[tmp<=length(tree$tip.label)])
+  }
+  no.D<-sapply(1:(tree$Nnode*2+1),get.no.D,tree=tree)
   sigma<-mean(pic(x[1:ntax],phy=tree)^2)
   if(!lb.reflective){
     lb.trunc<-lb
@@ -92,12 +97,12 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
       }
       a.n<-edges[e,1]
       t<-edge.lens[e]
-      t.d<-mean(edge.lens[which(edges[,1]==n)])
       mu.sim[n,i]<-mu.sim[n,i]*p[n]*t+mu.sim[a.n,i]-mu.sim[a.n,i]*p[n]*t
       if(i==1){
-        p.sim[n]<-p.sim[n]/(1-t*p.sim[n])+(p.sim[a.n]-p.sim[n])/(1+t*(p.sim[a.n]-p.sim[n]))
+        p.sim[n]<-p.sim[n]/(1-t*p.sim[n])+1/t #+1/t since the ancestral node trait value is now fixed
       }
-      mu.sim[n,i]<-rtruncnorm(1,lb.trunc,ub.trunc,mu.sim[n,i],sigma*1/p.sim[n]*sqrt(t/(t+t.d))/correction.factor)
+      mu.sim[n,i]<-rtruncnorm(1,lb.trunc,ub.trunc,mu.sim[n,i],sigma*1/p.sim[n])
+      #sigma*1/p.sim[n]*sqrt(t/(t+t.d))*log(length(tree$tip.label)/(no.D[n]+1)))
       
       ##REFLECTIVE BOUNDS CALCULATIONS##
       if(lb.reflective&!(ub.reflective)){
@@ -160,6 +165,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
         mu.tmp<-rbind(start.mus,mu.mat[e,int.ts,],end.mus)
         t.tmp<-c(t1,time.vec[int.ts],t2)
         ord.tmp<-sample(x=2:(length(t.tmp)-1),size=length(t.tmp)-2)
+        #ord.tmp<-sample.evenly(2:(length(t.tmp)-1))
         if(length(ord.tmp)==1){
           ord.tmp<-2
         }
