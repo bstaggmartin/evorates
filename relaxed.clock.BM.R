@@ -18,7 +18,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
     indicator[2]<-0
     pars.prime<-rbac(length(pars),pars,
                      indicator*c(win[1:3],rep(win[5],length(tt$tip.label)),win[4],rep(win[5],tt$Nnode-1))/2,prop.mix)
-    if(2%in%update.indices){
+    if(any(update.indices)==2){
       pars.prime[2]<-exp(rbac(1,0,win[2]/2,prop.mix))*pars[2]
     }
     pars.prime
@@ -31,25 +31,25 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
                   xx=x,CC=C,tt=tree,nn=adj.nodes,ee=adj.edges,
                   r0.pri=r0.prior.var,rtrend.pri=rtrend.prior.var,rvar.pri=rvar.prior.var,root.pri=root.prior.var){
     #update "simple priors"
-    if(1%in%update.indices){
+    if(any(update.indices==1)){
       rtrend.prior<-dnorm(pars.prime[1],0,rtrend.pri,log=T)-dnorm(pars[1],0,rtrend.pri,log=T)
     }else{rtrend.prior<-0}
     ##note that a scale factor is calculated and added to the prior ratio for rvar; this is because this parameter is updated
     ##according to a scaling, rather than sliding, move, so the proposal distribution is asymmetric and the hastings ratio is
     ##not 1
-    if(2%in%update.indices){
+    if(any(update.indices==2)){
       sf<-pars.prime[2]/pars[2]
       rvar.prior<-dexp(pars.prime[2],1/sqrt(rvar.pri),log=T)-dexp(pars[2],1/sqrt(rvar.pri),log=T)+log(sf)
     }else{rvar.prior<-0}
-    if(3%in%update.indices){
+    if(any(update.indices==3)){
       root.prior<-dnorm(pars.prime[3],0,r0.pri,log=T)-dnorm(pars[3],0,r0.pri,log=T)
     }else{root.prior<-0}
-    if((length(tt$tip.label)+4)%in%update.indices){
+    if(any(update.indices==(length(tt$tip.label)+4))){
       r0.prior<-dnorm(pars.prime[length(tt$tip.label)+4],0,r0.pri,log=T)-dnorm(pars[length(tt$tip.label)+4],0,r0.pri,log=T)
     }else{r0.prior<-0}
     #update "complex" rate prior
     ##if either rtrend or rvar is updated, the likelihood of each node rate parameter is affected and must be re-calculated
-    if(any((1:2)%in%update.indices)){
+    if(any(update.indices==1)|any(update.indices==2)){
       rate.prior<-dmvn(pars.prime[4:length(pars.prime)][-(length(tt$tip.label)+1)],
                        mu=pars.prime[length(tt$tip.label)+4]+
                          pars.prime[1]*node.depth.edgelength(tt)[-(length(tt$tip.label)+1)],
