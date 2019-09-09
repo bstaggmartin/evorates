@@ -125,7 +125,7 @@ red1-red0;full1-full0
 ##So I figured out why simBM often returns ancestral state estimates wayyy different from those the phylogeny was simulatedunder:
 tree<-pbtree(n=25)
 ntax<-length(tree$tip.label);nnode<-tree$Nnode*2+1
-x<-fastBM(tree,internal=T,sig2=500)
+x<-fastBM(tree,internal=T,sig2=2)
 n.sim=1000
 test<-simBM(tree,x[1:length(tree$tip.label)],n.sim=n.sim)
 plot(test,tree,n.sample=20,alph=0.1)

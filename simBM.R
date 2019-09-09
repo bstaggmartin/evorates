@@ -1,6 +1,5 @@
 simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
                 lb=-Inf,ub=Inf,lb.reflective=F,ub.reflective=F){
-  
   ##EXTRACTING USEFUL PARAMETERS##
   ntax<-length(tree$tip.label)
   edges<-tree$edge
@@ -22,6 +21,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
   }else{
     ub.trunc<-Inf
   }
+  ####
   
   ##TIPs-TO-ROOT TREE TRAVERSAL##
   mu<-rep(NA,nrow(edges)+1)
@@ -50,95 +50,78 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
       p[n]<-p.a/(1+t*p.a)
     }
   }
+  ####
   
   ##ROOT-TO-TIPS TREE TRAVERSAL WITH NOISE##
-  mu.sim<-matrix(rep(mu,n.sim),nrow=nrow(edges)+1,ncol=n.sim)
-  p.sim<-p
-  for(i in 1:n.sim){
-    mu.sim[ntax+1,i]<-rtruncnorm(1,lb.trunc,ub.trunc,mu.sim[ntax+1,i],sigma*1/p[ntax+1])
-    
-    ##REFLECTIVE BOUNDS CALCULATIONS##
+  mu.sim<-matrix(NA,nrow=nrow(edges)+1,ncol=n.sim)
+  mu.sim[1:ntax,]<-rep(mu[1:ntax],n.sim)
+  mu.sim[ntax+1,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
+  p.sim<-(p[edges[,2]]/(1-edge.lens*p[edges[,2]])+1/edge.lens)[order(edges[,2])]
+  p.sim<-append(p.sim,p[ntax+1],ntax)
+  ###reflective bounds calculations
+  if(lb.reflective&!(ub.reflective)){
+    while(!(all(mu.sim[ntax+1,]>lb))){
+      mu.sim[ntax+1,]<-ifelse(mu.sim[ntax+1,]<lb,lb-(mu.sim[ntax+1,]-lb),mu.sim[ntax+1,])
+      if(!(all(mu.sim[ntax+1,]<ub))){
+        problem.indices<-which(mu.sim[ntax+1,]>ub)
+        mu.tmp[ntax+1,problem.indices]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
+      }
+    }
+  }
+  if(ub.reflective&!(lb.reflective)){
+    while(!(all(mu.sim[ntax+1,]<ub))){
+      mu.sim[ntax+1,]<-ifelse(mu.sim[ntax+1,]>ub,ub-(mu.sim[ntax+1,]-ub),mu.sim[ntax+1,])
+      if(!(all(mu.sim[ntax+1,]>lb))){
+        problem.indices<-which(mu.sim[ntax+1,]<lb)
+        mu.sim[ntax+1,problem.indices]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
+      }
+    }
+  }
+  if(lb.reflective&ub.reflective){
+    while(!(all(mu.sim[ntax+1,]>lb&mu.sim[ntax+1,]<ub))){
+      mu.sim[ntax+1,]<-ifelse(mu.sim[ntax+1,]<lb,lb-(mu.sim[ntax+1,]-lb),mu.sim[ntax+1,])
+      mu.sim[ntax+1,]<-ifelse(mu.sim[ntax+1,]>ub,ub-(mu.sim[ntax+1,]-ub),mu.sim[ntax+1,])
+    }
+  }
+  ###
+  for(e in 1:nrow(edges)){
+    n<-edges[e,2]
+    if(length(which(edges[,1]==n))==0){
+      next
+    }
+    a.n<-edges[e,1]
+    t<-edge.lens[e]
+    mu.sim[n,]<-mu[n]*p[n]*t+mu.sim[a.n,]-mu.sim[a.n,]*p[n]*t
+    mu.sim[n,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
+    #*log(length(tree$tip.label)/(no.D[n]+1)))
+    ###reflective bounds calculations
     if(lb.reflective&!(ub.reflective)){
-      while(mu.sim[ntax+1,i]<lb){
-        if(mu.sim[ntax+1,i]<lb){
-          mu.sim[ntax+1,i]<-lb-(mu.sim[ntax+1,i]-lb)
-        }
-        if(mu.sim[ntax+1,i]>ub){
-          mu.sim[ntax+1,i]<-rtruncnorm(1,lb.trunc,ub.trunc,mu.sim[ntax+1,i],sigma*1/p[ntax+1])
+      while(!(all(mu.sim[n,]>lb))){
+        mu.sim[ntax+1,]<-ifelse(mu.sim[n,]<lb,lb-(mu.sim[n,]-lb),mu.sim[n,])
+        if(!(all(mu.sim[n,]<ub))){
+          problem.indices<-which(mu.sim[n,]>ub)
+          mu.tmp[n,problem.indices]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
         }
       }
     }
     if(ub.reflective&!(lb.reflective)){
-      while(mu.sim[ntax+1,i]>ub){
-        if(mu.sim[ntax+1,i]>ub){
-          mu.sim[ntax+1,i]<-ub-(mu.sim[ntax+1,i]-ub)
-        }
-        if(mu.sim[ntax+1,i]<lb){
-          mu.sim[ntax+1,i]<-rtruncnorm(1,lb.trunc,ub.trunc,mu.sim[ntax+1,i],sigma*1/p[ntax+1])
+      while(!(all(mu.sim[n,]<ub))){
+        mu.sim[ntax+1,]<-ifelse(mu.sim[n,]>ub,ub-(mu.sim[n,]-ub),mu.sim[n,])
+        if(!(all(mu.sim[n,]>lb))){
+          problem.indices<-which(mu.sim[n,]<lb)
+          mu.sim[n,problem.indices]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
         }
       }
     }
     if(lb.reflective&ub.reflective){
-      while(mu.sim[ntax+1,i]<lb|mu.sim[ntax+1,i]>ub){
-        if(mu.sim[ntax+1,i]<lb){
-          mu.sim[ntax+1,i]<-lb-(mu.sim[ntax+1,i]-lb)
-        }
-        if(mu.sim[ntax+1,i]>ub){
-          mu.sim[ntax+1,i]<-ub-(mu.sim[ntax+1,i]-ub)
-        }
+      while(!(all(mu.sim[n,]>lb&mu.sim[n,]<ub))){
+        mu.sim[n,]<-ifelse(mu.sim[n,]<lb,lb-(mu.sim[n,]-lb),mu.sim[n,])
+        mu.sim[n,]<-ifelse(mu.sim[n,]>ub,ub-(mu.sim[n,]-ub),mu.sim[n,])
       }
     }
-    ####
-    
-    for(e in 1:nrow(edges)){
-      n<-edges[e,2]
-      if(length(which(edges[,1]==n))==0){
-        next
-      }
-      a.n<-edges[e,1]
-      t<-edge.lens[e]
-      mu.sim[n,i]<-mu.sim[n,i]*p[n]*t+mu.sim[a.n,i]-mu.sim[a.n,i]*p[n]*t
-      if(i==1){
-        p.sim[n]<-p.sim[n]/(1-t*p.sim[n])+1/t #+1/t since the ancestral node trait value is now fixed
-      }
-      mu.sim[n,i]<-rtruncnorm(1,lb.trunc,ub.trunc,mu.sim[n,i],sigma*1/p.sim[n])
-      #sigma*1/p.sim[n]*sqrt(t/(t+t.d))*log(length(tree$tip.label)/(no.D[n]+1)))
-      
-      ##REFLECTIVE BOUNDS CALCULATIONS##
-      if(lb.reflective&!(ub.reflective)){
-        while(mu.sim[n,i]<lb){
-          if(mu.sim[n,i]<lb){
-            mu.sim[n,i]<-lb-(mu.sim[n,i]-lb)
-          }
-          if(mu.sim[n,i]>ub){
-            mu.sim[n,i]<-rtruncnorm(1,lb.trunc,ub.trunc,mu.sim[n,i],sigma*1/p[n])
-          }
-        }
-      }
-      if(ub.reflective&!(lb.reflective)){
-        while(mu.sim[n,i]>ub){
-          if(mu.sim[n,i]>ub){
-            mu.sim[n,i]<-ub-(mu.sim[n,i]-ub)
-          }
-          if(mu.sim[n,i]<lb){
-            mu.sim[n,i]<-rtruncnorm(1,lb.trunc,ub.trunc,mu.sim[n,i],sigma*1/p[n])
-          }
-        }
-      }
-      if(lb.reflective&ub.reflective){
-        while(mu.sim[n,i]<lb|mu.sim[n,i]>ub){
-          if(mu.sim[n,i]<lb){
-            mu.sim[n,i]<-lb-(mu.sim[n,i]-lb)
-          }
-          if(mu.sim[n,i]>ub){
-            mu.sim[n,i]<-ub-(mu.sim[n,i]-ub)
-          }
-        }
-      }
-      ####
-      
-    }
+    ###
   }
+  ####
   
   ##SIMULATING ANAGENETIC CHANGE ALONG BRANCHES##
   if(along.branch){
@@ -171,8 +154,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
         }
         for(t in ord.tmp){
           mu.tmp[t,]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=t,sig=sigma)
-          
-          ##REFLECTIVE BOUNDS CALCULATIONS##
+          ###reflective bounds calculations
           if(lb.reflective&!(ub.reflective)){
             while(!(all(mu.tmp[t,]>lb))){
               mu.tmp[t,]<-ifelse(mu.tmp[t,]<lb,lb-(mu.tmp[t,]-lb),mu.tmp[t,])
@@ -199,19 +181,14 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
               mu.tmp[t,]<-ifelse(mu.tmp[t,]>ub,ub-(mu.tmp[t,]-ub),mu.tmp[t,])
             }
           }
-          ####
-          
+          ###
         }
         mu.tmp<-mu.tmp[-c(1,nrow(mu.tmp)),]
         mu.mat[e,int.ts,]<-mu.tmp
       }
     }
-    if(!return.MLE){
-      out<-list(nodes=mu.sim,edges=mu.mat,ts=time.vec)
-      class(out)<-"simBM"
-      return(out)
-    }
   }
+  ####
   
   ##ROOT-TO-TIPS TREE TRAVERSAL TO GET OVERALL ML ESTIMATES##
   if(return.MLE){
@@ -227,17 +204,19 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
       mu.true[n]<-mu.true[n]*p.true[n]*t+mu.true[a.n]-mu.true[a.n]*p.true[n]*t
       p.true[n]<-p.true[n]/(1-t*p.true[n])+(p.true[a.n]-p.true[n])/(1+t*(p.true[a.n]-p.true[n]))
     }
-    if(!along.branch){
-      out<-list(nodes=mu.sim,MLE=mu.true,MLE.se=c(rep(0,ntax),sigma*1/p.true[ntax+(1:tree$Nnode)]))
-      class(out)<-"simBM"
-      return(out)
-    }else{
-      out<-list(nodes=mu.sim,edges=mu.mat,ts=time.vec,MLE=mu.true,MLE.se=c(rep(0,ntax),sigma*1/p.true[ntax+(1:tree$Nnode)]))
-      class(out)<-"simBM"
-      return(out)
-    }
   }
-  out<-list(nodes=mu.sim)
+  ####
+  
+  ##OUTPUT##
+  if(!return.MLE&!along.branch){
+    out<-list(nodes=mu.sim)
+  }else if(return.MLE&!along.branch){
+    out<-list(nodes=mu.sim,MLE=mu.true,MLE.se=c(rep(0,ntax),sigma*1/p.true[ntax+(1:tree$Nnode)]))
+  }else if(!return.MLE&along.branch){
+    out<-list(nodes=mu.sim,edges=mu.mat,ts=time.vec)
+  }else{
+    out<-list(nodes=mu.sim,edges=mu.mat,ts=time.vec,MLE=mu.true,MLE.se=c(rep(0,ntax),sigma*1/p.true[ntax+(1:tree$Nnode)]))
+  }
   class(out)<-"simBM"
-  return(out)
+  out
 }
