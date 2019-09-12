@@ -1,5 +1,5 @@
 plot.simBM<-function(sim,tree,n.sample=10,
-                     base.col=palette()[1],lwd=1,zoom.window=F,add=F,col.clades=NULL,alph=1,
+                     lwd=1,zoom.window=F,add=F,colmap="black",alph=NA,
                      xlab="time",ylab="trait value",rev.time=F,
                      xlim=c(0,max(sim$ts[length(sim$ts)],node.depth.edgelength(tree),na.rm=T)),
                      ylim=c(min(sim$edges[,sim$ts>=xlim[1]&sim$ts<=xlim[2],],
@@ -7,36 +7,14 @@ plot.simBM<-function(sim,tree,n.sample=10,
                             max(sim$edges[,sim$ts>=xlim[1]&sim$ts<=xlim[2],],
                                 sim$nodes[node.depth.edgelength(tree)>=xlim[1]&node.depth.edgelength(tree)<=xlim[2],],na.rm=T))){
   samp<-sample(1:ncol(sim$nodes),n.sample)
-  if(!(is.null(col.clades))){
-    if(is.vector(col.clades)){
-      col.clades<-data.frame(clades=col.clades,cols=palette()[2:(length(col.clades)+1)])
-    }
-    get.clade.edges<-function(tree,MRCA){
-      return(which(tree$edge[,2]%in%getDescendants(tree,MRCA)))
-    }
-    clade.edges<-lapply(c(length(tree$tip.label)+1,col.clades[,1]),get.clade.edges,tree=tree)
-    inc.ord<-order(lengths(clade.edges),decreasing=T)
-    clade.edges<-clade.edges[inc.ord]
-    for(c in 1:length(clade.edges)){
-      clade.edges[[c]]<-clade.edges[[c]][!(clade.edges[[c]]%in%unlist(clade.edges[-c]))]
-    }
-    clade.edges[inc.ord]<-clade.edges
-    clade.score<-rep(1:length(clade.edges),lengths(clade.edges))
-    edge.map<-cbind(clade.score,unlist(clade.edges))
-    edge.map<-edge.map[order(edge.map[,2]),]
-    col.vec<-c(base.col,as.character(col.clades[,2]))[edge.map[,1]]
-  }else{
-    col.vec<-rep(base.col,nrow(tree$edge))
+  edges<-tree$edge
+  if(length(colmap)<nrow(edges)){
+    colmap<-rep(colmap,length.out=nrow(edges))
   }
-  if(length(alph)>1){
-    names(alph)<-c(base.col,as.character(col.clades[,2]))
-    alph.vec<-alph[col.vec]
-  }else{
-    alph.vec<-rep(alph,length(col.vec))
+  if(length(alph)<nrow(edges)){
+    alph<-rep(alph,length.out=nrow(edges))
   }
-  col.vec<-col2rgb(col.vec,alpha=T)/255
-  col.vec[4,]<-alph.vec
-  col.vec<-mapply(rgb,red=col.vec[1,],green=col.vec[2,],blue=col.vec[3,],alpha=col.vec[4,])
+  colmap<-alter.cols(colmap,alph=alph)
   if(zoom.window){
     ylim=c(min(sim$edges[,sim$ts>=xlim[1]&sim$ts<=xlim[2],samp],
                sim$nodes[node.depth.edgelength(tree)>=xlim[1]&node.depth.edgelength(tree)<=xlim[2],samp],na.rm=T),
@@ -53,12 +31,12 @@ plot.simBM<-function(sim,tree,n.sample=10,
       axis(1,at=round(xlim[1]):round(xlim[2]),labels=round(xlim[1]):round(xlim[2]),tick=F,padj=-1)
     }
   }
-  edges<-tree$edge
+  
   for(i in samp){
     for(e in 1:nrow(edges)){
       lines(c(sim$nodes[edges[e,1],i],sim$edges[e,,i][!is.na(sim$edges[e,,i])],sim$nodes[edges[e,2],i])~
               c(node.depth.edgelength(tree)[edges[e,1]],sim$ts[!is.na(sim$edges[e,,i])],node.depth.edgelength(tree)[edges[e,2]]),
-            col=col.vec[e],lwd=lwd)
+            col=colmap[e],lwd=lwd)
     }
   }
 }
