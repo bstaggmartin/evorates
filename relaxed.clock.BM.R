@@ -7,7 +7,13 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
   ##CREATING SOME HELPFUL FUNCTIONS##
   #Sums edge-wise var-cov matrices, stored in the C array, scaling each matrix according to vector of scalars, rates.
   trans.C<-function(C,rates){
-    apply(array(sapply(1:length(rates),function(e) C[,,e]*rates[e]),dim=dim(C)),c(1,2),sum)
+    #quick fix--may want to recode function to better deal with accidental coercion of C array to vector later
+    #happens in cases where only one node is updated at a time--C[n,n,] turns into a vector...
+    if(length(dim(C))<3){
+      sum(C*rates)
+    }else{
+      apply(array(sapply(1:length(rates),function(e) C[,,e]*rates[e]),dim=dim(C)),c(1,2),sum)
+    }
   }
   
   #Propose a new set of values by adding a bactrian distributed variate to currently accepted set of values, pars. Use
@@ -18,7 +24,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
     indicator[2]<-0
     pars.prime<-rbac(length(pars),pars,
                      indicator*c(win[1:3],rep(win[5],length(tt$tip.label)),win[4],rep(win[5],tt$Nnode-1))/2,prop.mix)
-    if(any(update.indices)==2){
+    if(any(update.indices==2)){
       pars.prime[2]<-exp(rbac(1,0,win[2]/2,prop.mix))*pars[2]
     }
     pars.prime
@@ -42,7 +48,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,report.every=100,
       rvar.prior<-dexp(pars.prime[2],1/sqrt(rvar.pri),log=T)-dexp(pars[2],1/sqrt(rvar.pri),log=T)+log(sf)
     }else{rvar.prior<-0}
     if(any(update.indices==3)){
-      root.prior<-dnorm(pars.prime[3],0,r0.pri,log=T)-dnorm(pars[3],0,r0.pri,log=T)
+      root.prior<-dnorm(pars.prime[3],0,root.pri,log=T)-dnorm(pars[3],0,root.pri,log=T)
     }else{root.prior<-0}
     if(any(update.indices==(length(tt$tip.label)+4))){
       r0.prior<-dnorm(pars.prime[length(tt$tip.label)+4],0,r0.pri,log=T)-dnorm(pars[length(tt$tip.label)+4],0,r0.pri,log=T)
