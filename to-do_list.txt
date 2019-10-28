@@ -5,7 +5,8 @@ why this should work)
 
 2. Tweak coloring functions according to your '9/11 thoughts' (unfortunate date to have that thought, but oh well)
 
-3. Modify 'simBM' to make sure the order in which BM bridges are interpolated is INDEPENDENTLY randomized for EACH simulation; otherwise you get biases... (see 'BB_dump.R' for details). sample.evenly() can help with this behavior, but still produces predictable
+3. Modify 'simBM' to make sure the order in which BM bridges are interpolated is INDEPENDENTLY randomized for EACH simulation; otherwise
+you get biases... (see 'BB_dump.R' for details). sample.evenly() can help with this behavior, but still produces predictable
 biases in the simulations.'
 
 sub3. There's probably a way to do this while preserving performance--if you nest some function to find last and next events inside
