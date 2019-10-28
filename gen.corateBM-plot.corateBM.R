@@ -26,7 +26,7 @@ gen.corateBM<-function(tree,r0=0,rtrend=0,rvar=1,x0=0,xtrend=0,internal=F){
 
 
 plot.corateBM<-function(corateBM,tree,cols=colorRampPalette(c("skyblue2","cyan","chartreuse2","goldenrod","red"))(100),log=F,
-                        norm.lb=NULL,norm.ub=NULL,phenogram=F,xlab="time",ylab="trait",...){
+                        norm.lb=NULL,norm.ub=NULL,phenogram=F,xlab="time",ylab="trait",lwd=1,...){
   if(is.null(norm.lb)){
     if(log){
       norm.lb<-min(log(corateBM$edge.rates))
@@ -46,10 +46,12 @@ plot.corateBM<-function(corateBM,tree,cols=colorRampPalette(c("skyblue2","cyan",
   }else{
     rates.norm<-(corateBM$edge.rates-norm.lb)/(norm.ub-norm.lb)
   }
+  rates.norm[rates.norm>1]<-1
+  rates.norm[rates.norm<0]<-0
   rates.norm<-rates.norm*(length(cols)-1)+1
   col.vec<-cols[round(rates.norm)]
   if(!phenogram){
-    plot(tree,edge.color=col.vec,...)
+    plot(tree,edge.color=col.vec,edge.width=lwd,...)
   }else{
     if(!corateBM$params$internal){
       trait.vec<-c(corateBM$traits,fastAnc(tree,corateBM$traits))
@@ -59,6 +61,6 @@ plot.corateBM<-function(corateBM,tree,cols=colorRampPalette(c("skyblue2","cyan",
     plot(1,type='n',xlab=xlab,ylab=ylab,
          xlim=c(0,node.depth.edgelength(tree)[1]),ylim=c(min(corateBM$traits),max(corateBM$traits)))
     segments(x0=node.depth.edgelength(tree)[tree$edge[,1]],x1=node.depth.edgelength(tree)[tree$edge[,2]],
-             y0=trait.vec[tree$edge[,1]],y1=trait.vec[tree$edge[,2]],col=col.vec,...)
+             y0=trait.vec[tree$edge[,1]],y1=trait.vec[tree$edge[,2]],col=col.vec,lwd=lwd,...)
   }
 }

@@ -7,9 +7,9 @@
 
 relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.every=100, #basic MCMC pars
                            n.chains=1,sample.chains=1,report.chains=1,try.swap=Inf,dT=0, #multi-chain pars
-                           r0.prior.var=log(1e2),rtrend.prior.var=log(1e1),rvar.prior.var=log(1e1),root.prior.var=1e3, #prior pars
+                           r0.prior.var=log(1e2),rtrend.prior.var=log(1e3),rvar.prior.var=log(1e3),root.prior.var=6, #prior pars
                            block.size=10,win=matrix(1,ncol=n.chains,nrow=5),prop.mix=0.9, #prop. pars
-                           tune.period=1e4,win.update=50,adapt.decay=0.5,targ.accept=matrix(0.3,ncol=n.chains,nrow=5),report.win=T, #adaptive prop, pars
+                           tune.period=1e4,win.update=100,adapt.decay=0.5,targ.accept=matrix(0.3,ncol=n.chains,nrow=5),report.win=T, #adaptive prop, pars
                            tmp.par.mat="tmp.par.mat"){
   
   
@@ -59,27 +59,17 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
   }
   
   #Propose a new set of values by adding a bactrian distributed variate to currently accepted set of values, pars. Use
-  #update.indices to indicate which parameters are having new values proposed. Note that the rvar parameter, pars[2], is handled
-  #specially since it has new values proposed via sliding scale, rather than sliding window, moves.
+  #update.indices to indicate which parameters are having new values proposed.
   prop.vals<-function(pars,update.indices,win,nchain=n.chains,ntip=num.tip,nnod=num.node,mix=prop.mix){
     if(nchain==1){
       indicator<-ifelse((1:(nnod+3))%in%update.indices,1,0)
-      indicator[2]<-0
       pars.prime<-rbac(length(pars),pars,
                        indicator*c(win[1:3],rep(win[5],ntip),win[4],rep(win[5],ntip-2))/2,mix)
-      if(any(update.indices==2)){
-        pars.prime[2]<-exp(rbac(1,0,win[2]/2,mix))*pars[2]
-      }
       pars.prime
     }else{
       indicator<-sapply(1:nchain,function(ii) ifelse((1:(nnod+3))%in%as.vector(update.indices[,ii]),1,0))
-      var.ud<-which(indicator[2,]==1)
-      indicator[2,]<-0
       pars.prime<-matrix(rbac(length(pars),pars,
                               indicator*c(win[1:3,],rep(win[5,],ntip),win[4,],rep(win[5,],ntip-2))/2,mix),ncol=nchain)
-      if(length(var.ud)>0){
-        pars.prime[2,var.ud]<-exp(rbac(length(var.ud),0,win[2,]/2,mix))*pars[2,var.ud]
-      }
       pars.prime
     }
   }
@@ -95,12 +85,8 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
       if(any(update.indices==1)){
         rtrend.prior<-dnorm(pars.prime[1],0,rtrend.pri,log=T)-dnorm(pars[1],0,rtrend.pri,log=T)
       }else{rtrend.prior<-0}
-      ##note that a scale factor is calculated and added to the prior ratio for rvar; this is because this parameter is updated
-      ##according to a scaling, rather than sliding, move, so the proposal distribution is asymmetric and the hastings ratio is
-      ##not 1
       if(any(update.indices==2)){
-        sf<-pars.prime[2]/pars[2]
-        rvar.prior<-dexp(pars.prime[2],1/sqrt(rvar.pri),log=T)-dexp(pars[2],1/sqrt(rvar.pri),log=T)+log(sf)
+        rvar.prior<-dnorm(pars.prime[2],exp(1),rvar.pri,log=T)-dnorm(pars[2],exp(1),rvar.pri,log=T)
       }else{rvar.prior<-0}
       if(any(update.indices==3)){
         root.prior<-dnorm(pars.prime[3],0,root.pri,log=T)-dnorm(pars[3],0,root.pri,log=T)
@@ -113,10 +99,10 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
       if(any(update.indices==1)|any(update.indices==2)){
         rate.prior<-dmvn(pars.prime[1:nnod+3][-(ntip+1)],
                          mu=pars.prime[ntip+4]+pars.prime[1]*diag(cc)[-(ntip+1)],
-                         sigma=cc[-(ntip+1),-(ntip+1)]*pars.prime[2],log=T)-
+                         sigma=cc[-(ntip+1),-(ntip+1)]*exp(pars.prime[2]),log=T)-
           dmvn(pars[1:nnod+3][-(ntip+1)],
                mu=pars[ntip+4]+pars[1]*diag(cc)[-(ntip+1)],
-               sigma=cc[-(ntip+1),-(ntip+1)]*pars[2],log=T)
+               sigma=cc[-(ntip+1),-(ntip+1)]*exp(pars[2]),log=T)
         ##if neither rtrend nor rvar is updated, but some node rate parameters are updated, then the likelihood of the rate
         ##parameters for these nodes and adjacent nodes must be re-calculated
       }else if(any((4:length(pars))%in%update.indices)){
@@ -124,10 +110,10 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
         nodes<-nodes[(nodes!=ntip+1)&(!(is.na(nodes)))]
         rate.prior<-dmvn(X=pars.prime[nodes+3],
                          mu=pars.prime[ntip+4]+pars.prime[1]*diag(cc)[nodes],
-                         sigma=cc[nodes,nodes]*pars.prime[2],log=T)-
+                         sigma=cc[nodes,nodes]*exp(pars.prime[2]),log=T)-
           dmvn(X=pars[nodes+3],
                mu=pars[ntip+4]+pars[1]*diag(cc)[nodes],
-               sigma=cc[nodes,nodes]*pars[2],log=T)
+               sigma=cc[nodes,nodes]*exp(pars[2]),log=T)
       }else{rate.prior<-0}
       #update likelihood
       ##note that, since ancestral trait values are not being explicitly estimated, these multivariate normal likelihoods cannot
@@ -153,8 +139,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
         rtrend.prior<-dnorm(pars.prime[1,],0,rtrend.pri,log=T)-dnorm(pars[1,],0,rtrend.pri,log=T)
       }else{rtrend.prior<-rep(0,nchain)}
       if(any(update.indices==2)){
-        sf<-pars.prime[2,]/pars[2,]
-        rvar.prior<-dexp(pars.prime[2,],1/sqrt(rvar.pri),log=T)-dexp(pars[2,],1/sqrt(rvar.pri),log=T)+log(sf)
+        rvar.prior<-dnorm(pars.prime[2,],exp(1),rvar.pri,log=T)-dnorm(pars[2,],exp(1),rvar.pri,log=T)
       }else{rvar.prior<-rep(0,nchain)}
       if(any(update.indices==3)){
         root.prior<-dnorm(pars.prime[3,],0,root.pri,log=T)-dnorm(pars[3,],0,root.pri,log=T)
@@ -173,14 +158,14 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
                                            rep(1:n.all,each=nnod-1)),
                                    mu=split(pars.prime[ntip+4,all.ud]+pars.prime[1,all.ud]*rep(diag(cc)[-(ntip+1)],each=n.all),
                                             rep(1:n.all,nnod-1)),
-                                   sigma=lapply(1:n.all,function(ii) cc[-(ntip+1),-(ntip+1)]*pars[2,alls[ii]]),
+                                   sigma=lapply(1:n.all,function(ii) cc[-(ntip+1),-(ntip+1)]*exp(pars[2,alls[ii]])),
                                    log=T)-
           mapply(dmvn,
                  X=split(pars[c(1:ntip,(ntip+2):nnod)+3,all.ud],
                          rep(1:n.all,each=nnod-1)),
                  mu=split(pars[ntip+4,all.ud]+pars[1,all.ud]*rep(diag(cc)[-(ntip+1)],each=n.all),
                           rep(1:n.all,nnod-1)),
-                 sigma=lapply(1:n.all,function(ii) cc[-(ntip+1),-(ntip+1)]*pars[2,alls[ii]]),
+                 sigma=lapply(1:n.all,function(ii) cc[-(ntip+1),-(ntip+1)]*exp(pars[2,alls[ii]])),
                  log=T)
       }
       if(n.prt>0){
@@ -192,7 +177,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
                                    mu=lapply(1:n.prt,function(ii) 
                                      pars.prime[ntip+4,prts[ii]]+pars.prime[1,prts[ii]]*diag(cc)[nodes[[ii]]]),
                                    sigma=lapply(1:n.prt,function(ii) 
-                                     cc[nodes[[ii]],nodes[[ii]]]*pars.prime[2,prts[ii]]),
+                                     cc[nodes[[ii]],nodes[[ii]]]*exp(pars.prime[2,prts[ii]])),
                                    log=T)-
           mapply(dmvn,
                  X=lapply(1:n.prt,function(ii) 
@@ -200,7 +185,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
                  mu=lapply(1:n.prt,function(ii) 
                    pars[ntip+4,prts[ii]]+pars[1,prts[ii]]*diag(cc)[nodes[[ii]]]),
                  sigma=lapply(1:n.prt,function(ii) 
-                   cc[nodes[[ii]],nodes[[ii]]]*pars[2,prts[ii]]),
+                   cc[nodes[[ii]],nodes[[ii]]]*exp(pars[2,prts[ii]])),
                  log=T)
       }
       trt.ud<-sapply(1:nchain,function(ii) any((0:nnod+3)%in%update.indices[,ii]))
@@ -235,13 +220,13 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
     #"simple" priors
     if(nchain==1){
       rtrend.prior<-dnorm(pars[1],0,rtrend.pri,log=T)
-      rvar.prior<-dexp(pars[2],1/sqrt(rvar.pri),log=T)
+      rvar.prior<-dnorm(pars[2],exp(1),rvar.pri,log=T)
       root.prior<-dnorm(pars[3],0,root.pri,log=T)
       r0.prior<-dnorm(pars[ntip+4],0,r0.pri,log=T)
       #"complex" prior
       rate.prior<-dmvn(pars[1:nnod+3][-(ntip+1)],
                        mu=pars[ntip+4]+pars[1]*diag(cc)[-(ntip+1)],
-                       sigma=cc[-(ntip+1),-(ntip+1)]*pars[2],log=T)
+                       sigma=cc[-(ntip+1),-(ntip+1)]*exp(pars[2]),log=T)
       #getting edge-wise rates and calculating likelihood
       edge.rates<-exp(apply(cbind(pars[1:nnod+3][em[,1]],pars[1:nnod+3][em[,2]]),1,mean))
       log.lik<-dmvn(xx,
@@ -251,7 +236,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
       sum(rtrend.prior,rvar.prior,root.prior,r0.prior,rate.prior,log.lik)
     }else{
       rtrend.prior<-dnorm(pars[1,],0,rtrend.pri,log=T)
-      rvar.prior<-dexp(pars[2,],1/sqrt(rvar.pri),log=T)
+      rvar.prior<-dnorm(pars[2,],exp(1),rvar.pri,log=T)
       root.prior<-dnorm(pars[3,],0,root.pri,log=T)
       r0.prior<-dnorm(pars[ntip+4,],0,r0.pri,log=T)
       #"complex" prior
@@ -260,7 +245,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
                                  rep(1:nchain,each=nnod-1)),
                          mu=split(pars[ntip+4,]+pars[1,]*rep(diag(cc)[-(ntip+1)],each=nchain),
                                   rep(1:nchain,nnod-1)),
-                         sigma=lapply(1:nchain,function(ii) cc[-(ntip+1),-(ntip+1)]*pars[2,ii]),
+                         sigma=lapply(1:nchain,function(ii) cc[-(ntip+1),-(ntip+1)]*exp(pars[2,ii])),
                          log=T)
       #getting edge-wise rates and calculating likelihood
       edge.rates<-sapply(1:nchain,function(ii) 
@@ -314,11 +299,11 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
   }else if(inits=='random'){
     pars<-matrix(NA,ncol=n.chains,nrow=num.node+3)
     pars[c(1:3,num.tip+4),]<-rbind(rnorm(n.chains,0,rtrend.prior.var),
-                                   rexp(n.chains,1/sqrt(rvar.prior.var)),
+                                   rnorm(n.chains,0,rvar.prior.var),
                                    rnorm(n.chains,0,root.prior.var),
                                    rnorm(n.chains,0,r0.prior.var))
     for(e in 1:nrow(edge.mat)){
-      pars[edge.mat[e,2]+3,]<-rnorm(n.chains,pars[edge.mat[e,1]+3,]+pars[1,]*tree$edge.length[e],pars[2,]*tree$edge.length[e])
+      pars[edge.mat[e,2]+3,]<-rnorm(n.chains,pars[edge.mat[e,1]+3,]+pars[1,]*tree$edge.length[e],exp(pars[2,])*tree$edge.length[e])
     }
   }
   #make sure users can specify their own init values too!
@@ -410,3 +395,14 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
   
   par.mat
 }
+
+n<-11
+nump<-200
+update.indices<-matrix(sample(nrow(pars),nump),nrow=nump,ncol=n)
+slice.pars<-matrix(rep(pars,n),ncol=n)
+slice.pars.prime<-slice.pars
+ang<-rnorm(nump);ang<-ang/sqrt(sum(ang^2))
+slice.pars.prime[update.indices[,1],]<-t(sapply(1:nump,function(ii) 
+  seq(-ang[ii]*50+slice.pars[update.indices[ii,1],1],ang[ii]*50+slice.pars[update.indices[ii,1],1],length.out=n)))
+post<-get.post(pars)
+plot(get.R(slice.pars,slice.pars.prime,update.indices=update.indices,nchain=n),type='l')

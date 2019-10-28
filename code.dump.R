@@ -164,3 +164,6 @@ plot(apply(BM,1,mean)~apply(BM[,c(1,1000)],1,mean))
 summary(lm(apply(BM,1,mean)~apply(BM[,c(1,1000)],1,mean)))
 ##seems the expected value of a brownian bridge is probably the mean of the start and the end point, but there's considerable
 ##variance...is there a analytical solution for this? R^2 is only ~0.75...
+
+#Helpful snippet--notice modulo to correctly sort multiplications!
+apply(array(sapply(1:length(rates),function(e) C[,,(e-1)%%nrow(rates)+1]*rates[e]),dim=c(dim(C),ncol(rates))),c(1,2,4),sum)
