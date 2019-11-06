@@ -43,3 +43,9 @@ fastpgram<-function(x,tree,add=F,node.col='black',edge.col='black',...){
   segments(x0=node.depth.edgelength(tree)[tree$edge[,1]],x1=node.depth.edgelength(tree)[tree$edge[,2]],
            y0=x[tree$edge[,1]],y1=x[tree$edge[,2]],col=edge.col,...)
 }
+
+#get coordinates of nodes from phylogenetic plotting environment
+get.node.coords<-function(){
+  tmp<-get("last_plot.phylo",envir=.PlotPhyloEnv)[c('xx','yy')]
+  cbind(tmp[[1]],tmp[[2]])
+}

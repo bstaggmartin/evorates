@@ -39,7 +39,7 @@ color.clades<-function(tree,MRCAs,cols=palette()[2:(length(MRCAs)+1)],alph=NA,ba
     alph<-rep(alph,length.out=length(MRCAs))
   }
   cols<-alter.cols(cols,alph=alph)
-  clade.edges<-lapply(MRCAs,function(nn) which(tree$edge[,2]%in%getDescendants(tree,nn)))
+  clade.edges<-lapply(MRCAs,function(nn) which(tree$edge[,2]%in%phytools::getDescendants(tree,nn)))
   inc.ord<-order(lengths(clade.edges),decreasing=T)
   clade.edges<-clade.edges[inc.ord]
   for(c in 1:length(clade.edges)){
@@ -47,8 +47,6 @@ color.clades<-function(tree,MRCAs,cols=palette()[2:(length(MRCAs)+1)],alph=NA,ba
   }
   clade.edges[inc.ord]<-clade.edges
   clade.score<-rep(1:length(clade.edges),lengths(clade.edges))
-  # edge.map<-cbind(clade.score,unlist(clade.edges))
-  # edge.map<-edge.map[order(edge.map[,2]),]
   if(length(base.cols)<nrow(tree$edge)){
     base.cols<-rep(base.cols,length.out=nrow(tree$edge))
   }
@@ -207,7 +205,7 @@ alter.colmap<-function(tree,colmap,MRCAs=NULL,lins=NULL,alph=NA,mod.val=0,col=NU
     lin.edges<-NULL
   }
   if(!is.null(MRCAs)){
-    clade.edges<-lapply(MRCAs,function(nn) which(tree$edge[,2]%in%getDescendants(tree,nn)))
+    clade.edges<-lapply(MRCAs,function(nn) which(tree$edge[,2]%in%phytools::getDescendants(tree,nn)))
   }else{
     clade.edges<-NULL
   }
@@ -248,7 +246,7 @@ jitter.colors<-function(tree,colmap,MRCAs=NULL,lins=NULL,amount=0.1,red=T,green=
     lin.edges<-NULL
   }
   if(!is.null(MRCAs)){
-    clade.edges<-lapply(MRCAs,function(nn) which(tree$edge[,2]%in%getDescendants(tree,nn)))
+    clade.edges<-lapply(MRCAs,function(nn) which(tree$edge[,2]%in%phytools::getDescendants(tree,nn)))
   }else{
     clade.edges<-NULL
   }
