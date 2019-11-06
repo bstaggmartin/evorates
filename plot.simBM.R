@@ -6,7 +6,7 @@ plot.simBM<-function(sim,tree,n.sample=10,
                                 sim$nodes[node.depth.edgelength(tree)>=xlim[1]&node.depth.edgelength(tree)<=xlim[2],],na.rm=T),
                             max(sim$edges[,sim$ts>=xlim[1]&sim$ts<=xlim[2],],
                                 sim$nodes[node.depth.edgelength(tree)>=xlim[1]&node.depth.edgelength(tree)<=xlim[2],],na.rm=T))){
-  samp<-sample(1:ncol(sim$nodes),n.sample)
+  samp<-sample(1:ncol(sim$nodes),n.sample,replace=T)
   edges<-tree$edge
   if(length(colmap)<nrow(edges)){
     colmap<-rep(colmap,length.out=nrow(edges))

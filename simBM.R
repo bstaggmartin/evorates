@@ -1,16 +1,12 @@
 simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
                 lb=-Inf,ub=Inf,lb.reflective=F,ub.reflective=F){
   ##EXTRACTING USEFUL PARAMETERS##
+  tree<-ape::reorder.phylo(tree)
   ntax<-length(tree$tip.label)
   edges<-tree$edge
   edge.lens<-tree$edge.length
   tip.states<-x[tree$tip.label];names(tip.states)<-1:ntax
-  get.no.D<-function(node,tree){
-    tmp<-getDescendants(tree,node)
-    length(tmp[tmp<=length(tree$tip.label)])
-  }
-  no.D<-sapply(1:(tree$Nnode*2+1),get.no.D,tree=tree)
-  sigma<-mean(pic(x[1:ntax],phy=tree)^2)
+  sigma<-mean(ape::pic(x[1:ntax],phy=tree)^2)
   if(!lb.reflective){
     lb.trunc<-lb
   }else{
@@ -55,8 +51,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
   ##ROOT-TO-TIPS TREE TRAVERSAL WITH NOISE##
   mu.sim<-matrix(NA,nrow=nrow(edges)+1,ncol=n.sim)
   mu.sim[1:ntax,]<-rep(mu[1:ntax],n.sim)
-  mu.sim[ntax+1,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
-                              # *sqrt(ntax))
+  mu.sim[ntax+1,]<-truncnorm::rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
   p.sim<-(p[edges[,2]]/(1-edge.lens*p[edges[,2]])+1/edge.lens)[order(edges[,2])]
   p.sim<-append(p.sim,p[ntax+1],ntax)
   ###reflective bounds calculations
@@ -65,7 +60,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
       mu.sim[ntax+1,]<-ifelse(mu.sim[ntax+1,]<lb,lb-(mu.sim[ntax+1,]-lb),mu.sim[ntax+1,])
       if(!(all(mu.sim[ntax+1,]<ub))){
         problem.indices<-which(mu.sim[ntax+1,]>ub)
-        mu.tmp[ntax+1,problem.indices]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
+        mu.tmp[ntax+1,problem.indices]<-truncnorm::rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
       }
     }
   }
@@ -74,7 +69,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
       mu.sim[ntax+1,]<-ifelse(mu.sim[ntax+1,]>ub,ub-(mu.sim[ntax+1,]-ub),mu.sim[ntax+1,])
       if(!(all(mu.sim[ntax+1,]>lb))){
         problem.indices<-which(mu.sim[ntax+1,]<lb)
-        mu.sim[ntax+1,problem.indices]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
+        mu.sim[ntax+1,problem.indices]<-truncnorm::rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
       }
     }
   }
@@ -93,16 +88,14 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
     a.n<-edges[e,1]
     t<-edge.lens[e]
     mu.sim[n,]<-mu[n]*p[n]*t+mu.sim[a.n,]-mu.sim[a.n,]*p[n]*t
-    mu.sim[n,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
-                           # *sqrt(no.D[n]))
-                           # *log(length(tree$tip.label)/(no.D[n]+1)))
+    mu.sim[n,]<-truncnorm::rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
     ###reflective bounds calculations
     if(lb.reflective&!(ub.reflective)){
       while(!(all(mu.sim[n,]>lb))){
         mu.sim[ntax+1,]<-ifelse(mu.sim[n,]<lb,lb-(mu.sim[n,]-lb),mu.sim[n,])
         if(!(all(mu.sim[n,]<ub))){
           problem.indices<-which(mu.sim[n,]>ub)
-          mu.tmp[n,problem.indices]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
+          mu.tmp[n,problem.indices]<-truncnorm::rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
         }
       }
     }
@@ -111,7 +104,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
         mu.sim[ntax+1,]<-ifelse(mu.sim[n,]>ub,ub-(mu.sim[n,]-ub),mu.sim[n,])
         if(!(all(mu.sim[n,]>lb))){
           problem.indices<-which(mu.sim[n,]<lb)
-          mu.sim[n,problem.indices]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
+          mu.sim[n,problem.indices]<-truncnorm::rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
         }
       }
     }
@@ -144,12 +137,12 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
                       ii=split(mus,rep(1:sims,each=nrow(mus))),
                       tt=split(time.pts[time.pt],1:length(time.pt)),
                       tts=rep(list(time.pts),sims))
-      rtruncnorm(sims,int.lb.trunc,int.ub.trunc,
-                 (time.pts[time.pt]-time.pts[last.pt])/(time.pts[next.pt]-time.pts[last.pt])*
-                   (mus[cbind(next.pt,1:sims)]-mus[cbind(last.pt,1:sims)])+mus[cbind(last.pt,1:sims)],
-                 sig*(time.pts[time.pt]-time.pts[last.pt])*
-                   (time.pts[next.pt]-time.pts[time.pt])/
-                   (time.pts[next.pt]-time.pts[last.pt]))
+      truncnorm::rtruncnorm(sims,int.lb.trunc,int.ub.trunc,
+                            (time.pts[time.pt]-time.pts[last.pt])/(time.pts[next.pt]-time.pts[last.pt])*
+                              (mus[cbind(next.pt,1:sims)]-mus[cbind(last.pt,1:sims)])+mus[cbind(last.pt,1:sims)],
+                            sig*(time.pts[time.pt]-time.pts[last.pt])*
+                              (time.pts[next.pt]-time.pts[time.pt])/
+                              (time.pts[next.pt]-time.pts[last.pt]))
     }
     mu.mat<-array(NA,dim=c(nrow(edges),length(time.vec),n.sim))
     for(e in 1:nrow(edges)){
@@ -160,6 +153,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
         start.mus<-mu.sim[n1,];end.mus<-mu.sim[n2,]
         mu.tmp<-rbind(start.mus,mu.mat[e,int.ts,],end.mus)
         t.tmp<-c(t1,time.vec[int.ts],t2)
+        ###special case when there is only 1 intervening time point between two nodes
         if(length(int.ts)==1){
           mu.tmp[2,]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=rep(2,n.sim),sig=sigma)
           ###reflective bounds calculations
@@ -190,9 +184,9 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
             }
           }
           ###
+        ###normal case
         }else{
           ord.tmp<-sapply(1:n.sim,function(ii) sample(x=2:(length(t.tmp)-1),size=length(t.tmp)-2))
-          #ord.tmp<-sample.evenly(2:(length(t.tmp)-1))
           for(i in 1:nrow(ord.tmp)){
             tmp.indices<-cbind(ord.tmp[i,],1:n.sim)
             mu.tmp[tmp.indices]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=ord.tmp[i,],sig=sigma)

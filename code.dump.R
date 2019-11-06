@@ -167,3 +167,14 @@ summary(lm(apply(BM,1,mean)~apply(BM[,c(1,1000)],1,mean)))
 
 #Helpful snippet--notice modulo to correctly sort multiplications!
 apply(array(sapply(1:length(rates),function(e) C[,,(e-1)%%nrow(rates)+1]*rates[e]),dim=c(dim(C),ncol(rates))),c(1,2,4),sum)
+
+#fun thing you can do by getting the node coords from a phylo plot
+tree<-pbtree(n=50)
+plot(tree)
+merp<-get.node.coords()
+merp[,1]<-merp[,1]/max(merp[,1])
+merp[,2]<-merp[,2]-mean(merp[,2])
+merp[,2]<-merp[,2]*(-1/(merp[,1]+1.5)+1)
+plot(merp,col='white')
+segments(x0=merp[,1][tree$edge[,1]],x1=merp[,1][tree$edge[,2]],
+         y0=merp[,2][tree$edge[,1]],y1=merp[,2][tree$edge[,2]])
