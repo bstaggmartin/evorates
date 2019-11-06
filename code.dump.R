@@ -178,3 +178,15 @@ merp[,2]<-merp[,2]*(-1/(merp[,1]+1.5)+1)
 plot(merp,col='white')
 segments(x0=merp[,1][tree$edge[,1]],x1=merp[,1][tree$edge[,2]],
          y0=merp[,2][tree$edge[,1]],y1=merp[,2][tree$edge[,2]])
+
+#slice sampling exploration
+n<-11
+nump<-200
+update.indices<-matrix(sample(nrow(pars),nump),nrow=nump,ncol=n)
+slice.pars<-matrix(rep(pars,n),ncol=n)
+slice.pars.prime<-slice.pars
+ang<-rnorm(nump);ang<-ang/sqrt(sum(ang^2))
+slice.pars.prime[update.indices[,1],]<-t(sapply(1:nump,function(ii) 
+  seq(-ang[ii]*50+slice.pars[update.indices[ii,1],1],ang[ii]*50+slice.pars[update.indices[ii,1],1],length.out=n)))
+post<-get.post(pars)
+plot(get.R(slice.pars,slice.pars.prime,update.indices=update.indices,nchain=n),type='l')

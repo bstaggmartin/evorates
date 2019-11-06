@@ -1,0 +1,5 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+.Rhistory
+.pdf
+to-do_list.txt
