@@ -56,6 +56,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
   mu.sim<-matrix(NA,nrow=nrow(edges)+1,ncol=n.sim)
   mu.sim[1:ntax,]<-rep(mu[1:ntax],n.sim)
   mu.sim[ntax+1,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
+                              # *sqrt(ntax))
   p.sim<-(p[edges[,2]]/(1-edge.lens*p[edges[,2]])+1/edge.lens)[order(edges[,2])]
   p.sim<-append(p.sim,p[ntax+1],ntax)
   ###reflective bounds calculations
@@ -93,7 +94,8 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
     t<-edge.lens[e]
     mu.sim[n,]<-mu[n]*p[n]*t+mu.sim[a.n,]-mu.sim[a.n,]*p[n]*t
     mu.sim[n,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
-    #*log(length(tree$tip.label)/(no.D[n]+1)))
+                           # *sqrt(no.D[n]))
+                           # *log(length(tree$tip.label)/(no.D[n]+1)))
     ###reflective bounds calculations
     if(lb.reflective&!(ub.reflective)){
       while(!(all(mu.sim[n,]>lb))){
@@ -126,17 +128,28 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
   ##SIMULATING ANAGENETIC CHANGE ALONG BRANCHES##
   if(along.branch){
     time.vec<-seq(0,max(node.depth.edgelength(tree)),length.out=1/res)
+    get.last.pt<-function(ii,tt,tts){
+      max(which(!is.na(ii)&tts<tt))
+    }
+    get.next.pt<-function(ii,tt,tts){
+      min(which(!is.na(ii)&tts>tt))
+    }
     interp<-function(sims,mus,time.pts,time.pt,sig,int.lb.trunc=lb.trunc,int.ub.trunc=ub.trunc){
       mus<-as.matrix(mus)
-      last.pt<-max(which(!is.na(mus[,1])&time.pts<time.pts[time.pt]))
-      next.pt<-min(which(!is.na(mus[,1])&time.pts>time.pts[time.pt]))
-      return(rtruncnorm(sims,int.lb.trunc,int.ub.trunc,
-                        mus[last.pt,]+(time.pts[time.pt]-time.pts[last.pt])/
-                          (time.pts[next.pt]-time.pts[last.pt])*
-                          (mus[next.pt,]-mus[last.pt,]),
-                        sig*(time.pts[time.pt]-time.pts[last.pt])*
-                          (time.pts[next.pt]-time.pts[time.pt])/
-                          (time.pts[next.pt]-time.pts[last.pt])))
+      last.pt<-mapply(get.last.pt,
+                      ii=split(mus,rep(1:sims,each=nrow(mus))),
+                      tt=split(time.pts[time.pt],1:length(time.pt)),
+                      tts=rep(list(time.pts),sims))
+      next.pt<-mapply(get.next.pt,
+                      ii=split(mus,rep(1:sims,each=nrow(mus))),
+                      tt=split(time.pts[time.pt],1:length(time.pt)),
+                      tts=rep(list(time.pts),sims))
+      rtruncnorm(sims,int.lb.trunc,int.ub.trunc,
+                 (time.pts[time.pt]-time.pts[last.pt])/(time.pts[next.pt]-time.pts[last.pt])*
+                   (mus[cbind(next.pt,1:sims)]-mus[cbind(last.pt,1:sims)])+mus[cbind(last.pt,1:sims)],
+                 sig*(time.pts[time.pt]-time.pts[last.pt])*
+                   (time.pts[next.pt]-time.pts[time.pt])/
+                   (time.pts[next.pt]-time.pts[last.pt]))
     }
     mu.mat<-array(NA,dim=c(nrow(edges),length(time.vec),n.sim))
     for(e in 1:nrow(edges)){
@@ -147,41 +160,85 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=0.01,return.MLE=T,
         start.mus<-mu.sim[n1,];end.mus<-mu.sim[n2,]
         mu.tmp<-rbind(start.mus,mu.mat[e,int.ts,],end.mus)
         t.tmp<-c(t1,time.vec[int.ts],t2)
-        ord.tmp<-sample(x=2:(length(t.tmp)-1),size=length(t.tmp)-2)
-        #ord.tmp<-sample.evenly(2:(length(t.tmp)-1))
-        if(length(ord.tmp)==1){
-          ord.tmp<-2
-        }
-        for(t in ord.tmp){
-          mu.tmp[t,]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=t,sig=sigma)
+        if(length(int.ts)==1){
+          mu.tmp[2,]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=rep(2,n.sim),sig=sigma)
           ###reflective bounds calculations
           if(lb.reflective&!(ub.reflective)){
-            while(!(all(mu.tmp[t,]>lb))){
-              mu.tmp[t,]<-ifelse(mu.tmp[t,]<lb,lb-(mu.tmp[t,]-lb),mu.tmp[t,])
-              if(!(all(mu.tmp[t,]<ub))){
-                problem.indices<-which(mu.tmp[t,]>ub)
-                mu.tmp[t,problem.indices]<-interp(sims=length(problem.indices),mus=mu.tmp[,problem.indices],
-                                                  time.pts=t.tmp,time.pt=t,sig=sigma)
+            while(!(all(mu.tmp[2,]>lb))){
+              mu.tmp[2,]<-ifelse(mu.tmp[2,]<lb,lb-(mu.tmp[2,]-lb),mu.tmp[2,])
+              if(!(all(mu.tmp[2,]<ub))){
+                problem.indices<-which(mu.tmp[2,]>ub)
+                mu.tmp[2,problem.indices]<-interp(sims=length(problem.indices),mus=mu.tmp[,problem.indices],
+                                                  time.pts=t.tmp,time.pt=2,sig=sigma)
               }
             }
           }
           if(ub.reflective&!(lb.reflective)){
-            while(!(all(mu.tmp[t,]<ub))){
-              mu.tmp[t,]<-ifelse(mu.tmp[t,]>ub,ub-(mu.tmp[t,]-ub),mu.tmp[t,])
-              if(!(all(mu.tmp[t,]>lb))){
-                problem.indices<-which(mu.tmp[t,]<lb)
-                mu.tmp[t,problem.indices]<-interp(sims=length(problem.indices),mus=mu.tmp[,problem.indices],
-                                                  time.pts=t.tmp,time.pt=t,sig=sigma)
+            while(!(all(mu.tmp[2,]<ub))){
+              mu.tmp[2,]<-ifelse(mu.tmp[2,]>ub,ub-(mu.tmp[2,]-ub),mu.tmp[2,])
+              if(!(all(mu.tmp[2,]>lb))){
+                problem.indices<-which(mu.tmp[2,]<lb)
+                mu.tmp[2,problem.indices]<-interp(sims=length(problem.indices),mus=mu.tmp[,problem.indices],
+                                                  time.pts=t.tmp,time.pt=2,sig=sigma)
               }
             }
           }
           if(lb.reflective&ub.reflective){
-            while(!(all(mu.tmp[t,]>lb&mu.tmp[t,]<ub))){
-              mu.tmp[t,]<-ifelse(mu.tmp[t,]<lb,lb-(mu.tmp[t,]-lb),mu.tmp[t,])
-              mu.tmp[t,]<-ifelse(mu.tmp[t,]>ub,ub-(mu.tmp[t,]-ub),mu.tmp[t,])
+            while(!(all(mu.tmp[2,]>lb&mu.tmp[2,]<ub))){
+              mu.tmp[2,]<-ifelse(mu.tmp[2,]<lb,lb-(mu.tmp[2,]-lb),mu.tmp[2,])
+              mu.tmp[2,]<-ifelse(mu.tmp[2,]>ub,ub-(mu.tmp[2,]-ub),mu.tmp[2,])
             }
           }
           ###
+        }else{
+          ord.tmp<-sapply(1:n.sim,function(ii) sample(x=2:(length(t.tmp)-1),size=length(t.tmp)-2))
+          #ord.tmp<-sample.evenly(2:(length(t.tmp)-1))
+          for(i in 1:nrow(ord.tmp)){
+            tmp.indices<-cbind(ord.tmp[i,],1:n.sim)
+            mu.tmp[tmp.indices]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=ord.tmp[i,],sig=sigma)
+            ###reflective bounds calculations
+            if(lb.reflective&!(ub.reflective)){
+              while(!(all(mu.tmp[tmp.indices]>lb))){
+                mu.tmp[tmp.indices]<-ifelse(mu.tmp[tmp.indices]<lb,
+                                            lb-(mu.tmp[tmp.indices]-lb),
+                                            mu.tmp[tmp.indices])
+                if(!(all(mu.tmp[tmp.indices]<ub))){
+                  problem.indices<-which(mu.tmp[tmp.indices]>ub)
+                  mu.tmp[tmp.indices[problem.indices,]]<-interp(sims=length(problem.indices),
+                                                                mus=mu.tmp[,problem.indices],
+                                                                time.pts=t.tmp,
+                                                                time.pt=ord.tmp[i,problem.indices],
+                                                                sig=sigma)
+                }
+              }
+            }
+            if(ub.reflective&!(lb.reflective)){
+              while(!(all(mu.tmp[tmp.indices]<ub))){
+                mu.tmp[tmp.indices]<-ifelse(mu.tmp[tmp.indices]>ub,
+                                            ub-(mu.tmp[tmp.indices]-ub),
+                                            mu.tmp[tmp.indices])
+                if(!(all(mu.tmp[tmp.indices]>lb))){
+                  problem.indices<-which(mu.tmp[tmp.indices]<lb)
+                  mu.tmp[tmp.indices[problem.indices,]]<-interp(sims=length(problem.indices),
+                                                                mus=mu.tmp[,problem.indices],
+                                                                time.pts=t.tmp,
+                                                                time.pt=ord.tmp[i,problem.indices],
+                                                                sig=sigma)
+                }
+              }
+            }
+            if(lb.reflective&ub.reflective){
+              while(!(all(mu.tmp[tmp.indices]>lb&mu.tmp[tmp.indices]<ub))){
+                mu.tmp[tmp.indices]<-ifelse(mu.tmp[tmp.indices]<lb,
+                                            lb-(mu.tmp[tmp.indices]-lb),
+                                            mu.tmp[tmp.indices])
+                mu.tmp[tmp.indices]<-ifelse(mu.tmp[tmp.indices]>ub,
+                                            ub-(mu.tmp[tmp.indices]-ub),
+                                            mu.tmp[tmp.indices])
+              }
+            }
+            ###
+          }
         }
         mu.tmp<-mu.tmp[-c(1,nrow(mu.tmp)),]
         mu.mat[e,int.ts,]<-mu.tmp

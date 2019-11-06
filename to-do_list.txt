@@ -4,13 +4,14 @@ To do:
 why this should work)
 
 2. Tweak coloring functions according to your '9/11 thoughts' (unfortunate date to have that thought, but oh well)
+***11/5 update: DONE!
 
 3. Modify 'simBM' to make sure the order in which BM bridges are interpolated is INDEPENDENTLY randomized for EACH simulation; otherwise
 you get biases... (see 'BB_dump.R' for details). sample.evenly() can help with this behavior, but still produces predictable
-biases in the simulations.'
-
+biases in the simulations.
 sub3. There's probably a way to do this while preserving performance--if you nest some function to find last and next events inside
 the rnorm() function (rather than the other way around)
+***11/5 update: DONE! slows function down quite a bit, but probably a safer way to go
 
 4. Oh! And implement pruning algorithms to more efficiently calculate likelihoods in your MCMC (this is straight-forward for the trait
 lik's, but I'm still confused on how this works for rate lik's where ancestral states are explicitly estimated. The differences 
