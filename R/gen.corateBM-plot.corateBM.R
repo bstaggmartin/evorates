@@ -1,4 +1,19 @@
-#' @export
+#' @title Generates a covarying rates
+#' @name gen.corateBM
+#' @author Bruce
+#' 
+#' @param tree tree of class 'phylo'
+#' @param r0 numeric: root state of rate
+#' @param rvar numeric: rate of rate of Brownian motion over time 
+#' @param rtrend numeric: trend in the rate, 0 denotes no rate
+#' @param x0 numeric: trait value at the root
+#' @param xtrend trend in trait evolution
+#' @param internal logical: if true
+#' 
+#' @return plot of covarying rates 
+#' @examples 
+#' thresh(tree, )
+
 gen.corateBM<-function(tree,r0=0,rtrend=0,rvar=1,x0=0,xtrend=0,internal=F){
   
   node.rates<-rep(NA,tree$Nnode*2+1);node.rates[length(tree$tip.label)+1]<-r0
@@ -25,7 +40,7 @@ gen.corateBM<-function(tree,r0=0,rtrend=0,rvar=1,x0=0,xtrend=0,internal=F){
   return(out)
 }
 
-#' @export
+
 plot.corateBM<-function(corateBM,tree,cols=colorRampPalette(c("skyblue2","cyan","chartreuse2","goldenrod","red"))(100),log=F,
                         norm.lb=NULL,norm.ub=NULL,phenogram=F,xlab="time",ylab="trait",lwd=1,...){
   if(is.null(norm.lb)){

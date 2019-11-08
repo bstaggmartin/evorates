@@ -1,18 +1,22 @@
-#' @export
-thresh<-function(tree,sim,thresholds,n.sample=ncol(sim$nodes)){
-  
-  ##BASIC ERROR CHECKS AND FIXES##
-  if(!inherits(tree,'phylo')){
-    stop('tree should be object of class \"phylo\"')
-  }
-  if(!inherits(sim,'simBM')){
-    stop('sim should be object of class \"simBM\"')
-  }
-  n.sample<-round(n.sample)
-  if(n.sample<1){
-    stop('n.sample is less than 1')
-  }
-  ####
+#' @title This is a threshold model for the stochastic charaacter map created by simBM
+#' @name thresh
+#' @author Bruce
+#' 
+#' @description Threshold model which can 
+#' 
+#' @param tree tree of class 'phylo'
+#' @param sim resulting simmap of simBM
+#' @param thresholds vector of which trait values are 
+#' @param n.sample numeric value for how many simulations to be run
+#' 
+#' @return multiSimmap: list of simmaps and trees 
+#' 
+#' @examples 
+#' thresh(tree,thresholds = 0, n.sample = 1000)
+#' 
+#' 
+
+thresh <-function(tree,sim,thresholds,n.sample=ncol(sim$nodes)){
   
   samp<-sample(1:ncol(sim$nodes),n.sample)
   
@@ -29,7 +33,7 @@ thresh<-function(tree,sim,thresholds,n.sample=ncol(sim$nodes)){
   
   ##COLLATING NEW EDGE MATRIX WITH EXISTING ONE IN SIM OBJECT, IF IT EXISTS##
   if(!is.null(sim$edges)){
-    new.edges<-abind::abind(new.edges,sim$edges[,,samp],along=2)
+    new.edges<-abind(new.edges,sim$edges[,,samp],along=2)
     time.vec<-c(time.vec,sim$ts)
     ord<-order(time.vec)
     new.edges<-new.edges[,ord,]
@@ -41,7 +45,6 @@ thresh<-function(tree,sim,thresholds,n.sample=ncol(sim$nodes)){
   }
   
   
-  thresholds<-sort(thresholds)
   threshed<-sapply(thresholds,'<=',new.edges)
   states<-new.edges
   states[,,]<-rowSums(threshed)
@@ -55,8 +58,9 @@ thresh<-function(tree,sim,thresholds,n.sample=ncol(sim$nodes)){
                  maps=vector(mode="list",length=nrow(tree$edge)),
                  mapped.edge=matrix(NA,nrow=nrow(tree$edge),ncol=length(thresholds)+1))
   rownames(map.base[["mapped.edge"]])<-paste(n1,n2,sep=",")
-  colnames(map.base[["mapped.edge"]])<-0:length(thresholds)
+  colnames(map.base[["mapped.edge"]]) <- 0:length(thresholds)
   class(map.base)<-c("simmap","phylo")
+  
   for(i in 1:length(samp)){
     master.list[[i]]<-map.base
     for(e in 1:nrow(tree$edge)){
@@ -70,6 +74,7 @@ thresh<-function(tree,sim,thresholds,n.sample=ncol(sim$nodes)){
       if(length(crit.pts)==0){
         tmp.vec<-end.t-start.t
         names(tmp.vec)<-tmp.states[which(tmp.time.vec==start.t)]
+        
       }else{
         crossed.thresh<-mapply(seq,from=tmp.states[crit.pts],to=tmp.states[crit.pts+1],SIMPLIFY=F)
         crossed.thresh<-unlist(crossed.thresh)[-(sapply(crossed.thresh,which.min)+
