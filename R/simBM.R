@@ -1,29 +1,26 @@
-#' @importFrom truncnorm rtruncnorm
+#' @title ...
+#' @name simBM
+#' @author Bruce
+#' 
+#' @description This function simulates Brownian motion trajectories conditioned on tip values of a phylogeny with bounds
+#' 
+#' @param tree tree of class 'phylo'
+#' @param x numeric vector of trait data
+#' @param ub hard upperbound for boundary in trait-space
+#' @param lb hard lowerbound for boundary in trait-space
+#' @param lb.reflective,ub.reflective boolean, used to determine properties of lowerbound and upperbound
+#' @param res numeric vector which denotes the number of time points (res = 100 is equivalent to 100 time points)
+#' @param return.MLE boolean, determines whether to return maximum likelihood estimate
+#' @param n.sim number of simulations 
+#' @return list with lists of nodes, edges, maximum likelihood estimates, maximum likelihood standard errors and time points
+#' 
+#' @examples 
+#' simBM(tree,trait_dat)
+#' ...
 #' @export
+
 simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
                 lb=-Inf,ub=Inf,lb.reflective=F,ub.reflective=F,zero.brlen=1e-8){
-  ##BASIC ERROR CHECKS AND FIXES##
-  if(!inherits(tree,'phylo')){
-    stop('tree should be object of class \"phylo\"')
-  }
-  if(!inherits(x,'numeric')){
-    stop('x should be of class \"numeric\"')
-  }
-  if(!is.vector(x)){
-    stop('x looks like a matrix; simBM does not yet support multivariate trait evolution')
-  }
-  if(ub<lb){
-    stop('badly-defined boundaries; upper boundary must be greater than lower boundary')
-  }
-  if(lb>min(x)|ub<max(x)){
-    warning('range of x exceeds either upper or lower boundary;
-            simBM still worked, but the results are likely wonky (and most definitely unrealistic)')
-  }
-  n.sim<-round(n.sim);res<-round(res)
-  if(n.sim<1|res<1){
-    stop('n.sim or res is less than 1')
-  }
-  ####
   
   ##EXTRACTING USEFUL PARAMETERS##
   tree<-ape::reorder.phylo(tree)
@@ -31,21 +28,11 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
   edges<-tree$edge
   edge.lens<-tree$edge.length
   if(any(edge.lens==0)){
-    warning('tree has branch lengths of 0, which pose mathematical difficulties;
-            simBM set branch lengths of 0 to',zero.brlen,'.')
+    warning('Tree has branch lengths of 0, which pose mathematical difficulties (if anyone has a general solution to Inf/Inf, let me
+            know!); simBM set branch lengths of 0 to ',zero.brlen,'.')
     edge.lens[edge.lens==0]<-zero.brlen
   }
-  if(length(x)!=ntax){
-    stop('differing numbers of elements in x and tips in tree;
-         simBM does not yet support intraspecific variation or missing values--
-         please prune your tree and/or average trait values accordingly')
-  }
-  if(is.null(names(x))){
-    warning('x has no names;
-            simBM assumed elements of x are given in the same order as tip labels in tree')
-    names(x)<-tree$tip.label
-  }
-  tip.states<-x[tree$tip.label]
+  tip.states<-x[tree$tip.label];names(tip.states)<-1:ntax
   sigma<-mean(ape::pic(x[1:ntax],phy=multi2di(tree))^2)
   if(!lb.reflective){
     lb.trunc<-lb
@@ -196,11 +183,11 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
                       tt=split(time.pts[time.pt],1:length(time.pt)),
                       tts=rep(list(time.pts),sims))
       rtruncnorm(sims,int.lb.trunc,int.ub.trunc,
-                            (time.pts[time.pt]-time.pts[last.pt])/(time.pts[next.pt]-time.pts[last.pt])*
-                              (mus[cbind(next.pt,1:sims)]-mus[cbind(last.pt,1:sims)])+mus[cbind(last.pt,1:sims)],
-                            sig*(time.pts[time.pt]-time.pts[last.pt])*
-                              (time.pts[next.pt]-time.pts[time.pt])/
-                              (time.pts[next.pt]-time.pts[last.pt]))
+                 (time.pts[time.pt]-time.pts[last.pt])/(time.pts[next.pt]-time.pts[last.pt])*
+                   (mus[cbind(next.pt,1:sims)]-mus[cbind(last.pt,1:sims)])+mus[cbind(last.pt,1:sims)],
+                 sig*(time.pts[time.pt]-time.pts[last.pt])*
+                   (time.pts[next.pt]-time.pts[time.pt])/
+                   (time.pts[next.pt]-time.pts[last.pt]))
     }
     ###
     mu.mat<-array(NA,dim=c(nrow(edges),length(time.vec),n.sim))
@@ -223,7 +210,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
           if(lb.reflective|ub.reflective){
             mu.tmp[2,]<-refl.b.calc.interp(mu.tmp[2,],mu.tmp,sigma,t.tmp,2)
           }
-        ###normal case when there are multiple intervening time points
+          ###normal case when there are multiple intervening time points
         }else{
           ord.tmp<-sapply(1:n.sim,function(ii) sample(x=2:(length(t.tmp)-1),size=length(t.tmp)-2))
           for(i in 1:nrow(ord.tmp)){
