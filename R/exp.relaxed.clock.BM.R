@@ -5,6 +5,7 @@
 ##node-wise rates may attain...but having such a 'compound prior' is currently beyond my expertise in how to implement. Maybe I
 ##should talk to Gideon if he knows anything about it.
 
+#' @export
 relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.every=100, #basic MCMC pars
                            n.chains=1,sample.chains=1,report.chains=1,try.swap=Inf,dT=0, #multi-chain pars
                            r0.prior.var=log(1e2),rtrend.prior.var=log(1e3),rvar.prior.var=log(1e3),root.prior.var=6, #prior pars

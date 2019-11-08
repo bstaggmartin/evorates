@@ -1,17 +1,51 @@
+#' @importFrom truncnorm rtruncnorm
 #' @export
 simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
                 lb=-Inf,ub=Inf,lb.reflective=F,ub.reflective=F,zero.brlen=1e-8){
+  ##BASIC ERROR CHECKS AND FIXES##
+  if(!inherits(tree,'phylo')){
+    stop('tree should be object of class \"phylo\"')
+  }
+  if(!inherits(x,'numeric')){
+    stop('x should be of class \"numeric\"')
+  }
+  if(!is.vector(x)){
+    stop('x looks like a matrix; simBM does not yet support multivariate trait evolution')
+  }
+  if(ub<lb){
+    stop('badly-defined boundaries; upper boundary must be greater than lower boundary')
+  }
+  if(lb>min(x)|ub<max(x)){
+    warning('range of x exceeds either upper or lower boundary;
+            simBM still worked, but the results are likely wonky (and most definitely unrealistic)')
+  }
+  n.sim<-round(n.sim);res<-round(res)
+  if(n.sim<1|res<1){
+    stop('n.sim or res is less than 1')
+  }
+  ####
+  
   ##EXTRACTING USEFUL PARAMETERS##
   tree<-ape::reorder.phylo(tree)
   ntax<-length(tree$tip.label)
   edges<-tree$edge
   edge.lens<-tree$edge.length
   if(any(edge.lens==0)){
-    warning('Tree has branch lengths of 0, which pose mathematical difficulties (if anyone has a general solution to Inf/Inf, let me
-            know!); simBM set branch lengths of 0 to ',zero.brlen,'.')
+    warning('tree has branch lengths of 0, which pose mathematical difficulties;
+            simBM set branch lengths of 0 to',zero.brlen,'.')
     edge.lens[edge.lens==0]<-zero.brlen
   }
-  tip.states<-x[tree$tip.label];names(tip.states)<-1:ntax
+  if(length(x)!=ntax){
+    stop('differing numbers of elements in x and tips in tree;
+         simBM does not yet support intraspecific variation or missing values--
+         please prune your tree and/or average trait values accordingly')
+  }
+  if(is.null(names(x))){
+    warning('x has no names;
+            simBM assumed elements of x are given in the same order as tip labels in tree')
+    names(x)<-tree$tip.label
+  }
+  tip.states<-x[tree$tip.label]
   sigma<-mean(ape::pic(x[1:ntax],phy=multi2di(tree))^2)
   if(!lb.reflective){
     lb.trunc<-lb

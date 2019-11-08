@@ -22,7 +22,7 @@ test<-simBM(tree,x)
 
 
 
-plot.trait.profile<-function(simBM,tree,t,colmap,alph=0.2){
+plot.trait.profile<-function(sim,tree,t,colmap,alph=0.2){
   plot(0,xlim=c(min(simBM$edges,na.rm=T),max(simBM$edges,na.rm=T)),ylim=c(0,3),col='white',xlab="trait val",ylab="prob density")
   if(t==1){
     polygon(density(simBM$nodes[length(tree$tip.label)+1,]),col=alter.cols(colmap[length(colmap)],alph,name=T),border=NA)

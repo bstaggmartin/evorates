@@ -1,3 +1,4 @@
+#' @export
 gen.corateBM<-function(tree,r0=0,rtrend=0,rvar=1,x0=0,xtrend=0,internal=F){
   
   node.rates<-rep(NA,tree$Nnode*2+1);node.rates[length(tree$tip.label)+1]<-r0
@@ -24,7 +25,7 @@ gen.corateBM<-function(tree,r0=0,rtrend=0,rvar=1,x0=0,xtrend=0,internal=F){
   return(out)
 }
 
-
+#' @export
 plot.corateBM<-function(corateBM,tree,cols=colorRampPalette(c("skyblue2","cyan","chartreuse2","goldenrod","red"))(100),log=F,
                         norm.lb=NULL,norm.ub=NULL,phenogram=F,xlab="time",ylab="trait",lwd=1,...){
   if(is.null(norm.lb)){

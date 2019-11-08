@@ -1,16 +1,42 @@
 #Function to make a modify a vector of colors to have a certain level of transparency (or be darker/lighter)
 ##I find this is helpful in a number of visualization situations; use alph=NA to not modify original transparencies of colors
+#' Modify the transparency and shade of colors
+#'
+#' This function takes a vector of colors (x) as input and returns a vector of colors of the same length. The function can be used to
+#' either make the colors a certain transparency (alph) or make the colors lighter or darker (mod.val). alph and mod.val are recycled
+#' or truncated to be the same length as x.
+#'
+#' @param x Vector of color values, which can either be a character vector of color names and/or hexadecimal codes, or a numeric
+#' vector. In the latter case, the vecotr will be coerced to integers taken to correspond to colors currently defined in palette().
+#' @param alph Vector of alpha (transparency) values (numeric), with 0 corresponding to complete transparency and 1 to complete
+#' opaqueness. Use NA to not modify transparency of original color vector. alph must consist of NA's and/or values between 0 and 1.
+#' @param mod.val Vector of values (numeric) by which to brighten/darken colors, with positive and negative numbers corresponding to
+#' brightening and darkening, respectively. In this context, rgb values range from 0 to 1, and any modified values exceeding
+#' these boundaries will be rounded up or down, respectively.
+#' @return a vector of color values in hexadecimal code (character)
+#' @examples
+#' colors<-c('red','green','blue')
+#' alter.cols(colors,alph=c(0,1,0.5),mod.val=c(0,-0.5,-0.75))
+#' #recycling behavior 
+#' alter.cols(colors,alph=0.2,mod.val=-0.5)
+#' 
+#' @export
 alter.cols<-function(x,alph=NA,mod.val=0){
   if(is.character(x)){
     cols<-col2rgb(x,alpha=T)/255
+  }else if(all(is.numeric(x)&x>0)){
+    cols<-col2rgb(as.integer(x),alpha=T)/255
   }else{
-    cols<-col2rgb(as.numeric(x),alpha=T)/255
+    stop('x is not a recognizable vector of colors')
+  }
+  if(!all(is.na(alph)|(alph<=1&alph>=0))){
+    stop('alph is outside permitted range (0-1 or NA)')
   }
   cols[1:3,]<-cols[1:3,]+mod.val
   cols[1:3,]<-ifelse(cols[1:3,]<0,0,ifelse(cols[1:3,]>1,1,cols[1:3,]))
   alph<-ifelse(is.na(alph),cols[4,],alph)
   cols[4,]<-alph
-  return(mapply(rgb,red=cols[1,],green=cols[2,],blue=cols[3,],alpha=cols[4,]))
+  mapply(rgb,red=cols[1,],green=cols[2,],blue=cols[3,],alpha=cols[4,])
 }
 
 #Function to produce an edge-wise color map for a given phylogenetic tree where monophyletic clades are assigned to a given set of
@@ -31,6 +57,7 @@ alter.cols<-function(x,alph=NA,mod.val=0){
 ##11/5 update: completed 9/11 thoughts for color.clades, color.lineages, and alter.colmap
 ##basic system: generate colmaps using evolve.colors(), color.clades(), or color.lineages(), and further modify colmaps using
 ##color.clades()/color.lineages() (set base.cols equal to the colmap to be modified in this case), alter.colmap, and jitter.colors
+#' @export
 color.clades<-function(tree,MRCAs,cols=palette()[2:(length(MRCAs)+1)],alph=NA,base.cols=palette()[1],base.alph=NA){
   if(length(cols)<length(MRCAs)){
     cols<-rep(cols,length.out=length(MRCAs))
@@ -60,6 +87,7 @@ color.clades<-function(tree,MRCAs,cols=palette()[2:(length(MRCAs)+1)],alph=NA,ba
 
 #Same function as above, but for lineages rather than clades
 ##In the case of overlapping lineages, the color is resolved by averaging rgb values
+#' @export
 color.lineages<-function(tree,lins,cols=palette()[2:(length(lins)+1)],alph=NA,base.cols=palette()[1],base.alph=NA){
   if(length(cols)<length(lins)){
     cols<-rep(cols,length.out=length(lins))
@@ -101,6 +129,7 @@ color.lineages<-function(tree,lins,cols=palette()[2:(length(lins)+1)],alph=NA,ba
 ##Works by creating a 1 to 3-dimensional color space and simulating BM evolution within that space; to make sure lineages
 ##smoothly grade into one another, internal node values are estimated using ancestral state reconstruction, and edge-wise colors
 ##are averaged across adjacent nodes
+#' @export
 evolve.colors<-function(tree,col.space.res=100,col.space.d=2,rate=0.1,return.nodes=F,
                         hlim=c(0,1),s=1,v=1,slim=c(0.4,1),vlim=c(0.4,1),circular.h=ifelse(all(hlim==c(0,1)),T,F),alph=1,
                         plot=F,...){
@@ -114,9 +143,9 @@ evolve.colors<-function(tree,col.space.res=100,col.space.d=2,rate=0.1,return.nod
     if(is.vector(rate)){
       rate<-diag(rate,nrow=col.space.d,ncol=col.space.d)
     }
-    node.cols<-matrix(rmvn(1,rep(0,col.space.d*length(tree$tip.label)),kronecker(rate,vcv(tree))),ncol=col.space.d)
+    node.cols<-matrix(mvnfast::rmvn(1,rep(0,col.space.d*length(tree$tip.label)),kronecker(rate,vcv(tree))),ncol=col.space.d)
     rownames(node.cols)<-tree$tip.label
-    node.cols<-rbind(node.cols,anc.recon(node.cols,tree))
+    node.cols<-rbind(node.cols,Rphylopars::anc.recon(node.cols,tree))
     edge.cols<-sapply(1:col.space.d,function(ii) apply(matrix(node.cols[as.vector(tree$edge),ii],ncol=2),1,mean))
     if(return.nodes){
       edge.cols<-rbind(edge.cols,node.cols)
@@ -150,9 +179,9 @@ evolve.colors<-function(tree,col.space.res=100,col.space.d=2,rate=0.1,return.nod
     }
   }else{
     col.space<-rainbow(col.space.res,s,v,hlim[1],hlim[2])
-    node.cols<-t(rmvn(1,rep(0,length(tree$tip.label)),rate*vcv(tree)))
+    node.cols<-t(mvnfast::rmvn(1,rep(0,length(tree$tip.label)),rate*vcv(tree)))
     rownames(node.cols)<-tree$tip.label
-    node.cols<-c(node.cols,anc.recon(node.cols,tree))
+    node.cols<-c(node.cols,Rphylopars::anc.recon(node.cols,tree))
     edge.cols<-apply(matrix(node.cols[as.vector(tree$edge)],ncol=2),1,mean)
     if(return.nodes){
       edge.cols<-c(edge.cols,node.cols)
@@ -186,6 +215,7 @@ evolve.colors<-function(tree,col.space.res=100,col.space.d=2,rate=0.1,return.nod
 
 #Function to modify colors of edges in specified lineages/clades (can be inverted)
 ##Helpful for modifying existing colmaps or masking everything except for certain focal lineages/clades
+#' @export
 alter.colmap<-function(tree,colmap,MRCAs=NULL,lins=NULL,alph=NA,mod.val=0,col=NULL,invert=F){
   if(!is.null(lins)){
     if(is.character(lins)){
@@ -226,6 +256,7 @@ alter.colmap<-function(tree,colmap,MRCAs=NULL,lins=NULL,alph=NA,mod.val=0,col=NU
 
 #Function to "jitter" the RGB values of colors corresponding to specified clades or lineages
 ##Helpful if you want to be able to differentiate intra-clade/lineage edges
+#' @export
 jitter.colors<-function(tree,colmap,MRCAs=NULL,lins=NULL,amount=0.1,red=T,green=T,blue=T,alpha=F){
   amount<-amount*c(red,green,blue,alpha)
   if(!is.null(lins)){
@@ -255,4 +286,21 @@ jitter.colors<-function(tree,colmap,MRCAs=NULL,lins=NULL,amount=0.1,red=T,green=
   new.cols[,]<-ifelse(as.vector(new.cols)<0,0,ifelse(as.vector(new.cols)>1,1,as.vector(new.cols)))
   colmap[edges]<-rgb(new.cols)
   colmap
+}
+
+#' @export
+get.node.colmap<-function(colmap,tree){
+  edges<-tree$edge
+  node.colmap<-matrix(NA,ncol=4,nrow=max(edges))
+  for(n in 1:max(edges)){
+    adj.edges<-c(which(edges[,1]==n),which(edges[,2]==n))
+    adj.edge.cols<-t(col2rgb(colmap[adj.edges],alpha=T))/255
+    if(is.vector(adj.edge.cols)){
+      node.colmap[n,]<-adj.edge.cols
+    }else{
+      node.colmap[n,]<-apply(adj.edge.cols,2,mean)
+    }
+  }
+  node.colmap<-mapply(rgb,red=node.colmap[,1],green=node.colmap[,2],blue=node.colmap[,3],alpha=node.colmap[,4])
+  node.colmap
 }

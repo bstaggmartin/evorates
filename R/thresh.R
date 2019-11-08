@@ -1,4 +1,18 @@
+#' @export
 thresh<-function(tree,sim,thresholds,n.sample=ncol(sim$nodes)){
+  
+  ##BASIC ERROR CHECKS AND FIXES##
+  if(!inherits(tree,'phylo')){
+    stop('tree should be object of class \"phylo\"')
+  }
+  if(!inherits(sim,'simBM')){
+    stop('sim should be object of class \"simBM\"')
+  }
+  n.sample<-round(n.sample)
+  if(n.sample<1){
+    stop('n.sample is less than 1')
+  }
+  ####
   
   samp<-sample(1:ncol(sim$nodes),n.sample)
   
@@ -15,7 +29,7 @@ thresh<-function(tree,sim,thresholds,n.sample=ncol(sim$nodes)){
   
   ##COLLATING NEW EDGE MATRIX WITH EXISTING ONE IN SIM OBJECT, IF IT EXISTS##
   if(!is.null(sim$edges)){
-    new.edges<-abind(new.edges,sim$edges[,,samp],along=2)
+    new.edges<-abind::abind(new.edges,sim$edges[,,samp],along=2)
     time.vec<-c(time.vec,sim$ts)
     ord<-order(time.vec)
     new.edges<-new.edges[,ord,]
@@ -27,6 +41,7 @@ thresh<-function(tree,sim,thresholds,n.sample=ncol(sim$nodes)){
   }
   
   
+  thresholds<-sort(thresholds)
   threshed<-sapply(thresholds,'<=',new.edges)
   states<-new.edges
   states[,,]<-rowSums(threshed)
