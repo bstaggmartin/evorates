@@ -17,3 +17,16 @@ the rnorm() function (rather than the other way around)
 lik's, but I'm still confused on how this works for rate lik's where ancestral states are explicitly estimated. The differences 
 between multivariate normal and summed normal calculations is maddening, but you might wanna try rolling back to summed normals and 
 observing the resulting behaviors)
+
+5. Merge Nic's documentation into the main files
+
+6. Let simBM() handle multiple rate-regimes (also rename simBM?)
+
+7. Figure out a modeling soln--continuous traits may be integrated over edges to get edge-wise rates, but the problem lies in estimating some function that maps the continuous trait variation to rate variation (maybe try out some ML linear function for starters?)
+
+8. Make simBM() function output a heirarchical list of edge trait values, rather than an array? Dunno, it just has a lot of NAs...maybe play around with some of those sparse matrix representation things?
+
+9. Extensions to simBM(): multiple traits, intra-tip variation (Ives or Felsenstein should work), missing values...
+sub9. You may want to drop the bound options to develop the multivariate trait functions--that imposes a lot of complexity for not much gain for now...
+
+10. Make vignettes for thresholding and colmapping

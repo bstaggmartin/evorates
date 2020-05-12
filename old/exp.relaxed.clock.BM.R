@@ -5,6 +5,8 @@
 ##node-wise rates may attain...but having such a 'compound prior' is currently beyond my expertise in how to implement. Maybe I
 ##should talk to Gideon if he knows anything about it.
 
+#' @import mvnfast
+#' @import ape
 #' @export
 relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.every=100, #basic MCMC pars
                            n.chains=1,sample.chains=1,report.chains=1,try.swap=Inf,dT=0, #multi-chain pars
@@ -272,7 +274,7 @@ relaxed.clock.BM<-function(tree,x,n.iter=1e5,thin=100,inits='random',report.ever
   #Tip vcv array, sliced up by edge
   C.array<-array(0,dim=c(rep(num.tip,2),nrow(edge.mat)))
   for(e in 1:nrow(edge.mat)){
-    D<-getDescendants(tree,edge.mat[e,2]);D<-D[D<=num.tip]
+    D<-phytools::getDescendants(tree,edge.mat[e,2]);D<-D[D<=num.tip]
     C.array[as.matrix(cbind(expand.grid(D,D),rep(e,length(D)^2)))]<-tree$edge.length[e]
   }
   #All node vcv matrix

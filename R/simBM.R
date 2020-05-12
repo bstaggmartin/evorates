@@ -1,6 +1,6 @@
 #' @importFrom truncnorm rtruncnorm
 #' @export
-simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
+simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,rates=NULL,
                 lb=-Inf,ub=Inf,lb.reflective=F,ub.reflective=F,zero.brlen=1e-8){
   ##BASIC ERROR CHECKS AND FIXES##
   if(!inherits(tree,'phylo')){
@@ -68,7 +68,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
           x<-ifelse(x<app.lb,app.lb-(x-app.lb),x)
           if(!(all(x<app.ub))){
             problem.indices<-which(x>app.ub)
-            x[problem.indices]<-rtruncnorm(length(problem.indices),hard.lb,hard.ub,x.base,sig)
+            x[problem.indices]<-rtruncnorm(length(problem.indices),hard.lb,hard.ub,x.base,sqrt(sig))
           }
         }
       }
@@ -77,7 +77,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
           x<-ifelse(x>app.ub,app.ub-(x-app.ub),x)
           if(!(all(x>app.lb))){
             problem.indices<-which(x<app.lb)
-            x[problem.indices]<-rtruncnorm(length(problem.indices),hard.lb,hard.ub,x.base,sig)
+            x[problem.indices]<-rtruncnorm(length(problem.indices),hard.lb,hard.ub,x.base,sqrt(sig))
           }
         }
       }
@@ -97,7 +97,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
           if(!(all(x<app.ub))){
             problem.indices<-which(x>app.ub)
             x[problem.indices]<-interp(length(problem.indices),x.base[,problem.indices],time.pts,time.pt[problem.indices],
-                                       sig,hard.lb,hard.ub)
+                                       sqrt(sig),hard.lb,hard.ub)
           }
         }
       }
@@ -107,7 +107,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
           if(!(all(x>app.lb))){
             problem.indices<-which(x<app.lb)
             x[problem.indices]<-interp(length(problem.indices),x.base[,problem.indices],time.pts,time.pt[problem.indices],
-                                       sig,hard.lb,hard.ub)
+                                       sqrt(sig),hard.lb,hard.ub)
           }
         }
       }
@@ -121,6 +121,12 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
     }
   }
   ####
+  
+  #modify edge lengths
+  if(!is.null(rates)){
+    edge.lens.true<-edge.lens
+    edge.lens<-edge.lens*rates/sigma
+  }
   
   ##TIPs-TO-ROOT TREE TRAVERSAL##
   mu<-rep(NA,nrow(edges)+1)
@@ -154,11 +160,11 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
   ##ROOT-TO-TIPS TREE TRAVERSAL WITH NOISE##
   mu.sim<-matrix(NA,nrow=nrow(edges)+1,ncol=n.sim)
   mu.sim[1:ntax,]<-rep(mu[1:ntax],n.sim)
-  mu.sim[ntax+1,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sigma*1/p[ntax+1])
+  mu.sim[ntax+1,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu[ntax+1],sqrt(sigma*1/p[ntax+1]))
   p.sim<-(p[edges[,2]]/(1-edge.lens*p[edges[,2]])+1/edge.lens)[order(edges[,2])]
   p.sim<-append(p.sim,p[ntax+1],ntax)
   if(lb.reflective|ub.reflective){
-    mu.sim[ntax+1,]<-refl.b.calc(mu.sim[ntax+1,],mu[ntax+1],sigma*1/p[ntax+1])
+    mu.sim[ntax+1,]<-refl.b.calc(mu.sim[ntax+1,],mu[ntax+1],sqrt(sigma*1/p[ntax+1]))
   }
   for(e in 1:nrow(edges)){
     n<-edges[e,2]
@@ -168,12 +174,21 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
     a.n<-edges[e,1]
     t<-edge.lens[e]
     mu.sim[n,]<-mu[n]*p[n]*t+mu.sim[a.n,]-mu.sim[a.n,]*p[n]*t
-    mu.sim[n,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sigma*1/p.sim[n])
+    mu.sim[n,]<-rtruncnorm(n.sim,lb.trunc,ub.trunc,mu.sim[n,],sqrt(sigma*1/p.sim[n]))
     if(lb.reflective|ub.reflective){
-      mu.sim[n,]<-refl.b.calc(mu.sim[n,],mu[n],sigma*1/p.sim[n])
+      mu.sim[n,]<-refl.b.calc(mu.sim[n,],mu[n],sqrt(sigma*1/p.sim[n]))
     }
   }
   ####
+  
+  #unmodify edge lengths
+  if(!is.null(rates)){
+    edge.lens<-edge.lens.true
+  }
+  #make rates vector all sigma if no rate heterogeneity
+  if(is.null(rates)){
+    rates<-rep(sigma,nrow(edges))
+  }
   
   ##SIMULATING ANAGENETIC CHANGE ALONG BRANCHES##
   if(along.branch){
@@ -198,9 +213,9 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
       rtruncnorm(sims,int.lb.trunc,int.ub.trunc,
                             (time.pts[time.pt]-time.pts[last.pt])/(time.pts[next.pt]-time.pts[last.pt])*
                               (mus[cbind(next.pt,1:sims)]-mus[cbind(last.pt,1:sims)])+mus[cbind(last.pt,1:sims)],
-                            sig*(time.pts[time.pt]-time.pts[last.pt])*
+                            sqrt(sig*(time.pts[time.pt]-time.pts[last.pt])*
                               (time.pts[next.pt]-time.pts[time.pt])/
-                              (time.pts[next.pt]-time.pts[last.pt]))
+                              (time.pts[next.pt]-time.pts[last.pt])))
     }
     ###
     mu.mat<-array(NA,dim=c(nrow(edges),length(time.vec),n.sim))
@@ -219,18 +234,18 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
         t.tmp<-c(t1,time.vec[int.ts],t2)
         ###special case when there is only 1 intervening time point between two nodes
         if(length(int.ts)==1){
-          mu.tmp[2,]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=rep(2,n.sim),sig=sigma)
+          mu.tmp[2,]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=rep(2,n.sim),sig=rates[e])
           if(lb.reflective|ub.reflective){
-            mu.tmp[2,]<-refl.b.calc.interp(mu.tmp[2,],mu.tmp,sigma,t.tmp,2)
+            mu.tmp[2,]<-refl.b.calc.interp(mu.tmp[2,],mu.tmp,rates[e],t.tmp,2)
           }
         ###normal case when there are multiple intervening time points
         }else{
           ord.tmp<-sapply(1:n.sim,function(ii) sample(x=2:(length(t.tmp)-1),size=length(t.tmp)-2))
           for(i in 1:nrow(ord.tmp)){
             tmp.indices<-cbind(ord.tmp[i,],1:n.sim)
-            mu.tmp[tmp.indices]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=ord.tmp[i,],sig=sigma)
+            mu.tmp[tmp.indices]<-interp(sims=n.sim,mus=mu.tmp,time.pts=t.tmp,time.pt=ord.tmp[i,],sig=rates[e])
             if(lb.reflective|ub.reflective){
-              mu.tmp[tmp.indices]<-refl.b.calc.interp(mu.tmp[tmp.indices],mu.tmp,sigma,t.tmp,ord.tmp[i,])
+              mu.tmp[tmp.indices]<-refl.b.calc.interp(mu.tmp[tmp.indices],mu.tmp,rates[e],t.tmp,ord.tmp[i,])
             }
           }
         }
@@ -240,6 +255,12 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,
     }
   }
   ####
+  
+  #re-modify edge lengths
+  if(!is.null(rates)){
+    edge.lens.true<-edge.lens
+    edge.lens<-edge.lens*rates/sigma
+  }
   
   ##ROOT-TO-TIPS TREE TRAVERSAL TO GET OVERALL ML ESTIMATES##
   if(return.MLE){
