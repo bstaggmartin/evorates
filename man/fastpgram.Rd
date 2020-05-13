@@ -4,8 +4,7 @@
 \alias{fastpgram}
 \title{SimBM' function so I can easily switch between random sampling and this type of sampling when simulating BM bridges}
 \usage{
-fastpgram(x, tree, add = F, node.col = "black", edge.col = "black",
-  ...)
+fastpgram(x, tree, add = F, node.col = "black", edge.col = "black", ...)
 }
 \description{
 SimBM' function so I can easily switch between random sampling and this type of sampling when simulating BM bridges

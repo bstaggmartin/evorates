@@ -1,6 +1,6 @@
 #fit an autocorrelated Brownian motion model to a tree and trait data
 #' @export
-fit.corateBM<-function(tree,X,niter=2000,report=niter/10,optimize=F){
+fit.corateBM<-function(tree,X,niter=2000,report=niter/10,nchain=1,mcmc.pars=list(adapt_delta=0.8,max_treedepth=10)){
   X<-X[tree$tip.label]
   n<-length(tree$tip.label)
   n_e<-nrow(tree$edge)
@@ -49,25 +49,25 @@ fit.corateBM<-function(tree,X,niter=2000,report=niter/10,optimize=F){
   
   dat<-list('n'=n,'n_e'=n_e,'X'=X,'eV'=eV,'prune_T'=prune_T,'des_e'=des_e,'tip_e'=tip_e,'real_e'=real_e,'prune_seq'=prune_seq)
   
-  if(optimize){
-    ret<-optimizing(object=my.mod,data=dat)
-    
-    out<-ret$par[-((1:n_e)+2)]
-    
-    out[1]<-out[1]+log(o.Xsig2)-log(o.hgt)
-    out[2]<-out[2]/o.hgt
-    out[3]<-out[3]*sqrt(o.Xsig2)+o.X0
-    out[-(1:3)]<-out[-(1:3)]+log(o.Xsig2)-log(o.hgt)
-    
-    return(out)
-  }else{
-    ret<-sampling(object=my.mod,data=dat,iter=niter,chains=1,refresh=report,control=list(adapt_delta=0.8,max_treedepth=10))
-    
-    R0<-extract(ret,"R0",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
-    R<-extract(ret,"R",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
-    Rsig2<-extract(ret,"Rsig2",permute=FALSE,inc_warmup=FALSE)/o.hgt
-    X0<-extract(ret,"X0",permute=FALSE,inc_warmup=FALSE)*sqrt(o.Xsig2)+o.X0
-    
-    return(list('R'=R,'R0'=R0,'Rsig2'=Rsig2,'X0'=X0))
-  }
+  # if(optimize){
+  #   ret<-rstan::optimizing(object=stanmodels$univar_corateBM,data=dat)
+  #   
+  #   out<-ret$par[-((1:n_e)+2)]
+  #   
+  #   out[1]<-out[1]+log(o.Xsig2)-log(o.hgt)
+  #   out[2]<-out[2]/o.hgt
+  #   out[3]<-out[3]*sqrt(o.Xsig2)+o.X0
+  #   out[-(1:3)]<-out[-(1:3)]+log(o.Xsig2)-log(o.hgt)
+  #   
+  #   return(out)
+  # }else{
+  ret<-rstan:::sampling(object=stanmodels$univar_corateBM,data=dat,iter=niter,chains=nchain,refresh=report,control=mcmc.pars)
+  
+  R0<-rstan::extract(ret,"R0",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
+  R<-rstan::extract(ret,"R",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
+  Rsig2<-rstan::extract(ret,"Rsig2",permute=FALSE,inc_warmup=FALSE)/o.hgt
+  X0<-rstan::extract(ret,"X0",permute=FALSE,inc_warmup=FALSE)*sqrt(o.Xsig2)+o.X0
+  
+  return(list('R'=R,'R0'=R0,'Rsig2'=Rsig2,'X0'=X0))
+  # }
 }
