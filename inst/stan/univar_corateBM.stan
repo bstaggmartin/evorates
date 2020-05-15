@@ -35,12 +35,14 @@ model {
   vector[2 * n - 1] SS; //vector of pruning-compatible tree edge lengths multiplied by R values (+1 for stem edge)
   vector[2 * n - 1] XX; //vector of node-wise trait values in order of their ancestral edge numbers (+1 for stem edge)
   vector[2 * n - 1] VV; //vector of node-wise trait variances in order of their ancestral edge numbers (+1 for stem edge)
+  vector[n - 1] LL; //vector of log-likelihoods associated with node-wise contrast, in order of their ancestral edge numbers as ordered in prune_seq
+  int counter; //temporary integer to indicate position along LL for pruning loop
   vector[2] des_X; //temporary vector to indicate trait values of descendant nodes for pruning loop
   vector[2] des_V; //temporary vector to indicate trait variances of descendant nodes for pruning loop
   
   //priors
-	R0 ~ normal(0, 14); //prior on R0
-	Rsig2 ~ exponential(0.001); //prior on Rsig2
+	R0 ~ cauchy(0, 10); //prior on R0
+	Rsig2 ~ cauchy(0, 20); //prior on Rsig2
 	raw_R ~ std_normal(); //implies prior on R to be multinormal(R0, Rsig2 * eV)
 	X0 ~ normal(0, 100); //prior on x0
 	
@@ -49,12 +51,14 @@ model {
 	SS[real_e] = prune_T[real_e] .* exp(R);
   XX[tip_e] = X;
   VV[tip_e] = rep_vector(0, n);
+  counter = 0;
   for(i in prune_seq){
     des_X = XX[des_e[i, ]];
     des_V = VV[des_e[i, ]] + SS[des_e[i, ]];
-    target += normal_lpdf(des_X[1] - des_X[2] | 0, sum(des_V));
+    counter = counter + 1;
+    LL[counter] = - 0.5 * (log(2 * pi()) + log(sum(des_V)) + (des_X[1] - des_X[2])^2 / sum(des_V));
     XX[i] = des_V[2] / sum(des_V) * des_X[1] + des_V[1] / sum(des_V) * des_X[2];
     VV[i] = 1 / (1 / des_V[1] + 1 / des_V[2]);
   }
-	target += - 0.5 * (log(2 * pi()) + log(VV[1]) + (X0 - XX[1])^2 / sum(VV[des_e[1, ]]));
+	target += sum(LL) - 0.5 * (log(2 * pi()) + log(VV[1]) + (X0 - XX[1])^2 / sum(VV[des_e[1, ]]));
 }

@@ -1,11 +1,13 @@
 #plot an autocorrelated Brownian motion simulation
 #' @export
-plot.corateBM<-function(sim,tree,cols=c('deepskyblue','darkgray','brown1'),phylogram=T,...){
-  colramp<-colorRampPalette(cols)(100)
-  if((max(sim$R)-min(sim$R))==0){
-    colvec<-colramp[51]
+plot.corateBM<-function(sim,tree,cols=c('deepskyblue','darkgray','brown1'),phylogram=T,val.range=range(sim$R),res=100,...){
+  colramp<-colorRampPalette(cols)(res)
+  if((val.range[2]-val.range[1])==0){
+    colvec<-colramp[round((res+1)/2)]
   }else{
-    colvec<-colramp[round((sim$R-min(sim$R))/(max(sim$R)-min(sim$R))*99)+1]
+    inds<-round((sim$R-val.range[1])/(val.range[2]-val.range[1])*(res-1))+1
+    inds[inds<1]<-1;inds[inds>res]<-res
+    colvec<-colramp[inds]
   }
   if(phylogram){
     n<-length(tree$tip.label)

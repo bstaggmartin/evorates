@@ -1,6 +1,37 @@
 #fit an autocorrelated Brownian motion model to a tree and trait data
+
+
+#' Fit an autocorrelated rate Brownian motion model to a tree and trait data
+#'
+#' This function takes a vector of colors (x) as input and returns a vector of colors of the same length. The function can be used to
+#' either make the colors a certain transparency (alph) or make the colors lighter or darker (mod.val). alph and mod.val are recycled
+#' or truncated to be the same length as x.
+#'
+#' @param tree A phylogenetic tree of class 'phylo'; function does not yet support multiple phylogenies
+#' but will handle polytomous trees just fine.
+#' @param X A vector of trait data, with each element labelled according to its corresponding tip label
+#' @param report.quantiles A vector of values between 0 and 1, telling the function which quantiles of
+#' of the marginal posterior distributions for each parameter to calculate. Use this to extract
+#' 'credible intervals' for parameter values. Set to NULL if no quantiles are desired.
+#' @param report.MAPs TRUE or FALSE value: should the function calculate mean a posteriori parameter
+#' estimates?
+#' @param report.devs TRUE or FALSE value: should the function calculate differences between branch-wise
+#' rates and the 'background rate' (see below)?
+#' @param ... Extra arguments to pass to the Stan's mcmc sampler. Use \code{chains} to set the number
+#' of chains to run (4 by default), \code{iter} for the number of iterations (2000 by default),
+#' \code{warmup} for the number of iterations devoted to the warmup period (\code{iter/2} by default),
+#' \code{thin} to set the thinning rate (1 by default), and \code{refresh} to set the frequency of
+#' reporting in the R console (\code{iter/10} by default). See \code{rstan::sampling} for more options.
+#' @return 
 #' @export
-fit.corateBM<-function(tree,X,niter=2000,report=niter/10,nchain=1,mcmc.pars=list(adapt_delta=0.8,max_treedepth=10)){
+
+#5/14: add trace and profile plotting functions
+fit.corateBM<-function(tree,X,report.quantiles=c(0.025,0.5,0.975),report.MAPs=T,report.devs=T,...){
+  if(hasArg(chains)){
+    nchain<-list(...)$chains
+  }else{
+    nchain<-4
+  }
   X<-X[tree$tip.label]
   n<-length(tree$tip.label)
   n_e<-nrow(tree$edge)
@@ -8,7 +39,7 @@ fit.corateBM<-function(tree,X,niter=2000,report=niter/10,nchain=1,mcmc.pars=list
   o.hgt<-max(eV)
   tree$edge.length<-tree$edge.length/o.hgt
   eV<-eV/o.hgt
-  o.Xsig2<-sum(pic(X,multi2di(tree))^2)/n
+  o.Xsig2<-sum(ape::pic(X,ape::multi2di(tree))^2)/n
   xx<-c(X,tree$Node)
   for(e in nrow(tree$edge):0){
     if(e==0){
@@ -48,26 +79,55 @@ fit.corateBM<-function(tree,X,niter=2000,report=niter/10,nchain=1,mcmc.pars=list
   tip_e<-tip_e+1
   
   dat<-list('n'=n,'n_e'=n_e,'X'=X,'eV'=eV,'prune_T'=prune_T,'des_e'=des_e,'tip_e'=tip_e,'real_e'=real_e,'prune_seq'=prune_seq)
-  
-  # if(optimize){
-  #   ret<-rstan::optimizing(object=stanmodels$univar_corateBM,data=dat)
-  #   
-  #   out<-ret$par[-((1:n_e)+2)]
-  #   
-  #   out[1]<-out[1]+log(o.Xsig2)-log(o.hgt)
-  #   out[2]<-out[2]/o.hgt
-  #   out[3]<-out[3]*sqrt(o.Xsig2)+o.X0
-  #   out[-(1:3)]<-out[-(1:3)]+log(o.Xsig2)-log(o.hgt)
-  #   
-  #   return(out)
-  # }else{
-  ret<-rstan:::sampling(object=stanmodels$univar_corateBM,data=dat,iter=niter,chains=nchain,refresh=report,control=mcmc.pars)
-  
+  ret<-rstan::sampling(object=stanmodels$univar_corateBM,data=dat,...)
   R0<-rstan::extract(ret,"R0",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
   R<-rstan::extract(ret,"R",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
   Rsig2<-rstan::extract(ret,"Rsig2",permute=FALSE,inc_warmup=FALSE)/o.hgt
   X0<-rstan::extract(ret,"X0",permute=FALSE,inc_warmup=FALSE)*sqrt(o.Xsig2)+o.X0
-  
-  return(list('R'=R,'R0'=R0,'Rsig2'=Rsig2,'X0'=X0))
-  # }
+  wgts<-tree$edge.length/sum(tree$edge.length)
+  if(nchain==1){
+    bg.rate=apply(R,1,function(ii) sum(ii*wgts))
+  }else{
+    bg.rate=apply(R,c(1,2),function(ii) sum(ii*wgts))
+  }
+  out<-list(chains=array(dim=c(dim(R)[1],4+dim(R)[3],nchain)))
+  dimnames(out$chains)<-list(iterations=NULL,
+                             parameters=c('R0','Rsig2','X0','bg.rate',
+                                          paste('R[',1:dim(R)[3],']',sep='')),
+                             chains=paste('chain',1:nchain))
+  out$chains[,'R0',]<-R0
+  out$chains[,'Rsig2',]<-Rsig2
+  out$chains[,'X0',]<-X0
+  out$chains[,'bg.rate',]<-bg.rate
+  out$chains[,5:dim(out$chains)[2],]<-aperm(R,c(1,3,2))
+  if(report.devs){
+    if(nchain==1){
+      rate.devs<-apply(R[,1,],2,function(ii) ii-bg.rate)
+    }else{
+      rate.devs<-R
+      for(i in 1:dim(R)[2]){
+        rate.devs[,i,]<-apply(R[,i,],2,function(ii) ii-bg.rate[,i])
+      }
+    }
+    tmp<-dimnames(out$chains)
+    tmp[[2]]<-c(tmp[[2]],paste('R[',1:dim(R)[3],'] dev',sep=''))
+    out$chains<-aperm(array(c(aperm(out$chains,c(1,3,2)),rate.devs),
+                            dim=c(dim(R)[1],nchain,4+dim(R)[3]*2),dimnames=tmp[c(1,3,2)]),
+                      c(1,3,2))
+  }
+  if(!is.null(report.quantiles)){
+    out$quantiles<-apply(out$chains,c(2,3),quantile,probs=report.quantiles)
+  }
+  if(report.MAPs){
+    out$MAPs<-apply(out$chains,c(2,3),mean)
+  }
+  if(report.devs){
+    if(nchain==1){
+      out$post.probs<-apply(rate.devs,2,function(ii) sum(ii>0)/length(ii))
+    }else{
+      out$post.probs<-t(apply(rate.devs,c(2,3),function(ii) sum(ii>0)/length(ii)))
+      colnames(out$post.probs)<-paste('chain',1:nchain)
+    }
+  }
+  out
 }

@@ -33,7 +33,7 @@ static int current_statement_begin__;
 stan::io::program_reader prog_reader__() {
     stan::io::program_reader reader;
     reader.add_event(0, 0, "start", "model_univar_corateBM");
-    reader.add_event(62, 60, "end", "model_univar_corateBM");
+    reader.add_event(66, 64, "end", "model_univar_corateBM");
     return reader;
 }
 #include <stan_meta_header.hpp>
@@ -356,62 +356,78 @@ public:
             stan::math::initialize(VV, DUMMY_VAR__);
             stan::math::fill(VV, DUMMY_VAR__);
             current_statement_begin__ = 38;
+            validate_non_negative_index("LL", "(n - 1)", (n - 1));
+            Eigen::Matrix<local_scalar_t__, Eigen::Dynamic, 1> LL((n - 1));
+            stan::math::initialize(LL, DUMMY_VAR__);
+            stan::math::fill(LL, DUMMY_VAR__);
+            current_statement_begin__ = 39;
+            int counter(0);
+            (void) counter;  // dummy to suppress unused var warning
+            stan::math::fill(counter, std::numeric_limits<int>::min());
+            current_statement_begin__ = 40;
             validate_non_negative_index("des_X", "2", 2);
             Eigen::Matrix<local_scalar_t__, Eigen::Dynamic, 1> des_X(2);
             stan::math::initialize(des_X, DUMMY_VAR__);
             stan::math::fill(des_X, DUMMY_VAR__);
-            current_statement_begin__ = 39;
+            current_statement_begin__ = 41;
             validate_non_negative_index("des_V", "2", 2);
             Eigen::Matrix<local_scalar_t__, Eigen::Dynamic, 1> des_V(2);
             stan::math::initialize(des_V, DUMMY_VAR__);
             stan::math::fill(des_V, DUMMY_VAR__);
-            current_statement_begin__ = 42;
-            lp_accum__.add(normal_log<propto__>(R0, 0, 14));
-            current_statement_begin__ = 43;
-            lp_accum__.add(exponential_log<propto__>(Rsig2, 0.001));
             current_statement_begin__ = 44;
-            lp_accum__.add(std_normal_log<propto__>(raw_R));
+            lp_accum__.add(cauchy_log<propto__>(R0, 0, 10));
             current_statement_begin__ = 45;
+            lp_accum__.add(cauchy_log<propto__>(Rsig2, 0, 20));
+            current_statement_begin__ = 46;
+            lp_accum__.add(std_normal_log<propto__>(raw_R));
+            current_statement_begin__ = 47;
             lp_accum__.add(normal_log<propto__>(X0, 0, 100));
-            current_statement_begin__ = 48;
+            current_statement_begin__ = 50;
             stan::math::assign(SS, rep_vector(0, ((2 * n) - 1)));
-            current_statement_begin__ = 49;
+            current_statement_begin__ = 51;
             stan::model::assign(SS, 
                         stan::model::cons_list(stan::model::index_multi(real_e), stan::model::nil_index_list()), 
                         elt_multiply(stan::model::rvalue(prune_T, stan::model::cons_list(stan::model::index_multi(real_e), stan::model::nil_index_list()), "prune_T"), stan::math::exp(R)), 
                         "assigning variable SS");
-            current_statement_begin__ = 50;
+            current_statement_begin__ = 52;
             stan::model::assign(XX, 
                         stan::model::cons_list(stan::model::index_multi(tip_e), stan::model::nil_index_list()), 
                         X, 
                         "assigning variable XX");
-            current_statement_begin__ = 51;
+            current_statement_begin__ = 53;
             stan::model::assign(VV, 
                         stan::model::cons_list(stan::model::index_multi(tip_e), stan::model::nil_index_list()), 
                         rep_vector(0, n), 
                         "assigning variable VV");
-            current_statement_begin__ = 52;
+            current_statement_begin__ = 54;
+            stan::math::assign(counter, 0);
+            current_statement_begin__ = 55;
             for (auto& i : prune_seq) {
                 (void) i;  // dummy to suppress unused var warning
-                current_statement_begin__ = 53;
-                stan::math::assign(des_X, stan::model::rvalue(XX, stan::model::cons_list(stan::model::index_multi(stan::model::rvalue(des_e, stan::model::cons_list(stan::model::index_uni(i), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "des_e")), stan::model::nil_index_list()), "XX"));
-                current_statement_begin__ = 54;
-                stan::math::assign(des_V, add(stan::model::rvalue(VV, stan::model::cons_list(stan::model::index_multi(stan::model::rvalue(des_e, stan::model::cons_list(stan::model::index_uni(i), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "des_e")), stan::model::nil_index_list()), "VV"), stan::model::rvalue(SS, stan::model::cons_list(stan::model::index_multi(stan::model::rvalue(des_e, stan::model::cons_list(stan::model::index_uni(i), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "des_e")), stan::model::nil_index_list()), "SS")));
-                current_statement_begin__ = 55;
-                lp_accum__.add(normal_log((get_base1(des_X, 1, "des_X", 1) - get_base1(des_X, 2, "des_X", 1)), 0, sum(des_V)));
                 current_statement_begin__ = 56;
+                stan::math::assign(des_X, stan::model::rvalue(XX, stan::model::cons_list(stan::model::index_multi(stan::model::rvalue(des_e, stan::model::cons_list(stan::model::index_uni(i), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "des_e")), stan::model::nil_index_list()), "XX"));
+                current_statement_begin__ = 57;
+                stan::math::assign(des_V, add(stan::model::rvalue(VV, stan::model::cons_list(stan::model::index_multi(stan::model::rvalue(des_e, stan::model::cons_list(stan::model::index_uni(i), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "des_e")), stan::model::nil_index_list()), "VV"), stan::model::rvalue(SS, stan::model::cons_list(stan::model::index_multi(stan::model::rvalue(des_e, stan::model::cons_list(stan::model::index_uni(i), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "des_e")), stan::model::nil_index_list()), "SS")));
+                current_statement_begin__ = 58;
+                stan::math::assign(counter, (counter + 1));
+                current_statement_begin__ = 59;
+                stan::model::assign(LL, 
+                            stan::model::cons_list(stan::model::index_uni(counter), stan::model::nil_index_list()), 
+                            (-(0.5) * ((stan::math::log((2 * stan::math::pi())) + stan::math::log(sum(des_V))) + (pow((get_base1(des_X, 1, "des_X", 1) - get_base1(des_X, 2, "des_X", 1)), 2) / sum(des_V)))), 
+                            "assigning variable LL");
+                current_statement_begin__ = 60;
                 stan::model::assign(XX, 
                             stan::model::cons_list(stan::model::index_uni(i), stan::model::nil_index_list()), 
                             (((get_base1(des_V, 2, "des_V", 1) / sum(des_V)) * get_base1(des_X, 1, "des_X", 1)) + ((get_base1(des_V, 1, "des_V", 1) / sum(des_V)) * get_base1(des_X, 2, "des_X", 1))), 
                             "assigning variable XX");
-                current_statement_begin__ = 57;
+                current_statement_begin__ = 61;
                 stan::model::assign(VV, 
                             stan::model::cons_list(stan::model::index_uni(i), stan::model::nil_index_list()), 
                             (1 / ((1 / get_base1(des_V, 1, "des_V", 1)) + (1 / get_base1(des_V, 2, "des_V", 1)))), 
                             "assigning variable VV");
             }
-            current_statement_begin__ = 59;
-            lp_accum__.add((-(0.5) * ((stan::math::log((2 * stan::math::pi())) + stan::math::log(get_base1(VV, 1, "VV", 1))) + (pow((X0 - get_base1(XX, 1, "XX", 1)), 2) / sum(stan::model::rvalue(VV, stan::model::cons_list(stan::model::index_multi(stan::model::rvalue(des_e, stan::model::cons_list(stan::model::index_uni(1), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "des_e")), stan::model::nil_index_list()), "VV"))))));
+            current_statement_begin__ = 63;
+            lp_accum__.add((sum(LL) - (0.5 * ((stan::math::log((2 * stan::math::pi())) + stan::math::log(get_base1(VV, 1, "VV", 1))) + (pow((X0 - get_base1(XX, 1, "XX", 1)), 2) / sum(stan::model::rvalue(VV, stan::model::cons_list(stan::model::index_multi(stan::model::rvalue(des_e, stan::model::cons_list(stan::model::index_uni(1), stan::model::cons_list(stan::model::index_omni(), stan::model::nil_index_list())), "des_e")), stan::model::nil_index_list()), "VV")))))));
             }
         } catch (const std::exception& e) {
             stan::lang::rethrow_located(e, current_statement_begin__, prog_reader__());
