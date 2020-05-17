@@ -1,15 +1,16 @@
 #fit an autocorrelated Brownian motion model to a tree and trait data
 
 
-#' Fit an autocorrelated rate Brownian motion model to a tree and trait data
+#' Fit an autocorrelated rate Brownian motion model
 #'
-#' This function takes a vector of colors (x) as input and returns a vector of colors of the same length. The function can be used to
-#' either make the colors a certain transparency (alph) or make the colors lighter or darker (mod.val). alph and mod.val are recycled
-#' or truncated to be the same length as x.
+#' This 
 #'
 #' @param tree A phylogenetic tree of class 'phylo'; function does not yet support multiple phylogenies
 #' but will handle polytomous trees just fine.
-#' @param X A vector of trait data, with each element labelled according to its corresponding tip label
+#' @param X A vector of trait data, with each element labelled according to its corresponding tip label.
+#' @param R0.prior The standard deviation of the cauchy prior for the \code{R0} parameter
+#' @param Rsig2.prior The standard deviation of the cauchy prior for the \code{Rsig2} parameter.
+#' @param X0.prior The standard deviation of the normal prior for the \code{X0} parameter.
 #' @param report.quantiles A vector of values between 0 and 1, telling the function which quantiles of
 #' of the marginal posterior distributions for each parameter to calculate. Use this to extract
 #' 'credible intervals' for parameter values. Set to NULL if no quantiles are desired.
@@ -26,7 +27,9 @@
 #' @export
 
 #5/14: add trace and profile plotting functions
-fit.corateBM<-function(tree,X,report.quantiles=c(0.025,0.5,0.975),report.MAPs=T,report.devs=T,...){
+fit.corateBM<-function(tree,X,R0.prior=10,Rsig2.prior=20,X0.prior=100,
+                       report.quantiles=c(0.025,0.5,0.975),report.MAPs=T,report.devs=T,...,
+                       optimize=F){
   if(hasArg(chains)){
     nchain<-list(...)$chains
   }else{
@@ -77,8 +80,21 @@ fit.corateBM<-function(tree,X,report.quantiles=c(0.025,0.5,0.975),report.MAPs=T,
   prune_T<-c(0,tree$edge.length)
   prune_seq<-((2*n-2):1)[-((2*n-2)-tip_e)]
   tip_e<-tip_e+1
-  
-  dat<-list('n'=n,'n_e'=n_e,'X'=X,'eV'=eV,'prune_T'=prune_T,'des_e'=des_e,'tip_e'=tip_e,'real_e'=real_e,'prune_seq'=prune_seq)
+  dat<-list('n'=n,'n_e'=n_e,'X'=X,'eV'=eV,
+            'prune_T'=prune_T,'des_e'=des_e,'tip_e'=tip_e,'real_e'=real_e,'prune_seq'=prune_seq,
+            'R0_prior'=R0.prior,'Rsig2_prior'=Rsig2.prior,'X0_prior'=X0.prior)
+  if(optimize){
+    ret<-rstan::optimizing(object=stanmodels$univar_corateBM,data=dat,...)
+    
+    out<-ret$par[-((1:n_e)+2)]
+    
+    out[1]<-out[1]+log(o.Xsig2)-log(o.hgt)
+    out[2]<-out[2]/o.hgt
+    out[3]<-out[3]*sqrt(o.Xsig2)+o.X0
+    out[-(1:3)]<-out[-(1:3)]+log(o.Xsig2)-log(o.hgt)
+    
+    return(out)
+  }
   ret<-rstan::sampling(object=stanmodels$univar_corateBM,data=dat,...)
   R0<-rstan::extract(ret,"R0",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
   R<-rstan::extract(ret,"R",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
@@ -100,6 +116,7 @@ fit.corateBM<-function(tree,X,report.quantiles=c(0.025,0.5,0.975),report.MAPs=T,
   out$chains[,'X0',]<-X0
   out$chains[,'bg.rate',]<-bg.rate
   out$chains[,5:dim(out$chains)[2],]<-aperm(R,c(1,3,2))
+  class(out)<-'corateBM_fit'
   if(report.devs){
     if(nchain==1){
       rate.devs<-apply(R[,1,],2,function(ii) ii-bg.rate)
@@ -123,10 +140,9 @@ fit.corateBM<-function(tree,X,report.quantiles=c(0.025,0.5,0.975),report.MAPs=T,
   }
   if(report.devs){
     if(nchain==1){
-      out$post.probs<-apply(rate.devs,2,function(ii) sum(ii>0)/length(ii))
+      out$post.probs<-apply(out%chains%'dev',2,function(ii) sum(ii>0)/length(ii))
     }else{
-      out$post.probs<-t(apply(rate.devs,c(2,3),function(ii) sum(ii>0)/length(ii)))
-      colnames(out$post.probs)<-paste('chain',1:nchain)
+      out$post.probs<-apply(out%chains%'dev',c(2,3),function(ii) sum(ii>0)/length(ii))
     }
   }
   out

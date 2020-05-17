@@ -1,33 +1,62 @@
 library(phytools)
 tree<-pbtree(n=50,scale=5)
-test<-gen.corateBM(tree,Rsig2=10)
+test<-gen.corateBM(tree,Rsig2=0.8)
+tree<-keep.tip(whales$phy,rownames(whales$dat))
+X<-whales$dat[,'lnlength']
 plot(test,tree)
-test.fit<-fit.corateBM(tree,test$X,chains=2)
-
-rates<-test.fit$R
-
+test.fit<-fit.corateBM(tree,X,optimize = T)
 #sample a random branch and plot the trace
-branch<-sample(dim(rates)[3],1)
-plot(rates[,1,branch],type='l',main=paste('ln(rate) for branch',branch))
+branch<-sample(nrow(tree$edge),1)
+plot(test.fit%chains%branch,type='l',main=paste('ln(rate) for branch',branch))
 abline(h=test$R[branch],col='red')
 
 #look at overall correlation
-plot(0,type='n',xlim=range(test$R),ylim=range(test.fit$R),xlab='true ln(rate)',ylab='ln(rate) posterior distribution')
-for(i in 1:(dim(test.fit$R)[3])){
-  dens<-density(test.fit$R[,1,i],bw=0.2)
+plot(0,type='n',xlim=range(test$R),ylim=range(test.fit$chains),
+     xlab='true ln(rate)',ylab='ln(rate) posterior distribution')
+for(i in 1:nrow(tree$edge)){
+  dens<-density(test.fit%chains%i,bw=0.2)
   yy<-c(dens$x,rev(dens$x))
   xx<-0.05*c(dens$y,-1*rev(dens$y))+test$R[i]
   polygon(yy~xx,border=NA,col='gray')
 }
-points(as.vector(apply(test.fit$R,c(2,3),median))~test$R,pch=16)
+points(as.vector(apply(test.fit%chains%1:nrow(tree$edge),2,median))~test$R,pch=16)
 abline(0,1,col='red')
 
-branch<-sample(dim(rates)[3],2)
-plot(rates[,1,branch[1]]-rates[,1,branch[2]],type='l',
+branch<-sample(nrow(tree$edge),2)
+plot(test.fit%chains%branch[1]-test.fit%chains%branch[2],type='l',
      main=paste('ln(rate) diff for branch',branch[1],'and',branch[2]))
 abline(h=test$R[branch[1]]-test$R[branch[2]],col='red')
-hist(test.fit$Rsig2,breaks=40)
 
+hist(test.fit%chains%'Rsig2',breaks=40)
+
+tol.el<-sum(tree$edge.length)
+wgts<-tree$edge.length/tol.el
+plot(0,type='n',xlim=c(1,nrow(tree$edge)),ylim=range(test.fit%chains%'dev'),
+     xlab='branch',ylab='ln(rate) posterior distribution')
+nrs<-dim(test.fit$quantiles)[1]
+chain<-1
+for(i in 1:nrow(tree$edge)){
+  tmp<-grep(paste('\\[',i,'\\] dev',sep=''),dimnames(test.fit$chains)[[2]])
+  segments(x0=i,
+           y0=c(min(test.fit$chains[,tmp,chain]),test.fit$quantiles[c(1,nrs),tmp,chain]),
+           y1=c(test.fit$quantiles[c(1,nrs),tmp,chain],max(test.fit$chains[,tmp,chain])),
+           lty=c(2,1,2),col=c('gray','black','gray'))
+}
+t.bg.rate<-sum(test$R*wgts)
+points(test$R-t.bg.rate,col='blue',pch=16)
+abline(h=0,col='red',lty=2)
+plot(tree,edge.width=10,cex=0.8)
+tmp<-list(R=apply(test.fit%chains%'R[',2,mean));class(tmp)<-'corateBM'
+plot(tmp,tree,phylogram=F,edge.width=10,cex=0.7)
+coords<-get("last_plot.phylo",envir=.PlotPhyloEnv)
+#trans<-abs(test.fit$post.probs[,1]-0.5)/0.5
+trans<-test.fit$post.probs
+segments(y0=coords$yy[as.vector(t(tree$edge))],
+         y1=coords$yy[rep(tree$edge[,2],each=2)],
+         x0=coords$xx[rep(tree$edge[,1],each=2)],
+         x1=coords$xx[as.vector(t(tree$edge))],
+         col=rep(rgb(trans,trans,trans),each=2),
+         lwd=4)
 
 mat<-matrix(nrow=dim(rates)[3],ncol=dim(rates)[3])
 simmat<-mat
@@ -46,14 +75,18 @@ abline(h=c(0.025,0.975),col='red',lty=2)
 sum(as.vector(mat)<0.025&as.vector(simmat)>0,na.rm=T)/length(!is.na(mat))
 #~5% type I error!
 
-tmp<-list(R=as.vector(apply(test.fit$R,c(2,3),median)));class(tmp)<-'corateBM'
-plot(test,tree,phylogram=F,edge.width=3,val.range=range(tmp$R))
-plot(tmp,tree,phylogram=F,edge.width=3)
+
+par(mfrow=c(1,2))
+plot(test,tree,phylogram=F,edge.width=3,val.range=range(test.fit$chains[,grep(paste('R\\[\\d+\\]$',sep=''),rownames(test.fit$MAPs)),1]))
+plot(tmp,tree,phylogram=F,edge.width=3,val.range=range(test.fit$chains[,grep(paste('R\\[\\d+\\]$',sep=''),rownames(test.fit$MAPs)),1]))
 
 
-
-
-
+hmmm<-apply(test.fit$quantiles,2,function(ii) abs(sum(diff(ii))))
+par(mfrow=c(1,1))
+plot(hmmm[grep(paste('R\\[\\d+\\]$',sep=''),rownames(test.fit$MAPs))]~tree$edge.length,col=rgb(1-wgts/max(wgts),1-wgts/max(wgts),1-wgts/max(wgts)),pch=16)
+#shortest branches towards tips have the most precise estimates, but honestly the diff isn't great
+#it seems you might actually estimate deep branches with more precision since they have more info
+#'flowing' into them from the tips...
 
 
 
@@ -89,11 +122,20 @@ plot(pp,ylim=c(0,1),
      col=c('black','red')[(pp<0.025|pp>0.975)+1])
 abline(h=c(0.025,0.975),col='red',lty=2)
 
-plot(0,type='n',xlim=c(1,nrow(tree$edge)),ylim=range(test.fit$chains$rate.devs),xlab='branch',ylab='ln(rate) posterior distribution')
+tol.el<-sum(tree$edge.length)
+wgts<-tree$edge.length/tol.el
+plot(0,type='n',xlim=c(1,nrow(tree$edge)),ylim=range(test.fit$chains[,grep('dev',dimnames(test.fit$chains)[[2]]),1]),xlab='branch',ylab='ln(rate) posterior distribution')
+nrs<-dim(test.fit$quantiles)[1]
+chain<-1
 for(i in 1:nrow(tree$edge)){
-  segments(x0=i,y0=c(min(test.fit$chains$rate.devs[,1,i]),test.fit$quantiles$rate.devs[c(1,dim(test.fit$quantiles$rate.dev)[1]),1,i]),
-           y1=c(test.fit$quantiles$rate.devs[c(1,dim(test.fit$quantiles$rate.dev)[1]),1,i],max(test.fit$chains$rate.devs[,1,i])),lty=c(2,1,2),col=c('gray','black','gray'))
+  tmp<-grep(paste('\\[',i,'\\] dev',sep=''),dimnames(test.fit$chains)[[2]])
+  segments(x0=i,
+           y0=c(min(test.fit$chains[,tmp,chain]),test.fit$quantiles[c(1,nrs),tmp,chain]),
+           y1=c(test.fit$quantiles[c(1,nrs),tmp,chain],max(test.fit$chains[,tmp,chain])),
+           lty=c(2,1,2),col=c('gray','black','gray'))
 }
 t.bg.rate<-sum(test$R*wgts)
 points(test$R-t.bg.rate,col='blue',pch=16)
 abline(h=0,col='red',lty=2)
+
+#DUDE! 5 minutes to do 4 chains for a 100 tip tree

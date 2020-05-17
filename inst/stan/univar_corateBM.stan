@@ -11,6 +11,11 @@ data {
 	int tip_e[n]; //integer vector indicating pruning-compatible tree edge numbers giving rise to nodes in order of node numbers (+1 for stem edge)
 	int real_e[n_e]; //integer vector indicating which pruning-compatible tree edges are 'real' and have associated R values (+1 for stem edge)
 	int prune_seq[n - 1]; //integer vector indicating the sequence of edge numbers to iterate over for pruning algorithm (+1 for stem edge)
+	
+	//prior specification
+	real R0_prior;
+	real Rsig2_prior;
+	real X0_prior;
 }
 
 transformed data {
@@ -22,8 +27,8 @@ transformed data {
 parameters {
 	real R0; //rate at root of tree (log scale)
 	real<lower=0> Rsig2; //accumulation in rate variance per unit time
-	vector[n_e] raw_R; //vector of untransformed rate values along edges (log scale)
 	real X0; //trait value at root of tree
+	vector[n_e] raw_R; //vector of untransformed rate values along edges (log scale)
 }
 
 transformed parameters {
@@ -41,10 +46,10 @@ model {
   vector[2] des_V; //temporary vector to indicate trait variances of descendant nodes for pruning loop
   
   //priors
-	R0 ~ cauchy(0, 10); //prior on R0
-	Rsig2 ~ cauchy(0, 20); //prior on Rsig2
+	R0 ~ cauchy(0, R0_prior); //prior on R0
+	Rsig2 ~ cauchy(0, Rsig2_prior); //prior on Rsig2
+	X0 ~ normal(0, X0_prior); //prior on x0
 	raw_R ~ std_normal(); //implies prior on R to be multinormal(R0, Rsig2 * eV)
-	X0 ~ normal(0, 100); //prior on x0
 	
 	//pruning algorithm = calculate likelihood of trait data given rate values
 	SS = rep_vector(0, 2 * n - 1);
