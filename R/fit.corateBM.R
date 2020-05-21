@@ -28,22 +28,30 @@
 
 #5/14: add trace and profile plotting functions
 fit.corateBM<-function(tree,X,R0.prior=10,Rsig2.prior=20,X0.prior=100,
-                       report.quantiles=c(0.025,0.5,0.975),report.MAPs=T,report.devs=T,...,
-                       optimize=F){
+                       intra.var=F,X.prior=200,Xsig2.prior=50,
+                       report.quantiles=c(0.025,0.5,0.975),report.MAPs=T,report.devs=T,...){
+  
+  
   if(hasArg(chains)){
     nchain<-list(...)$chains
   }else{
     nchain<-4
   }
-  X<-X[tree$tip.label]
+  
+  
+  if(is.null(names(X))){
+    stop('trait data (X) is unlabelled--please name each element with its corresponding tip label')
+  }
+  X<-X[unlist(sapply(tree$tip.label,function(ii) which(names(X)==ii)))]
+  n_obs<-sapply(tree$tip.label,function(ii) sum(names(X)==ii))
   n<-length(tree$tip.label)
   n_e<-nrow(tree$edge)
   eV<-edge.vcv(tree)
   o.hgt<-max(eV)
   tree$edge.length<-tree$edge.length/o.hgt
   eV<-eV/o.hgt
-  o.Xsig2<-sum(ape::pic(X,ape::multi2di(tree))^2)/n
-  xx<-c(X,tree$Node)
+  o.Xsig2<-sum(ape::pic(tapply(X,names(X),mean)[tree$tip.label],ape::multi2di(tree))^2)/n
+  xx<-c(tapply(X,names(X),mean)[tree$tip.label],tree$Nnode)
   for(e in nrow(tree$edge):0){
     if(e==0){
       des<-which(tree$edge[,1]==n+1)
@@ -59,7 +67,6 @@ fit.corateBM<-function(tree,X,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   }
   o.X0<-xx[n+1]
   X<-(X-o.X0)/sqrt(o.Xsig2)
-  
   if(!is.binary(tree)){
     poly.nodes<-which(sapply(1:max(tree$edge),function(ii) length(which(ii==tree$edge[,1])))>2)
     d_poly<-lapply(poly.nodes,function(ii) which(ii==tree$edge[,1]))
@@ -80,23 +87,43 @@ fit.corateBM<-function(tree,X,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   prune_T<-c(0,tree$edge.length)
   prune_seq<-((2*n-2):1)[-((2*n-2)-tip_e)]
   tip_e<-tip_e+1
-  dat<-list('n'=n,'n_e'=n_e,'X'=X,'eV'=eV,
+  
+  
+  dat<-list('n'=n,'n_e'=n_e,'eV'=eV,
             'prune_T'=prune_T,'des_e'=des_e,'tip_e'=tip_e,'real_e'=real_e,'prune_seq'=prune_seq,
             'R0_prior'=R0.prior,'Rsig2_prior'=Rsig2.prior,'X0_prior'=X0.prior)
-  if(optimize){
-    ret<-rstan::optimizing(object=stanmodels$univar_corateBM,data=dat,...)
-    
-    out<-ret$par[-((1:n_e)+2)]
-    
-    out[1]<-out[1]+log(o.Xsig2)-log(o.hgt)
-    out[2]<-out[2]/o.hgt
-    out[3]<-out[3]*sqrt(o.Xsig2)+o.X0
-    out[-(1:3)]<-out[-(1:3)]+log(o.Xsig2)-log(o.hgt)
-    
-    return(out)
+  if(intra.var){
+    dat$obs<-sum(n_obs)
+    dat$n_obs<-n_obs
+    dat$X_obs<-X
+    dat$X_prior=X.prior
+    dat$Xsig2_prior=Xsig2.prior
+    ret<-rstan::sampling(object=stanmodels$intravar_univar_corateBM,data=dat,...)
+    R0<-rstan::extract(ret,"R0",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
+    out<-list(chains=array(dim=c(dim(R0)[1],5+n_e+n,nchain)))
+    dimnames(out$chains)<-list(iterations=NULL,
+                               parameters=c('R0','Rsig2','X0','bg.rate',
+                                            paste('R[',1:n_e,']',sep=''),
+                                            'Xsig2',tree$tip.label),
+                               chains=paste('chain',1:nchain))
+    Xsig2<-rstan::extract(ret,"Xsig2",permute=FALSE,inc_warmup=FALSE)*o.Xsig2
+    out.X<-rstan::extract(ret,"X",permute=FALSE,inc_warmup=FALSE)*sqrt(o.Xsig2)+o.X0
+    out$chains[,'Xsig2',]<-Xsig2
+    out$chains[,tree$tip.label,]<-aperm(out.X,c(1,3,2))
+  }else{
+    if(any(n_obs>1)){
+      warning('multiple observations per tip: observations were averaged, but we strongly recommend running function with intra.var set to TRUE')
+      X<-c(tapply(X,names(X),mean)[tree$tip.label],tree$Nnode)
+    }
+    dat$X<-X
+    ret<-rstan::sampling(object=stanmodels$univar_corateBM,data=dat,...)
+    R0<-rstan::extract(ret,"R0",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
+    out<-list(chains=array(dim=c(dim(R0)[1],4+n_e,nchain)))
+    dimnames(out$chains)<-list(iterations=NULL,
+                               parameters=c('R0','Rsig2','X0','bg.rate',
+                                            paste('R[',1:n_e,']',sep='')),
+                               chains=paste('chain',1:nchain))
   }
-  ret<-rstan::sampling(object=stanmodels$univar_corateBM,data=dat,...)
-  R0<-rstan::extract(ret,"R0",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
   R<-rstan::extract(ret,"R",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
   Rsig2<-rstan::extract(ret,"Rsig2",permute=FALSE,inc_warmup=FALSE)/o.hgt
   X0<-rstan::extract(ret,"X0",permute=FALSE,inc_warmup=FALSE)*sqrt(o.Xsig2)+o.X0
@@ -106,17 +133,14 @@ fit.corateBM<-function(tree,X,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   }else{
     bg.rate=apply(R,c(1,2),function(ii) sum(ii*wgts))
   }
-  out<-list(chains=array(dim=c(dim(R)[1],4+dim(R)[3],nchain)))
-  dimnames(out$chains)<-list(iterations=NULL,
-                             parameters=c('R0','Rsig2','X0','bg.rate',
-                                          paste('R[',1:dim(R)[3],']',sep='')),
-                             chains=paste('chain',1:nchain))
   out$chains[,'R0',]<-R0
   out$chains[,'Rsig2',]<-Rsig2
   out$chains[,'X0',]<-X0
   out$chains[,'bg.rate',]<-bg.rate
-  out$chains[,5:dim(out$chains)[2],]<-aperm(R,c(1,3,2))
+  out$chains[,4+1:n_e,]<-aperm(R,c(1,3,2))
   class(out)<-'corateBM_fit'
+  
+  
   if(report.devs){
     if(nchain==1){
       rate.devs<-apply(R[,1,],2,function(ii) ii-bg.rate)
@@ -128,22 +152,39 @@ fit.corateBM<-function(tree,X,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     }
     tmp<-dimnames(out$chains)
     tmp[[2]]<-c(tmp[[2]],paste('R[',1:dim(R)[3],'] dev',sep=''))
+    
+    
     out$chains<-aperm(array(c(aperm(out$chains,c(1,3,2)),rate.devs),
-                            dim=c(dim(R)[1],nchain,4+dim(R)[3]*2),dimnames=tmp[c(1,3,2)]),
+                            dim=c(dim(out$chains)[1],nchain,dim(out$chains)[2]+n_e),
+                            dimnames=tmp[c(1,3,2)]),
                       c(1,3,2))
   }
+  
+  
   if(!is.null(report.quantiles)){
     out$quantiles<-apply(out$chains,c(2,3),quantile,probs=report.quantiles)
+    if(is.matrix(out$quantiles)){
+      out$quantiles<-array(out$quantiles,dim=c(1,dim(out$quantiles)))
+      dimnames(out$quantiles)<-c('quantiles'=paste(report.quantiles*100,'%',sep=''),dimnames(out$chains)[-1])
+    }
   }
+  
+  
   if(report.MAPs){
     out$MAPs<-apply(out$chains,c(2,3),mean)
   }
+  
+  
   if(report.devs){
     if(nchain==1){
       out$post.probs<-apply(out%chains%'dev',2,function(ii) sum(ii>0)/length(ii))
+      out$post.probs<-as.matrix(out$post.probs)
+      dimnames(out$post.probs)<-list(parameters=rownames(out$post.probs),chains='chain 1')
     }else{
       out$post.probs<-apply(out%chains%'dev',c(2,3),function(ii) sum(ii>0)/length(ii))
     }
   }
+  
+  
   out
 }

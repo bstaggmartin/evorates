@@ -1,10 +1,12 @@
+library(contSimmap)
 library(phytools)
 tree<-pbtree(n=50,scale=5)
-test<-gen.corateBM(tree,Rsig2=0.8)
-tree<-keep.tip(whales$phy,rownames(whales$dat))
-X<-whales$dat[,'lnlength']
+test<-gen.corateBM(tree,Rsig2=0.8,intra.var=F,n_obs=rpois(length(tree$tip.label),5)+1,Xsig2=1)
+#tree<-keep.tip(whales$phy,rownames(whales$dat))
+#X<-whales$dat[,'lnlength']
 plot(test,tree)
-test.fit<-fit.corateBM(tree,X,optimize = T)
+#test.fit<-fit.corateBM(tree,test$X_obs,intra.var=T,chains=1,iter=8000,control=list(adapt_delta=0.9),thin=10,warmup=2000)
+test.fit<-fit.corateBM(tree,test$X,intra.var=F,chains=1,report.quantiles = 0.5)
 #sample a random branch and plot the trace
 branch<-sample(nrow(tree$edge),1)
 plot(test.fit%chains%branch,type='l',main=paste('ln(rate) for branch',branch))
@@ -20,6 +22,17 @@ for(i in 1:nrow(tree$edge)){
   polygon(yy~xx,border=NA,col='gray')
 }
 points(as.vector(apply(test.fit%chains%1:nrow(tree$edge),2,median))~test$R,pch=16)
+abline(0,1,col='red')
+
+plot(0,type='n',xlim=range(test$X),ylim=range(test.fit%chains%'^t'),
+     xlab='true ln(rate)',ylab='ln(rate) posterior distribution')
+for(i in tree$tip.label){
+  dens<-density(test.fit%chains%paste(i,'$',sep=''),bw=0.2)
+  yy<-c(dens$x,rev(dens$x))
+  xx<-0.05*c(dens$y,-1*rev(dens$y))+test$X[i]
+  polygon(yy~xx,border=NA,col='gray')
+}
+points(test.fit$MAPs[tree$tip.label,]~test$X,pch=16)
 abline(0,1,col='red')
 
 branch<-sample(nrow(tree$edge),2)

@@ -48,7 +48,7 @@ model {
   //priors
 	R0 ~ cauchy(0, R0_prior); //prior on R0
 	Rsig2 ~ cauchy(0, Rsig2_prior); //prior on Rsig2
-	X0 ~ normal(0, X0_prior); //prior on x0
+	X0 ~ cauchy(0, X0_prior); //prior on x0
 	raw_R ~ std_normal(); //implies prior on R to be multinormal(R0, Rsig2 * eV)
 	
 	//pruning algorithm = calculate likelihood of trait data given rate values
