@@ -7,11 +7,15 @@
 using namespace Rcpp;
 
 
+RcppExport SEXP _rcpp_module_boot_stan_fit4intravar_trend_univar_corateBM_mod();
 RcppExport SEXP _rcpp_module_boot_stan_fit4intravar_univar_corateBM_mod();
+RcppExport SEXP _rcpp_module_boot_stan_fit4trend_univar_corateBM_mod();
 RcppExport SEXP _rcpp_module_boot_stan_fit4univar_corateBM_mod();
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_rcpp_module_boot_stan_fit4intravar_trend_univar_corateBM_mod", (DL_FUNC) &_rcpp_module_boot_stan_fit4intravar_trend_univar_corateBM_mod, 0},
     {"_rcpp_module_boot_stan_fit4intravar_univar_corateBM_mod", (DL_FUNC) &_rcpp_module_boot_stan_fit4intravar_univar_corateBM_mod, 0},
+    {"_rcpp_module_boot_stan_fit4trend_univar_corateBM_mod", (DL_FUNC) &_rcpp_module_boot_stan_fit4trend_univar_corateBM_mod, 0},
     {"_rcpp_module_boot_stan_fit4univar_corateBM_mod", (DL_FUNC) &_rcpp_module_boot_stan_fit4univar_corateBM_mod, 0},
     {NULL, NULL, 0}
 };

@@ -2,7 +2,7 @@
 % Please edit documentation in R/fit.corateBM.R
 \name{fit.corateBM}
 \alias{fit.corateBM}
-\title{Fit an autocorrelated rate Brownian motion model}
+\title{Fit an autocorrelated rates Brownian motion model to a tree and trait data}
 \usage{
 fit.corateBM(
   tree,
@@ -13,8 +13,10 @@ fit.corateBM(
   intra.var = F,
   X.prior = 200,
   Xsig2.prior = 50,
+  trend = F,
+  Rmu.prior = Rsig2.prior,
   report.quantiles = c(0.025, 0.5, 0.975),
-  report.MAPs = T,
+  report.means = T,
   report.devs = T,
   ...
 )
@@ -25,21 +27,35 @@ but will handle polytomous trees just fine.}
 
 \item{X}{A vector of trait data, with each element labelled according to its corresponding tip label.}
 
-\item{R0.prior}{The standard deviation of the cauchy prior for the \code{R0} parameter}
+\item{R0.prior}{The standard deviation of the cauchy prior for the \code{R0} parameter determining
+the rate of trait evolution at the root.}
 
-\item{Rsig2.prior}{The standard deviation of the cauchy prior for the \code{Rsig2} parameter.}
+\item{Rsig2.prior}{The standard deviation of the cauchy prior for the \code{Rsig2} parameter
+determining the rate at which rate variance accumulates over time (inversely related to phylogenetic
+autocorrelation of rates).}
 
-\item{X0.prior}{The standard deviation of the normal prior for the \code{X0} parameter.}
+\item{X0.prior}{The standard deviation of the cauchy prior for the \code{X0} parameter determining
+the trait value at the root.}
+
+\item{intra.var}{TRUE or FALSE value: should tip means be estimated with an error term or fixed
+according to the data?}
+
+\item{X.prior}{The standard deviation of the cauchy prior for the \code{X} parameter determining the
+mean trait values at the tips. Only matters when \code{intra.var} is set to TRUE.}
+
+\item{Xsig2.prior}{The standard deviation of the cauchy prior for the \code{Xsig2} parameter
+determining the variance of observed trait values due to both intraspecific variation and/or
+measurement error. Only matters when \code{intra.var} is set to TRUE.}
 
 \item{report.quantiles}{A vector of values between 0 and 1, telling the function which quantiles of
 of the marginal posterior distributions for each parameter to calculate. Use this to extract
 'credible intervals' for parameter values. Set to NULL if no quantiles are desired.}
 
-\item{report.MAPs}{TRUE or FALSE value: should the function calculate mean a posteriori parameter
+\item{report.means}{TRUE or FALSE value: should the function calculate mean posterior parameter
 estimates?}
 
-\item{report.devs}{TRUE or FALSE value: should the function calculate differences between branch-wise
-rates and the 'background rate' (see below)?}
+\item{report.devs}{TRUE or FALSE value: should the function calculate differences between average
+branch-wise rates and the 'background rate' (see below)?}
 
 \item{...}{Extra arguments to pass to the Stan's mcmc sampler. Use \code{chains} to set the number
 of chains to run (4 by default), \code{iter} for the number of iterations (2000 by default),
@@ -48,8 +64,32 @@ of chains to run (4 by default), \code{iter} for the number of iterations (2000 
 reporting in the R console (\code{iter/10} by default). See \code{rstan::sampling} for more options.}
 }
 \value{
+A list of class 'corateBM_fit', containing an array 'chains', with rows corresponding to
+iterations in the mcmc sampler and columns to parameters. The array is 3D, with each
+matrix slice corresponding to a particular mcmc chain. Parameters may include \code{R0}, \code{Rsig2},
+\code{X0}, and \code{Xsig2}, as defined above. Average branch-wise rates are also included and denoted
+\code{R[i]} where \code{i} is the index of the edge as given in \code{tree}. If \code{intra.var} is
+set to TRUE, the array will also include the tip mean parameters, denoted by their tip labels as given
+in \code{tree}. Additionally, the function calculates the posterior distribution of 'background rates'
+by taking the average of all average branch-wise rate parameters, weighted by the relative lengths of 
+their respective branches, denoted \code{bg.rate}.
 
+Optionally, the object may contain additional arrays including 'quantiles', 'means', and 'post.probs'.
+'quantiles' is an array formatted similarly to 'chains' with rows corresponding to quantiles of the
+marginal posterior distributions of parameters. 'means' is a matrix of mean posterior parameter
+estimates with rows corresponding to parameters and columns to separate mcmc chains. If 
+\code{report.devs} is set to TRUE, the function additionally calculates the posterior distributions of
+differences between each average branch-wise rate parameter and the background rate ('rate
+deviations', denoted \code{R[i] dev}), and creates a matrix, 'post.probs', of posterior probabilities
+that each branch-wise rate deviation is greater than 0. These can be interpreted as the probability
+that a given branch in the phylogeny exhibits an anomalously high rate of trait evolution (note that
+low probabilities indicate anomalously low rates). Quantiles and mean posterior estimates will also be
+calculated for rate deviation parameters, if applicable.
 }
 \description{
-This
+This function processes tree and trait data and fits an autocorrelated rates Brownian motion model to
+it using a Stan-based mcmc sampler. Under an autocorrelated rates Brownian motion model, the rates at
+trait evolution themselves evolve according to a Brownian motion process, allowing rates of
+evolution to vary across the tree in a phylogenetically autocorrelated manner. The results are
+formatted into a (relatively) user-friendly list of arrays for further analysis and diagnostics.
 }

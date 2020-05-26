@@ -1,14 +1,27 @@
 library(contSimmap)
 library(phytools)
 tree<-pbtree(n=50,scale=5)
-test<-gen.corateBM(tree,Rsig2=0.8,intra.var=F,n_obs=rpois(length(tree$tip.label),5)+1,Xsig2=1)
+gen.eb<-function(R0,b,tree){
+  mat<-mrca(tree)
+  mat[]<-R0*(exp(b*node.depth.edgelength(tree)[mat])-1)/b
+  mat
+}
+X<-mvnfast::rmvn(1,rep(0,50),gen.eb(1,1.5,tree))
+names(X)<-tree$tip.label
+X<-rnorm(length(X)*10,rep(X,each=10),3)
+names(X)<-rep(tree$tip.label,each=10)
+phenogram(tree,X,ftype='off')
+test<-gen.corateBM(tree,Rsig2=0.4,intra.var=T,n_obs=rpois(length(tree$tip.label),10)+1,Xsig2=0.5,Rmu=-0.5)
 #tree<-keep.tip(whales$phy,rownames(whales$dat))
 #X<-whales$dat[,'lnlength']
 plot(test,tree)
 #test.fit<-fit.corateBM(tree,test$X_obs,intra.var=T,chains=1,iter=8000,control=list(adapt_delta=0.9),thin=10,warmup=2000)
-test.fit<-fit.corateBM(tree,test$X,intra.var=F,chains=1,report.quantiles = 0.5)
+test.fit<-fit.corateBM(tree,test$X_obs,intra.var=T,chains=2,trend=T)
 #sample a random branch and plot the trace
 branch<-sample(nrow(tree$edge),1)
+plot((test.fit%chains%branch)[3:1000]~(test.fit%chains%branch)[1:998])
+spacer<-3
+hist(sapply(1:nrow(tree$edge),function(ii) cor((test.fit%chains%ii)[(1+spacer):1000],(test.fit%chains%ii)[1:(1000-spacer)])))
 plot(test.fit%chains%branch,type='l',main=paste('ln(rate) for branch',branch))
 abline(h=test$R[branch],col='red')
 
@@ -18,7 +31,7 @@ plot(0,type='n',xlim=range(test$R),ylim=range(test.fit$chains),
 for(i in 1:nrow(tree$edge)){
   dens<-density(test.fit%chains%i,bw=0.2)
   yy<-c(dens$x,rev(dens$x))
-  xx<-0.05*c(dens$y,-1*rev(dens$y))+test$R[i]
+  xx<-0.1*c(dens$y,-1*rev(dens$y))+test$R[i]
   polygon(yy~xx,border=NA,col='gray')
 }
 points(as.vector(apply(test.fit%chains%1:nrow(tree$edge),2,median))~test$R,pch=16)
@@ -59,8 +72,10 @@ t.bg.rate<-sum(test$R*wgts)
 points(test$R-t.bg.rate,col='blue',pch=16)
 abline(h=0,col='red',lty=2)
 plot(tree,edge.width=10,cex=0.8)
-tmp<-list(R=apply(test.fit%chains%'R[',2,mean));class(tmp)<-'corateBM'
-plot(tmp,tree,phylogram=F,edge.width=10,cex=0.7)
+tmp<-list(R=test.fit%means%'R[');class(tmp)<-'corateBM'
+plot(tmp,tree,phylogram=F,edge.width=10,show.tip.label=F,val.range=range(test$R))
+plot(tmp,tree,phylogram=F,edge.width=10)
+plot(test,tree,phylogram=F,edge.width=10,show.tip.label=F,val.range=range(test$R))
 coords<-get("last_plot.phylo",envir=.PlotPhyloEnv)
 #trans<-abs(test.fit$post.probs[,1]-0.5)/0.5
 trans<-test.fit$post.probs
@@ -69,7 +84,12 @@ segments(y0=coords$yy[as.vector(t(tree$edge))],
          x0=coords$xx[rep(tree$edge[,1],each=2)],
          x1=coords$xx[as.vector(t(tree$edge))],
          col=rep(rgb(trans,trans,trans),each=2),
-         lwd=4)
+         lwd=3)
+plot(test,tree)
+tmp$X<-tapply(X,names(X),mean)
+plot(tmp,tree)
+plot(test$R~apply(matrix(node.depth.edgelength(tree)[tree$edge],ncol=2),1,mean))
+points(tmp$R~apply(matrix(node.depth.edgelength(tree)[tree$edge],ncol=2),1,mean),pch=16)
 
 mat<-matrix(nrow=dim(rates)[3],ncol=dim(rates)[3])
 simmat<-mat
@@ -135,6 +155,37 @@ plot(pp,ylim=c(0,1),
      col=c('black','red')[(pp<0.025|pp>0.975)+1])
 abline(h=c(0.025,0.975),col='red',lty=2)
 
+plot(test.fit$post.probs,ylim=c(0,1),
+     xlab='branches',xaxt='n',ylab='post prob branch rate < avg rate',
+     col=c('black','red')[(test.fit$post.probs<0.025|test.fit$post.probs>0.975)+1])
+abline(h=c(0.025,0.975),col='red',lty=2)
+plot(test.fit$post.probs~test.fit%MAPs%'dev',col=c('black','red')[(test.fit$post.probs<0.025|test.fit$post.probs>0.975)+1])
+abline(h=c(0.025,0.975),col='red',lty=2)
+sum((test.fit$post.probs<0.1&(test.fit%MAPs%'dev')>0)|(test.fit$post.probs>0.9&(test.fit%MAPs%'dev')<0),na.rm=T)/length(test.fit$post.probs)
+#20% alpha results in type II of 0! (for 500 tip test)
+
+sig.mat<-matrix(NA,nrow(tree$edge),nrow(tree$edge))
+emp.mat<-sig.mat
+len<-length(test.fit%chains%1)
+for(i in 1:nrow(sig.mat)){
+  for(j in i:ncol(sig.mat)){
+    if(i==j){
+      next
+    }else{
+      sig.mat[i,j]<-sum((test.fit%chains%i - test.fit%chains%j)>0)/len
+      emp.mat[i,j]<-test$R[i]-test$R[j]
+    }
+    cat(i,', ',j,'\n',sep='')
+  }
+}
+sig.mat[lower.tri(sig.mat)]<-NA
+plot(as.vector(sig.mat)~as.vector(emp.mat),col=c('black','red')[(as.vector(sig.mat)<0.1|as.vector(sig.mat)>0.9)+1])
+abline(h=c(0.1,0.9),col='red',lty=2)
+sum((as.vector(sig.mat)<0.1&as.vector(emp.mat)>0)|(as.vector(sig.mat)>0.9&as.vector(emp.mat)<0),na.rm=T)/sum(!is.na(sig.mat))
+cbind(which(sig.mat<0.1)%/%nrow(tree$edge),which(sig.mat<0.1)%%nrow(tree$edge))
+#type II error is only 0.05% for alpha=5%...
+#jumps to ~0.3% for alpha=10% and ~1% for alpha=20% (for 500 tip test)
+
 tol.el<-sum(tree$edge.length)
 wgts<-tree$edge.length/tol.el
 plot(0,type='n',xlim=c(1,nrow(tree$edge)),ylim=range(test.fit$chains[,grep('dev',dimnames(test.fit$chains)[[2]]),1]),xlab='branch',ylab='ln(rate) posterior distribution')
@@ -152,3 +203,18 @@ points(test$R-t.bg.rate,col='blue',pch=16)
 abline(h=0,col='red',lty=2)
 
 #DUDE! 5 minutes to do 4 chains for a 100 tip tree
+
+#5/25: weird phenomenon where if you have accelarating rates and low intraspecific sampling, modeling
+#intraspecific variance creates big problems: some tip trait values start to 'jump' around range of
+#extant variation! Best way to solve problem is increasing intraspecific sampling; narrowing the prior
+#did little to stop it. Should see if similar thing happen with declining rates, but it seems fine, from
+#what I've seen...
+
+#5/26: hard to separately estimate Rmu and Rsig2 well...trends are detectable, it seems, but it's hard
+#to detect their actual magnitude
+#difficulty of reconstructing ancestral states...
+
+#savage-dickey calc
+dens<-density(test.fit%chains%'Rsig2')
+dens<-density(test.fit%chains%'Rmu')
+dcauchy(0,0,20)/dens$y[which.min(abs(dens$x-0))]
