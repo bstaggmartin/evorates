@@ -1,22 +1,32 @@
 library(contSimmap)
 library(phytools)
-tree<-pbtree(n=50,scale=5)
+tree<-pbtree(n=25,scale=5)
 gen.eb<-function(R0,b,tree){
   mat<-mrca(tree)
   mat[]<-R0*(exp(b*node.depth.edgelength(tree)[mat])-1)/b
   mat
 }
-X<-mvnfast::rmvn(1,rep(0,50),gen.eb(1,1.5,tree))
+X<-mvnfast::rmvn(1,rep(0,50),gen.eb(1,-1.5,tree))
 names(X)<-tree$tip.label
-X<-rnorm(length(X)*10,rep(X,each=10),3)
+X<-rnorm(length(X)*10,rep(X,each=10),0.2)
 names(X)<-rep(tree$tip.label,each=10)
 phenogram(tree,X,ftype='off')
-test<-gen.corateBM(tree,Rsig2=0.4,intra.var=T,n_obs=rpois(length(tree$tip.label),10)+1,Xsig2=0.5,Rmu=-0.5)
-#tree<-keep.tip(whales$phy,rownames(whales$dat))
-#X<-whales$dat[,'lnlength']
+test<-gen.corateBM(tree,Rsig2=0,intra.var=F)
+library(geiger)
+data(whales)
+tree<-keep.tip(whales$phy,rownames(whales$dat))
+X<-whales$dat[,'lnlength']
 plot(test,tree)
+
+testy<-fit.corateBM(tree,test$X[-33],chains=1,return.stanfit = T)
+
+test.fit<-fit.corateBM(tree,test$X,intra.var=F,constrain.Rsig2=T,trend=F,chains=3)
+bm.fit<-fit.corateBM(tree,X,constrain.Rsig2=T,trend=F,chains=1,intra.var=T)
+trend.fit<-fit.corateBM(tree,X,constrain.Rsig2=T,trend=T,chains=1,intra.var=T)
+full.fit<-fit.corateBM(tree,X,constrain.Rsig2=F,trend=T,chains=1,intra.var=T,refresh=50)
 #test.fit<-fit.corateBM(tree,test$X_obs,intra.var=T,chains=1,iter=8000,control=list(adapt_delta=0.9),thin=10,warmup=2000)
-test.fit<-fit.corateBM(tree,test$X_obs,intra.var=T,chains=2,trend=T)
+test.fit<-fit.corateBM(tree,test$X_obs,intra.var=F,chains=1,trend=T)
+bm.fit<-fit.corateBM(tree,test$X_obs,intra.var=T,chains=1,trend=F,constrain.Rsig2 = T)
 #sample a random branch and plot the trace
 branch<-sample(nrow(tree$edge),1)
 plot((test.fit%chains%branch)[3:1000]~(test.fit%chains%branch)[1:998])
@@ -25,7 +35,10 @@ hist(sapply(1:nrow(tree$edge),function(ii) cor((test.fit%chains%ii)[(1+spacer):1
 plot(test.fit%chains%branch,type='l',main=paste('ln(rate) for branch',branch))
 abline(h=test$R[branch],col='red')
 
+fit.old<-test.fit
+test.fit<-combine.chains(test.fit)
 #look at overall correlation
+test.fit<-testy
 plot(0,type='n',xlim=range(test$R),ylim=range(test.fit$chains),
      xlab='true ln(rate)',ylab='ln(rate) posterior distribution')
 for(i in 1:nrow(tree$edge)){
@@ -34,7 +47,7 @@ for(i in 1:nrow(tree$edge)){
   xx<-0.1*c(dens$y,-1*rev(dens$y))+test$R[i]
   polygon(yy~xx,border=NA,col='gray')
 }
-points(as.vector(apply(test.fit%chains%1:nrow(tree$edge),2,median))~test$R,pch=16)
+points(test.fit%means%(1:nrow(tree$edge))~test$R,pch=16)
 abline(0,1,col='red')
 
 plot(0,type='n',xlim=range(test$X),ylim=range(test.fit%chains%'^t'),
@@ -45,7 +58,7 @@ for(i in tree$tip.label){
   xx<-0.05*c(dens$y,-1*rev(dens$y))+test$X[i]
   polygon(yy~xx,border=NA,col='gray')
 }
-points(test.fit$MAPs[tree$tip.label,]~test$X,pch=16)
+points(test.fit%means%tree$tip.label~test$X,pch=16)
 abline(0,1,col='red')
 
 branch<-sample(nrow(tree$edge),2)
@@ -53,19 +66,19 @@ plot(test.fit%chains%branch[1]-test.fit%chains%branch[2],type='l',
      main=paste('ln(rate) diff for branch',branch[1],'and',branch[2]))
 abline(h=test$R[branch[1]]-test$R[branch[2]],col='red')
 
-hist(test.fit%chains%'Rsig2',breaks=40)
+hist(test.fit%chains%'R0',breaks=40)
 
 tol.el<-sum(tree$edge.length)
 wgts<-tree$edge.length/tol.el
 plot(0,type='n',xlim=c(1,nrow(tree$edge)),ylim=range(test.fit%chains%'dev'),
      xlab='branch',ylab='ln(rate) posterior distribution')
 nrs<-dim(test.fit$quantiles)[1]
-chain<-1
+test.fit<-combine.chains(test.fit)
 for(i in 1:nrow(tree$edge)){
   tmp<-grep(paste('\\[',i,'\\] dev',sep=''),dimnames(test.fit$chains)[[2]])
   segments(x0=i,
-           y0=c(min(test.fit$chains[,tmp,chain]),test.fit$quantiles[c(1,nrs),tmp,chain]),
-           y1=c(test.fit$quantiles[c(1,nrs),tmp,chain],max(test.fit$chains[,tmp,chain])),
+           y0=c(min(test.fit$chains[,tmp]),test.fit$quantiles[c(1,nrs),tmp]),
+           y1=c(test.fit$quantiles[c(1,nrs),tmp],max(test.fit$chains[,tmp])),
            lty=c(2,1,2),col=c('gray','black','gray'))
 }
 t.bg.rate<-sum(test$R*wgts)
@@ -73,23 +86,27 @@ points(test$R-t.bg.rate,col='blue',pch=16)
 abline(h=0,col='red',lty=2)
 plot(tree,edge.width=10,cex=0.8)
 tmp<-list(R=test.fit%means%'R[');class(tmp)<-'corateBM'
-plot(tmp,tree,phylogram=F,edge.width=10,show.tip.label=F,val.range=range(test$R))
-plot(tmp,tree,phylogram=F,edge.width=10)
-plot(test,tree,phylogram=F,edge.width=10,show.tip.label=F,val.range=range(test$R))
+plot(tmp,tree,phenogram=F,edge.width=10,show.tip.label=F,val.range=range(test$R))
+plot(tmp,tree,phenogram=F,edge.width=10)
+plot(test,tree,phenogram=F,edge.width=10,show.tip.label=F,val.range=range(test$R))
 coords<-get("last_plot.phylo",envir=.PlotPhyloEnv)
 #trans<-abs(test.fit$post.probs[,1]-0.5)/0.5
 trans<-test.fit$post.probs
+colvec<-rep('gray',nrow(tree$edge))
+colvec[trans<0.1]<-'blue'
+colvec[trans>0.9]<-'red'
 segments(y0=coords$yy[as.vector(t(tree$edge))],
          y1=coords$yy[rep(tree$edge[,2],each=2)],
          x0=coords$xx[rep(tree$edge[,1],each=2)],
          x1=coords$xx[as.vector(t(tree$edge))],
-         col=rep(rgb(trans,trans,trans),each=2),
+         col=rep(colvec,each=2),
          lwd=3)
 plot(test,tree)
-tmp$X<-tapply(X,names(X),mean)
+tmp$X<-tapply(test$X,names(test$X),mean)[tree$tip.label]
 plot(tmp,tree)
 plot(test$R~apply(matrix(node.depth.edgelength(tree)[tree$edge],ncol=2),1,mean))
 points(tmp$R~apply(matrix(node.depth.edgelength(tree)[tree$edge],ncol=2),1,mean),pch=16)
+
 
 mat<-matrix(nrow=dim(rates)[3],ncol=dim(rates)[3])
 simmat<-mat
@@ -183,6 +200,7 @@ plot(as.vector(sig.mat)~as.vector(emp.mat),col=c('black','red')[(as.vector(sig.m
 abline(h=c(0.1,0.9),col='red',lty=2)
 sum((as.vector(sig.mat)<0.1&as.vector(emp.mat)>0)|(as.vector(sig.mat)>0.9&as.vector(emp.mat)<0),na.rm=T)/sum(!is.na(sig.mat))
 cbind(which(sig.mat<0.1)%/%nrow(tree$edge),which(sig.mat<0.1)%%nrow(tree$edge))
+image(sig.mat)
 #type II error is only 0.05% for alpha=5%...
 #jumps to ~0.3% for alpha=10% and ~1% for alpha=20% (for 500 tip test)
 
@@ -218,3 +236,7 @@ abline(h=0,col='red',lty=2)
 dens<-density(test.fit%chains%'Rsig2')
 dens<-density(test.fit%chains%'Rmu')
 dcauchy(0,0,20)/dens$y[which.min(abs(dens$x-0))]
+
+#5/28: tried doing new heirarchical prior approach to modeling intraspecific variation; works well!
+#100 tips, no trend, took ~15ish minutes to run 2 chains, no warnings! Seems very data hungry, though;
+#needs like 50 or more tips!

@@ -20,22 +20,18 @@ data {
   real R0_prior;
   real Rsig2_prior;
   real X0_prior;
-  real Rmu_prior;
 }
 
 transformed data {
-  //use cholesky decomposition of edge variance-covariance matrix and edge midpts to tranform raw_R to R (see below)
+  //use cholesky decomposition of edge variance-covariance matrix to tranform raw_R to R (see below)
   matrix[n_e, n_e] chol_eV;
-  vector[n_e] T_midpts;
   chol_eV = cholesky_decompose(eV);
-  T_midpts = diagonal(eV) + prune_T[real_e] / 6;
 }
 
 parameters {
   vector[n] X; //mean trait values for each tip
   real<lower=0> Xsig2; //tip variance
   real R0; //rate at root of tree (log scale)
-  real Rmu; //trend in rate (log scale)
   real<lower=0> Rsig2; //accumulation in rate variance per unit time
   real X0; //trait value at root of tree
   vector[n_e] raw_R; //vector of untransformed rate values along edges (log scale)
@@ -43,7 +39,7 @@ parameters {
 
 transformed parameters {
   vector[n_e] R; //vector of transformed rate values along edges (log scale)
-  R = R0 + Rmu * T_midpts + sqrt(Rsig2) * chol_eV * raw_R; //implies prior on R to be multinormal(R0, Rsig2 * eV)
+  R = R0 + sqrt(Rsig2) * chol_eV * raw_R; //implies prior on R to be multinormal(R0, Rsig2 * eV)
 }
 
 model {
@@ -59,7 +55,6 @@ model {
   X ~ cauchy(0, X_prior); //prior on X
   Xsig2 ~ cauchy(0, Xsig2_prior); //prior on Xsig2
   R0 ~ cauchy(0, R0_prior); //prior on R0
-  Rmu ~ cauchy(0, Rmu_prior); //prior on Rmu
   Rsig2 ~ cauchy(0, Rsig2_prior); //prior on Rsig2
   X0 ~ cauchy(0, X0_prior); //prior on x0
   raw_R ~ std_normal(); //implies prior on R to be multinormal(R0, Rsig2 * eV)

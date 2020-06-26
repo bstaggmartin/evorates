@@ -1,63 +1,133 @@
+functions {
+    //function to combine fixed, observed and sampled, unobserved tip means
+    vector get_X (int n, int[] which_obs, vector Y, int[] which_mis, vector mis_Y){
+    vector[n] X;           
+    X[which_obs] = Y;
+    X[which_mis] = mis_Y;
+    return(X);
+  }
+}
+
 data {
   //basic data
-	int n; // number of tips
-	int n_e; //number of edges
-	vector[n] X; //vector of trait values at tips
-	matrix[n_e, n_e] eV; //edge variance-covariance matrix
+  int obs; //number of observations
+  int n; //number of tips
+  int e; //number of edges
+  int n_obs[n]; //number of observations per tip
+  vector[obs] Y; //observed trait values
+  matrix[e, e] eV; //edge variance-covariance matrix
+  
+  
+  //data for pruning algorithm: note tree is coerced to be bifurcating and 1st edge is zero-length stem
+  vector[2 * n - 1] prune_T; //edge lengths
+  int des_e[2 * n - 1, 2]; //edge descendants (-1 for no descendants)
+  int tip_e[n]; //edges with no descendants
+  int real_e[e]; //non-zero length edges
+  int postorder[n - 1]; //
 	
-	//data for pruning algorithm
-	vector[2 * n - 1] prune_T; //vector of edge lengths for pruning-compatible (i.e, bifurcating) tree (+1 for stem edge)
-	int des_e[2 * n - 1, 2]; //integer matrix indicating the pruning-compatible tree descendant edge numbers of each edge (+1 for stem edge)
-	int tip_e[n]; //integer vector indicating pruning-compatible tree edge numbers giving rise to nodes in order of node numbers (+1 for stem edge)
-	int real_e[n_e]; //integer vector indicating which pruning-compatible tree edges are 'real' and have associated R values (+1 for stem edge)
-	int prune_seq[n - 1]; //integer vector indicating the sequence of edge numbers to iterate over for pruning algorithm (+1 for stem edge)
 	
-	//prior specification
+	//prior specification: see below for parameter definitions
 	real R0_prior;
 	real Rsig2_prior;
 	real X0_prior;
+	real Rmu_prior;
+	
+	
+	//parameter constraints
+	int constr_Rsig2;
+	int constr_Rmu;
 }
 
 transformed data {
-  //use cholesky decomposition of edge variance-covariance matrix to tranform raw_R to R (see below)
-  matrix[n_e, n_e] chol_eV;
+  matrix[e, e] chol_eV; //cholesky decomp of edge variance-covariance matrix
+  vector[e] T_midpts; //overall 'height' of edge mid-points
+  int which_obs[obs];
+  int which_mis[n - obs];
+  
+  
+  //for sampling from R prior
   chol_eV = cholesky_decompose(eV);
+  T_midpts = diagonal(eV) + prune_T[real_e] / 6;
+  
+  
+  //for combining fixed, observed and sampled, unobserved tip means
+  {int obs_counter;
+  int mis_counter;
+  obs_counter = 0;
+  mis_counter = 0;
+  for(i in 1:n){
+    if(!n_obs[i]){
+      mis_counter = mis_counter + 1;
+      which_mis[mis_counter] = i;
+      continue;
+    }
+    obs_counter = obs_counter + 1;
+    which_obs[obs_counter] = i;
+  }}
 }
 
 parameters {
-	real R0; //rate at root of tree (log scale)
-	real<lower=0> Rsig2; //accumulation in rate variance per unit time
-	real X0; //trait value at root of tree
-	vector[n_e] raw_R; //vector of untransformed rate values along edges (log scale)
+  //parameters on sampling scale: see below for parameter definitions
+  real<lower=-pi()/2, upper=pi()/2> unif_R0;
+  real<lower=-pi()/2, upper=pi()/2> unif_X0;
+  real<lower=0, upper=pi()/2> unif_Rsig2[constr_Rsig2 ? 0:1];
+  real<lower=-pi()/2, upper=pi()/2> unif_Rmu[constr_Rmu ? 0:1];
+  vector[constr_Rsig2 ? 0:e] raw_R;
+  
+  
+  vector[n - obs] mis_Y; //unobserved tip means
 }
 
 transformed parameters {
-  vector[n_e] R; //vector of transformed rate values along edges (log scale)
-  R = R0 + sqrt(Rsig2) * chol_eV * raw_R; //implies prior on R to be multinormal(R0, Rsig2 * eV)
+  real R0; //(ln)rate at root
+  real X0; //trait value at root of tree
+  real<lower=0> Rsig2[constr_Rsig2 ? 0:1]; //rate of (ln)rate variance accumulation
+  real Rmu[constr_Rmu ? 0:1]; //trend in (ln)rate
+  vector[e] R; //edge-wise average (ln)rates
+  
+  
+  //high level priors
+  R0 = R0_prior * tan(unif_R0); //R0 prior: cauchy(0, R0_prior)
+  X0 = X0_prior * tan(unif_X0); //X0 prior: cauchy(0, X0_prior)
+	if(!constr_Rsig2){
+	  Rsig2[1] = Rsig2_prior * tan(unif_Rsig2[1]); //Rsig2 prior: half-cauchy(0, Rsig2_prior)
+	}
+	if(!constr_Rmu){
+	  Rmu[1] = Rmu_prior * tan(unif_Rmu[1]); //Rmu prior: cauchy(0, Rmu_prior)
+	}
+  
+  
+  //R prior: multinormal(R0 + Rmu * T_midpts, Rsig2 * eV); Rsig2/Rmu = 0 when constrained
+  R = rep_vector(R0, e);
+  if(!constr_Rmu){
+    R = R + Rmu[1] * T_midpts;
+  }
+  if(!constr_Rsig2){
+    R = R + sqrt(Rsig2[1]) * chol_eV * raw_R;
+  }
 }
 
 model {
-  vector[2 * n - 1] SS; //vector of pruning-compatible tree edge lengths multiplied by R values (+1 for stem edge)
-  vector[2 * n - 1] XX; //vector of node-wise trait values in order of their ancestral edge numbers (+1 for stem edge)
-  vector[2 * n - 1] VV; //vector of node-wise trait variances in order of their ancestral edge numbers (+1 for stem edge)
-  vector[n - 1] LL; //vector of log-likelihoods associated with node-wise contrast, in order of their ancestral edge numbers as ordered in prune_seq
-  int counter; //temporary integer to indicate position along LL for pruning loop
-  vector[2] des_X; //temporary vector to indicate trait values of descendant nodes for pruning loop
-  vector[2] des_V; //temporary vector to indicate trait variances of descendant nodes for pruning loop
-  
-  //priors
-	R0 ~ cauchy(0, R0_prior); //prior on R0
-	Rsig2 ~ cauchy(0, Rsig2_prior); //prior on Rsig2
-	X0 ~ cauchy(0, X0_prior); //prior on x0
-	raw_R ~ std_normal(); //implies prior on R to be multinormal(R0, Rsig2 * eV)
+  //'seed' for sampling from R prior: see above
+	if(!constr_Rsig2){
+	  raw_R ~ std_normal();
+	}
 	
-	//pruning algorithm = calculate likelihood of trait data given rate values
+	
+	//likelihood of X: pruning algorithm
+	{vector[2 * n - 1] SS; //edge lengths multiplied by respective average rate
+  vector[2 * n - 1] XX; //node-wise trait values, indexed by ancestral edge
+  vector[2 * n - 1] VV; //node-wise trait variances, indexed by ancestral edge
+  vector[n - 1] LL; //log-likelihoods of node-wise contrasts, indexed by postorder sequence
+  int counter; //position along LL
+  vector[2] des_X; //temporary: descendant node trait values for given iteration in loop
+  vector[2] des_V; //temporary: descendant node trait variances for given iteration in loop
 	SS = rep_vector(0, 2 * n - 1);
 	SS[real_e] = prune_T[real_e] .* exp(R);
-  XX[tip_e] = X;
+  XX[tip_e] = get_X(n, which_obs, Y, which_mis, mis_Y);
   VV[tip_e] = rep_vector(0, n);
   counter = 0;
-  for(i in prune_seq){
+  for(i in postorder){
     des_X = XX[des_e[i, ]];
     des_V = VV[des_e[i, ]] + SS[des_e[i, ]];
     counter = counter + 1;
@@ -65,5 +135,5 @@ model {
     XX[i] = des_V[2] / sum(des_V) * des_X[1] + des_V[1] / sum(des_V) * des_X[2];
     VV[i] = 1 / (1 / des_V[1] + 1 / des_V[2]);
   }
-	target += sum(LL) - 0.5 * (log(2 * pi()) + log(VV[1]) + (X0 - XX[1])^2 / sum(VV[des_e[1, ]]));
+	target += sum(LL) - 0.5 * (log(2 * pi()) + log(VV[1]) + (X0 - XX[1])^2 / sum(VV[des_e[1, ]]));}
 }

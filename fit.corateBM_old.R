@@ -8,7 +8,7 @@
 #'
 #' @param tree A phylogenetic tree of class 'phylo'; function does not yet support multiple phylogenies
 #' but will handle polytomous trees just fine.
-#' @param Y A vector of trait data, with each element labelled according to its corresponding tip label.
+#' @param X A vector of trait data, with each element labelled according to its corresponding tip label.
 #' @param R0.prior The standard deviation of the cauchy prior for the \code{R0} parameter determining
 #' the rate of trait evolution at the root.
 #' @param Rsig2.prior The standard deviation of the cauchy prior for the \code{Rsig2} parameter
@@ -18,7 +18,9 @@
 #' the trait value at the root.
 #' @param intra.var TRUE or FALSE value: should tip means be estimated with an error term or fixed
 #' according to the data?
-#' @param Ysig2.prior The standard deviation of the cauchy prior for the \code{Ysig2} parameter
+#' @param X.prior The standard deviation of the cauchy prior for the \code{X} parameter determining the
+#' mean trait values at the tips. Only matters when \code{intra.var} is set to TRUE.
+#' @param Xsig2.prior The standard deviation of the cauchy prior for the \code{Xsig2} parameter
 #' determining the variance of observed trait values due to both intraspecific variation and/or
 #' measurement error. Only matters when \code{intra.var} is set to TRUE.
 #' @param trend TRUE or FALSE value: should the model fit an overall temporal trend to rates, as in an
@@ -45,7 +47,7 @@
 #' @return A list of class 'corateBM_fit', containing an array 'chains', with rows corresponding to
 #' iterations in the mcmc sampler and columns to parameters. The array is 3D, with each
 #' matrix slice corresponding to a particular mcmc chain. Parameters may include \code{R0}, \code{Rsig2},
-#' \code{X0}, \code{Ysig2}, and \code{Rmu}, as defined above. Average branch-wise rates are also included
+#' \code{X0}, \code{Xsig2}, and \code{Rmu}, as defined above. Average branch-wise rates are also included
 #' and denoted
 #' \code{R[i]} where \code{i} is the index of the edge as given in \code{tree}. If \code{intra.var} is
 #' set to TRUE, the array will also include the tip mean parameters, denoted by their tip labels as given
@@ -68,15 +70,15 @@
 #' @export
 
 #5/14: add trace and profile plotting functions
-fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
-                       intra.var=F,Ysig2.prior=50,
+fit.corateBM<-function(tree,X,R0.prior=10,Rsig2.prior=20,X0.prior=100,
+                       intra.var=F,X.prior=200,Xsig2.prior=50,
                        trend=F,Rmu.prior=Rsig2.prior,
                        constrain.Rsig2=F,
                        report.quantiles=c(0.025,0.5,0.975),report.means=T,report.devs=T,
                        return.stanfit=F,...){
   #initial checks
-  if(is.null(names(Y))){
-    stop('trait data (Y) is unlabelled--please name each element with its corresponding tip label')
+  if(is.null(names(X))){
+    stop('trait data (X) is unlabelled--please name each element with its corresponding tip label')
   }
   if(constrain.Rsig2&!trend&report.devs){
     report.devs<-F
@@ -89,30 +91,29 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   }
   
   #process/format data
-  Y<-Y[unlist(sapply(tree$tip.label,function(ii) which(names(Y)==ii)))]
-  n_obs<-sapply(tree$tip.label,function(ii) sum(names(Y)==ii))
+  X<-X[unlist(sapply(tree$tip.label,function(ii) which(names(X)==ii)))]
+  n_obs<-sapply(tree$tip.label,function(ii) sum(names(X)==ii))
   n<-length(tree$tip.label)
-  e<-nrow(tree$edge)
+  n_e<-nrow(tree$edge)
   eV<-edge.vcv(tree)
   o.hgt<-max(eV)
   tree$edge.length<-tree$edge.length/o.hgt
   eV<-eV/o.hgt
-  missing.dat<-tree$tip.label[n_obs==0]
-  if(length(missing.dat)>0){
+  if(any(n_obs==0)){
+    missing.dat<-tree$tip.label[n_obs==0]
     tmp.tree<-ape::drop.tip(tree,missing.dat)
   }else{
     tmp.tree<-tree
   }
-  tmp.X<-tapply(Y,names(Y),mean)[tmp.tree$tip.label]
-  o.Xsig2<-sum(ape::pic(tmp.X,ape::multi2di(tmp.tree))^2)/n
-  xx<-c(tmp.X,rep(NA,tmp.tree$Nnode))
-  for(ee in nrow(tmp.tree$edge):0){
-    if(ee==0){
+  o.Xsig2<-sum(ape::pic(tapply(X,names(X),mean)[tmp.tree$tip.label],ape::multi2di(tmp.tree))^2)/n
+  xx<-c(tapply(X,names(X),mean)[tmp.tree$tip.label],rep(NA,tmp.tree$Nnode))
+  for(e in nrow(tmp.tree$edge):0){
+    if(e==0){
       des<-which(tmp.tree$edge[,1]==n+1)
       xx[n+1]<-sum((1/tmp.tree$edge.length[des])/sum(1/tmp.tree$edge.length[des])*xx[tmp.tree$edge[des,2]])
       break
     }
-    nn<-tmp.tree$edge[ee,2]
+    nn<-tmp.tree$edge[e,2]
     if(nn<=n){
       next
     }
@@ -120,7 +121,7 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     xx[nn]<-sum((1/tmp.tree$edge.length[des])/sum(1/tmp.tree$edge.length[des])*xx[tmp.tree$edge[des,2]])
   }
   o.X0<-xx[n+1]
-  Y<-(Y-o.X0)/sqrt(o.Xsig2)
+  X<-(X-o.X0)/sqrt(o.Xsig2)
   if(!ape::is.binary(tree)){
     poly.nodes<-which(sapply(1:max(tree$edge),function(ii) length(which(ii==tree$edge[,1])))>2)
     d_poly<-lapply(poly.nodes,function(ii) which(ii==tree$edge[,1]))
@@ -129,7 +130,7 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     real_e<-(1:(2*n-2))[-tmp]+1
     tree<-multi2di(tree,random=F)
   }else{
-    real_e<-1:e+1
+    real_e<-1:n_e+1
   }
   des_e<-sapply(1:nrow(tree$edge),function(ii) which(tree$edge[,1]==tree$edge[ii,2])+1)
   tip_e<-which(lengths(des_e)==0)
@@ -139,44 +140,42 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   root.edges<-which(tree$edge[,1]==n+1)+1
   des_e<-rbind(root.edges,des_e)
   prune_T<-c(0,tree$edge.length)
-  postorder<-((2*n-2):1)[-((2*n-2)-tip_e)]
+  prune_seq<-((2*n-2):1)[-((2*n-2)-tip_e)]
   tip_e<-tip_e+1
-  dat<-list('obs'=sum(n_obs),'n'=n,'e'=e,'n_obs'=n_obs,'Y'=Y,'eV'=eV,
-            'prune_T'=prune_T,'des_e'=des_e,'tip_e'=tip_e,'real_e'=real_e,
+  dat<-list('obs'=sum(n_obs),'n'=n,'n_e'=n_e,'X_obs'=X,'n_obs'=n_obs,'eV'=eV,
+            'prune_T'=prune_T,'des_e'=des_e,'tip_e'=tip_e,'real_e'=real_e,'prune_seq'=prune_seq,
             'R0_prior'=R0.prior,'Rsig2_prior'=Rsig2.prior,'X0_prior'=X0.prior,'Rmu_prior'=Rmu.prior,
             'constr_Rsig2'=as.numeric(constrain.Rsig2),'constr_Rmu'=as.numeric(!trend))
   
   #run mcmc
   if(intra.var){
-    dat$Ysig2_prior=Ysig2.prior
-    ret<-rstan::sampling(object=stanmodels$intravar_univar_corateBM,data=dat,...)
+    dat$X_prior=X.prior
+    dat$Xsig2_prior=Xsig2.prior
+    ret<-rstan::sampling(object=stanmodels$hier_intravar_univar_corateBM,data=dat,...)
   }else{
     if(any(n_obs>1)){
       warning('multiple observations per tip: observations were averaged, but we strongly recommend running function with intra.var set to TRUE')
-      Y<-tapply(Y,names(Y),mean)[tree$tip.label]
+      X<-tapply(X,names(X),mean)[tree$tip.label]
     }
-    dat$postorder<-postorder
+    dat$X_obs<-X
     ret<-rstan::sampling(object=stanmodels$univar_corateBM,data=dat,...)
   }
 
   #process/format output
   R0<-rstan::extract(ret,"R0",permute=FALSE,inc_warmup=FALSE)+log(o.Xsig2)-log(o.hgt)
   X0<-rstan::extract(ret,"X0",permute=FALSE,inc_warmup=FALSE)*sqrt(o.Xsig2)+o.X0
-  out<-list(chains=array(dim=c(dim(R0)[1],6+e+n,nchain)))
-  param.names<-c('R0','X0',paste('R[',1:e,']',sep=''),'Rsig2','Rmu','bg.rate','Ysig2',tree$tip.label)
+  out.X<-rstan::extract(ret,"X",permute=FALSE,inc_warmup=FALSE)*sqrt(o.Xsig2)+o.X0
+  out<-list(chains=array(dim=c(dim(R0)[1],6+n_e+n,nchain)))
+  param.names<-c('R0','X0',paste('R[',1:n_e,']',sep=''),'Rsig2','Rmu','bg.rate','Xsig2',tree$tip.label)
   dimnames(out$chains)<-list(iterations=NULL,
                              parameters=param.names,
                              chains=paste('chain',1:nchain))
   out$chains[,'R0',]<-R0
   out$chains[,'X0',]<-X0
+  out$chains[,tree$tip.label,]<-aperm(out.X,c(1,3,2))
   if(intra.var){
-    Ysig2<-rstan::extract(ret,"Ysig2",permute=FALSE,inc_warmup=FALSE)*o.Xsig2
-    out.Y<-rstan::extract(ret,"X",permute=FALSE,inc_warmup=FALSE)*sqrt(o.Xsig2)+o.X0
-    out$chains[,'Ysig2',]<-Ysig2
-    out$chains[,tree$tip.label,]<-aperm(out.Y,c(1,3,2))
-  }else if(length(missing.dat)>0){
-    mis.Y<-rstan::extract(ret,"mis_Y",permute=FALSE,inc_warmup=FALSE)*sqrt(o.Xsig2)+o.X0
-    out$chains[,missing.dat,]<-aperm(mis.Y,c(1,3,2))
+    Xsig2<-rstan::extract(ret,"Xsig2",permute=FALSE,inc_warmup=FALSE)*o.Xsig2
+    out$chains[,'Xsig2',]<-Xsig2
   }
   if(!constrain.Rsig2){
     Rsig2<-rstan::extract(ret,"Rsig2",permute=FALSE,inc_warmup=FALSE)/o.hgt
@@ -191,7 +190,7 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
       bg.rate=apply(R,c(1,2),function(ii) sum(ii*wgts))
     }
     out$chains[,'bg.rate',]<-bg.rate
-    out$chains[,2+1:e,]<-aperm(R,c(1,3,2))
+    out$chains[,2+1:n_e,]<-aperm(R,c(1,3,2))
   }
   if(trend){
     Rmu<-rstan::extract(ret,"Rmu",permute=FALSE,inc_warmup=FALSE)/o.hgt
@@ -216,7 +215,7 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     tmp<-dimnames(out$chains)
     tmp[[2]]<-c(tmp[[2]],paste('R[',1:dim(R)[3],'] dev',sep=''))
     out$chains<-aperm(array(c(aperm(out$chains,c(1,3,2)),rate.devs),
-                            dim=c(dim(out$chains)[1],nchain,dim(out$chains)[2]+e),
+                            dim=c(dim(out$chains)[1],nchain,dim(out$chains)[2]+n_e),
                             dimnames=tmp[c(1,3,2)]),
                       c(1,3,2))
   }

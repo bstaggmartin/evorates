@@ -42,7 +42,7 @@ trace.plot<-function(fit,select='.',separate.R=F,separate.X=F,separate.dev=F,tog
                    ylab=list(ylab),
                    xlim=list(xlim),
                    ylim=list(ylim),
-                   list(...)[!(names(list(...))%in%c('type','pch','col'))&
+                   list(...)[!(names(list(...))%in%c('xlab','ylab','xlim','ylim','type','pch','col'))&
                                !grepl('args\\.',names(list(...)))]))
   }
   for(i in names(args.master)){
@@ -50,7 +50,7 @@ trace.plot<-function(fit,select='.',separate.R=F,separate.X=F,separate.dev=F,tog
     if(param=='R'){
       incl.names<-grep('^R\\[\\d+\\]$',dimnames(chains)[[2]])
     }else if(param=='X'){
-      incl.names<-grep('^R0$|^Rsig2$|^X0$|^bg.rate$|^R\\[\\d+\\]$|^R\\[\\d+\\] dev$|^Rmu$|^Xsig2$',
+      incl.names<-grep('^R0$|^Rsig2$|^X0$|^bg.rate$|^R\\[\\d+\\]$|^R\\[\\d+\\] dev$|^Rmu$|^Ysig2$',
                        dimnames(chains)[[2]],invert=T)
     }else if(param=='dev'){
       incl.names<-grep('^R\\[\\d+\\] dev$',dimnames(chains)[[2]])

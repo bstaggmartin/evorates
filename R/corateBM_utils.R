@@ -45,7 +45,7 @@ int.op<-function(fit,element,select){
                     paste(select[select>n.R],collapse=', ')))
       inds<-select[select<=n.R]
     }
-    inds<-4+sort(unique(select))
+    inds<-2+sort(unique(select))
   }else if(is.character(select)){
     select<-unlist(lapply(select,strsplit,split=','))
     new.select<-sub('\\[','\\\\\\[',select)
@@ -222,7 +222,7 @@ get.args.master<-function(chains,separate.R,separate.X,separate.dev,together,...
   }
   if(!separate.X){
     args.master<-args.master[grepl(paste('^args.R0','Rsig2','X0','bg.rate','R\\[\\d+\\]',
-                                         'R\\[\\d+\\] dev','Rmu','Xsig2','R','X','dev$',
+                                         'R\\[\\d+\\] dev','Rmu','Ysig2','R','X','dev$',
                                          collapse='',sep='$|^args.'),
                                    names(args.master))]
     if(is.null(args.master$args.X)){
@@ -257,7 +257,8 @@ get.args.master<-function(chains,separate.R,separate.X,separate.dev,together,...
       args.master[[i]]<-NULL
     }
     def.args<-list(...)
-    def.args<-def.args[!sapply(def.args,is.list)]
+    #def.args<-def.args[!sapply(def.args,is.list)]
+    def.args<-def.args[!grepl('args\\.',names(list(...)))]
     def.args<-def.args[!(names(def.args)%in%names(args.master[[i]]))]
     args.master[[i]]<-c(args.master[[i]],def.args)
   }

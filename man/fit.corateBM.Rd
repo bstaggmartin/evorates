@@ -15,6 +15,7 @@ fit.corateBM(
   Xsig2.prior = 50,
   trend = F,
   Rmu.prior = Rsig2.prior,
+  constrain.Rsig2 = F,
   report.quantiles = c(0.025, 0.5, 0.975),
   report.means = T,
   report.devs = T,
@@ -47,6 +48,17 @@ mean trait values at the tips. Only matters when \code{intra.var} is set to TRUE
 determining the variance of observed trait values due to both intraspecific variation and/or
 measurement error. Only matters when \code{intra.var} is set to TRUE.}
 
+\item{trend}{TRUE or FALSE value: should the model fit an overall temporal trend to rates, as in an
+early burst or accelarating rates model?}
+
+\item{Rmu.prior}{The standard deviation of the cauchy prior for the \code{Rmu} parameter determining
+the rate at which rates of trait evolution increase or decrease over time. Only matters when
+\code{trend} is set to TRUE.}
+
+\item{constrain.Rsig2}{TRUE or FALSE value: should the model constrain Rsig2 to be 0, reducing the
+model to either a plain single-rate Brownian motion model (if \code{trend} is set to FALSE) or a
+early burst or accelarating rates model (if \code{trend} is set to TRUE)?}
+
 \item{report.quantiles}{A vector of values between 0 and 1, telling the function which quantiles of
 of the marginal posterior distributions for each parameter to calculate. Use this to extract
 'credible intervals' for parameter values. Set to NULL if no quantiles are desired.}
@@ -67,7 +79,8 @@ reporting in the R console (\code{iter/10} by default). See \code{rstan::samplin
 A list of class 'corateBM_fit', containing an array 'chains', with rows corresponding to
 iterations in the mcmc sampler and columns to parameters. The array is 3D, with each
 matrix slice corresponding to a particular mcmc chain. Parameters may include \code{R0}, \code{Rsig2},
-\code{X0}, and \code{Xsig2}, as defined above. Average branch-wise rates are also included and denoted
+\code{X0}, \code{Xsig2}, and \code{Rmu}, as defined above. Average branch-wise rates are also included
+and denoted
 \code{R[i]} where \code{i} is the index of the edge as given in \code{tree}. If \code{intra.var} is
 set to TRUE, the array will also include the tip mean parameters, denoted by their tip labels as given
 in \code{tree}. Additionally, the function calculates the posterior distribution of 'background rates'
