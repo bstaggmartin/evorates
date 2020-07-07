@@ -18,8 +18,8 @@ data {
   int obs; //number of observations
   int n; //number of tips
   int e; //number of edges
-  int n_obs[n]; //number of observations per tip
   vector[obs] Y; //observed trait values
+  int X_id[obs]; //indicates to which tip each observation belongs
   matrix[e, e] eV; //edge variance-covariance matrix
   
   
@@ -85,6 +85,7 @@ transformed parameters {
   real<lower=0> Ysig2; //tip variance
   vector[e] R; //edge-wise average (ln)rates
   vector[n] X; //tip means
+  vector[obs] cent_Y; //centered data
   
   
   //high level priors
@@ -111,6 +112,10 @@ transformed parameters {
   
   //X prior: multinormal(X0, tree topology with branch lengths multiplied by R)
   X = get_X(n, X0, prune_T, R, raw_X, preorder, real_e, des_e, tip_e);
+  
+  
+  //center observations based on X
+  cent_Y = Y - X[X_id];
 }
 
 model {
@@ -125,15 +130,5 @@ model {
   
   
   //likelihood of Y
-  {int counter;
-  counter = 1;
-  for (i in 1:n) {
-    //handles missing data
-    if(!n_obs[i]){
-      continue;
-    }
-    //gets all Ys from tip i
-    segment(Y, counter, n_obs[i]) ~ normal(X[i], sqrt(Ysig2));
-    counter = counter + n_obs[i];
-  }}
+  cent_Y ~ normal(0, sqrt(Ysig2));
 }

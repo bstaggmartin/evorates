@@ -1,8 +1,8 @@
 functions {
     //function to combine fixed, observed and sampled, unobserved tip means
-    vector get_X (int n, int[] which_obs, vector Y, int[] which_mis, vector mis_Y){
+    vector get_X (int n, vector Y, vector mis_Y, int[] which_mis){
     vector[n] X;           
-    X[which_obs] = Y;
+    X = Y;
     X[which_mis] = mis_Y;
     return(X);
   }
@@ -10,12 +10,14 @@ functions {
 
 data {
   //basic data
-  int obs; //number of observations
   int n; //number of tips
   int e; //number of edges
-  int n_obs[n]; //number of observations per tip
-  vector[obs] Y; //observed trait values
+  vector[n] Y; //observed trait values
   matrix[e, e] eV; //edge variance-covariance matrix
+  
+  //missing data handling
+  int mis;
+  int which_mis[mis]; 
   
   
   //data for pruning algorithm: note tree is coerced to be bifurcating and 1st edge is zero-length stem
@@ -41,29 +43,11 @@ data {
 transformed data {
   matrix[e, e] chol_eV; //cholesky decomp of edge variance-covariance matrix
   vector[e] T_midpts; //overall 'height' of edge mid-points
-  int which_obs[obs];
-  int which_mis[n - obs];
   
   
   //for sampling from R prior
   chol_eV = cholesky_decompose(eV);
   T_midpts = diagonal(eV) + prune_T[real_e] / 6;
-  
-  
-  //for combining fixed, observed and sampled, unobserved tip means
-  {int obs_counter;
-  int mis_counter;
-  obs_counter = 0;
-  mis_counter = 0;
-  for(i in 1:n){
-    if(!n_obs[i]){
-      mis_counter = mis_counter + 1;
-      which_mis[mis_counter] = i;
-      continue;
-    }
-    obs_counter = obs_counter + 1;
-    which_obs[obs_counter] = i;
-  }}
 }
 
 parameters {
@@ -75,7 +59,7 @@ parameters {
   vector[constr_Rsig2 ? 0:e] raw_R;
   
   
-  vector[n - obs] mis_Y; //unobserved tip means
+  vector[mis] mis_Y; //unobserved tip means
 }
 
 transformed parameters {
@@ -124,7 +108,7 @@ model {
   vector[2] des_V; //temporary: descendant node trait variances for given iteration in loop
 	SS = rep_vector(0, 2 * n - 1);
 	SS[real_e] = prune_T[real_e] .* exp(R);
-  XX[tip_e] = get_X(n, which_obs, Y, which_mis, mis_Y);
+  XX[tip_e] = get_X(n, Y, mis_Y, which_mis);
   VV[tip_e] = rep_vector(0, n);
   counter = 0;
   for(i in postorder){
