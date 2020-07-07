@@ -1,32 +1,56 @@
 To do:
 
-1. Implement slice sampler for relaxed clock MCMC to improve mixing efficiency (see Elliot and Mooers for an appropriate reference as to
-why this should work)
+Relaxed clock model:
+ 
+ - Extend to multivariate traits
+ 
+ - Add legend support for trace/profile plot
+ 
+ - Add support for 'parameter operations' with the %% operators--like, let a user could say this parameter minus this other one and have it return that instead, appropriately labelled. If done correctly, this will extend the capabilities of profile. and trace.plot...
+ 
+ - Update gen. and plot.corateBM with updated parameter names
+ 
+ - Phylogenetic plotting functions--plot rates mapped onto phylogeny
 
-2. Tweak coloring functions according to your '9/11 thoughts' (unfortunate date to have that thought, but oh well)
+simBM:
+
+ - Modify 'simBM' to make sure the order in which BM bridges are interpolated is INDEPENDENTLY randomized for EACH simulation; otherwise you get biases... (see 'BB_dump.R' for details). sample.evenly() can help with this behavior, but still produces predictable biases in the simulations.
+sub-goal: There's probably a way to do this while preserving performance--if you nest some function to find last and next events inside the rnorm() function (rather than the other way around)
+***11/5 update: DONE! slows function down quite a bit, but probably a safer way to go
+***6/26 update: this will be sped up inthe future using a multivariate normal draw for Brownian bridges, rather than incremental normal draws
+
+ - Merge Nic's documentation into the main files
+***6/26 update: oh my god why have I still not done this--get the fuck on this!!!
+
+ - Let simBM() handle multiple rate-regimes (also rename simBM?)
+
+ - Figure out a modeling soln--continuous traits may be integrated over edges to get edge-wise rates, but the problem lies in estimating some function that maps the continuous trait variation to rate variation (maybe try out some ML linear function for starters?)
+
+ - Make simBM() function output a heirarchical list of edge trait values, rather than an array? Dunno, it just has a lot of NA...maybe play around with some of those sparse matrix representation things?
+
+ - Extensions to simBM(): multiple traits, intra-tip variation (Ives or Felsenstein should work), missing values...
+sub-goal: You may want to drop the bound options to develop the multivariate trait functions--that imposes a lot of complexity for not much gain for now...
+***6/26 update: for intra-tip variation, allow to work with relaxed clock models
+
+ - Make vignettes for thresholding and colmapping
+
+Completed:
+
+ - Tweak coloring functions according to your '9/11 thoughts' (unfortunate date to have that thought, but oh well)
 ***11/5 update: DONE!
 
-3. Modify 'simBM' to make sure the order in which BM bridges are interpolated is INDEPENDENTLY randomized for EACH simulation; otherwise
-you get biases... (see 'BB_dump.R' for details). sample.evenly() can help with this behavior, but still produces predictable
-biases in the simulations.
-sub3. There's probably a way to do this while preserving performance--if you nest some function to find last and next events inside
-the rnorm() function (rather than the other way around)
-***11/5 update: DONE! slows function down quite a bit, but probably a safer way to go
+ - Suppress warnings from mismatching arguments in trace/profile.plot
+***6/26 update: not working--warnings from plotting seem to 'catch up' after function call following the first...what gives? Is there a  way  to just get rid of the not graphical parameter warnings?
+***6/26 update  2: just used formals() to gather all the potential arguments for each function call and matched argument names--was kinfa annoying, but the functions run much nicer now. DONE!
 
-4. Oh! And implement pruning algorithms to more efficiently calculate likelihoods in your MCMC (this is straight-forward for the trait
-lik's, but I'm still confused on how this works for rate lik's where ancestral states are explicitly estimated. The differences 
-between multivariate normal and summed normal calculations is maddening, but you might wanna try rolling back to summed normals and 
-observing the resulting behaviors)
+ - Support for coda --> as.mcmc and as.mcmc.list functions?
+***6/26 update: to.mcmc and to.mcmc.list --> done!
 
-5. Merge Nic's documentation into the main files
+Depreciated:
 
-6. Let simBM() handle multiple rate-regimes (also rename simBM?)
+ - Implement slice sampler for relaxed clock MCMC to improve mixing efficiency (see Elliot and Mooers for an appropriate reference as to why this should work)
+***6/26/20 update: now superfluous  after porting to Stan
 
-7. Figure out a modeling soln--continuous traits may be integrated over edges to get edge-wise rates, but the problem lies in estimating some function that maps the continuous trait variation to rate variation (maybe try out some ML linear function for starters?)
-
-8. Make simBM() function output a heirarchical list of edge trait values, rather than an array? Dunno, it just has a lot of NAs...maybe play around with some of those sparse matrix representation things?
-
-9. Extensions to simBM(): multiple traits, intra-tip variation (Ives or Felsenstein should work), missing values...
-sub9. You may want to drop the bound options to develop the multivariate trait functions--that imposes a lot of complexity for not much gain for now...
-
-10. Make vignettes for thresholding and colmapping
+ - Oh! And implement pruning algorithms to more efficiently calculate likelihoods in your MCMC (this is straight-forward for the trait lik's, but I'm still confused on how this works for rate lik's where ancestral states are explicitly estimated. The differences 
+between multivariate normal and summed normal calculations is maddening, but you might wanna try rolling back to summed normals and observing the resulting behaviors)
+***6/26/20 update: now superfluous  after porting to Stan

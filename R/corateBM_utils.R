@@ -209,7 +209,7 @@ chains.to.array<-function(chains){
   chains
 }
 
-#function for getting the final list of arguments lists in a call to test.plot or profile.plot
+#function for getting the final list of arguments lists in a call to trace.plot or profile.plot
 #' @export
 get.args.master<-function(chains,separate.R,separate.X,separate.dev,together,...){
   args.master<-vector(mode='list',length=dim(chains)[2])
@@ -263,4 +263,31 @@ get.args.master<-function(chains,separate.R,separate.X,separate.dev,together,...
     args.master[[i]]<-c(args.master[[i]],def.args)
   }
   args.master
+}
+
+#' @export
+coerce.to.cov.mat<-function(in.mat,vars){
+  dims<-dim(in.mat)
+  if(length(dims)>0){
+    new.diag<-rep(diag(in.mat),length.out=vars)
+    mat<-do.call(rbind,c(list(in.mat),rep(0,vars-nrow(in.mat))))
+    if(ncol(mat)>vars){
+      mat<-mat[,1:vars]
+    }else{
+      mat<-do.call(cbind,c(list(mat),rep(0,vars-ncol(mat))))
+    }
+    diag(mat)<-new.diag
+    if(!isSymmetric(mat)){
+      warning(paste(deparse(substitute(in.mat)),'is not symmetric: reflected lower triangle into upper triangle'))
+      mat[upper.tri(mat)]<-t(mat)[upper.tri(mat)]
+    }
+    if(any(eigen(mat)$values<=0)){
+      stop(paste('failed to create properly-formed covariance matrix from ',deparse(substitute(in.mat)),': make sure variance-covariance structure makes sense',sep=''))
+    }
+    mat
+  }else{
+    mat<-matrix(0,vars,vars)
+    diag(mat)<-rep(in.mat,length.out=vars)
+    mat
+  }
 }

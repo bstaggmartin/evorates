@@ -1,0 +1,11 @@
+to.mcmc<-function(fit){
+  chains<-fit$chains
+  if(length(dim(chains))==2){
+    mcmc(chains)
+  }else{
+    lapply(asplit(fit$chains,3),mcmc)
+  }
+}
+to.mcmc.list<-function(fit){
+  do.call(mcmc.list,to.mcmc(fit))
+}

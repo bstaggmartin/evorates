@@ -20,7 +20,7 @@ plot(test,tree)
 
 testy<-fit.corateBM(tree,test$X[-33],chains=1,return.stanfit = T)
 
-test.fit<-fit.corateBM(tree,test$X,intra.var=F,constrain.Rsig2=T,trend=F,chains=3)
+test.fit<-fit.corateBM(tree,test$X,intra.var=F,constrain.Rsig2=F,trend=F,chains=3)
 bm.fit<-fit.corateBM(tree,X,constrain.Rsig2=T,trend=F,chains=1,intra.var=T)
 trend.fit<-fit.corateBM(tree,X,constrain.Rsig2=T,trend=T,chains=1,intra.var=T)
 full.fit<-fit.corateBM(tree,X,constrain.Rsig2=F,trend=T,chains=1,intra.var=T,refresh=50)

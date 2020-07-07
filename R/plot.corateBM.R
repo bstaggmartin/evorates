@@ -1,31 +1,124 @@
 #plot an autocorrelated Brownian motion simulation
 #' @export
-plot.corateBM<-function(sim,tree,cols=c('deepskyblue','darkgray','brown1'),
-                        phenogram=T,val.range=range(sim$R),res=100,
-                        xlab='time',ylab='trait value',...){
-  colramp<-colorRampPalette(cols)(res)
-  if((val.range[2]-val.range[1])==0){
-    colvec<-colramp[round((res+1)/2)]
-  }else{
-    inds<-round((sim$R-val.range[1])/(val.range[2]-val.range[1])*(res-1))+1
-    inds[inds<1]<-1;inds[inds>res]<-res
-    colvec<-colramp[inds]
+plot.corateBM<-function(sim,tree,trait=1,lwd=1,col=c('deepskyblue','darkgray','brown1'),alpha=NA,
+                        phenogram=T,val.range=if(is.null(sim$R)) c(0,0) else range(sim$R),res=100,
+                        xlab=NULL,ylab=NULL,add=F,...){
+  if(!is.character(trait)&!is.numeric(trait)){
+    stop('trait must be a numeric or character vector')
   }
-  if(phenogram){
-    n<-length(tree$tip.label)
-    if(length(sim$X)==n){
-      tmp<-fastAnc(tree,sim$X)
-      plot(c(sim$X[tree$tip.label],tmp)~node.depth.edgelength(tree),col='white',
-           xlab=xlab,ylab=ylab,...)
-      segments(x0=node.depth.edgelength(tree)[tree$edge[,1]],x1=node.depth.edgelength(tree)[tree$edge[,2]],
-               y0=c(sim$X,tmp)[tree$edge[,1]],y1=c(sim$X,tmp)[tree$edge[,2]],col=colvec,...)
+  if(is.null(xlab)){
+    if(length(trait)==1){
+      xlab<-'time'
     }else{
-      plot(sim$X[c(tree$tip.label,1:tree$Nnode)]~node.depth.edgelength(tree),col='white',
-           xlab=xlab,ylab=ylab,...)
-      segments(x0=node.depth.edgelength(tree)[tree$edge[,1]],x1=node.depth.edgelength(tree)[tree$edge[,2]],
-               y0=sim$X[tree$edge[,1]],y1=sim$X[tree$edge[,2]],col=colvec,...)
+      xlab<-ifelse(is.numeric(trait),paste('trait',trait[1]),trait[1])
     }
+  }
+  if(is.null(ylab)){
+    if(is.character(trait)){
+      if(length(trait)==1){
+        ylab<-trait
+      }else{
+        ylab<-trait[2]
+      }
+    }else if(is.numeric(trait)){
+      if(length(trait)==1){
+        ylab<-paste('trait',trait)
+      }else{
+        ylab<-paste('trait',trait[2])
+      }
+    }
+  }
+  if(any(names(list(...))=='edge.width')){
+    warning('plot.corateBM uses lwd rather than edge.width to control line width: edge.width was ignored')
+  }
+  if(is.character(trait)){
+    new.trait<-match(trait,colnames(sim$X))
+    problem.index<-which(is.na(new.trait))
+    if(length(problem.index)>0){
+      stop("can't find trait(s) matching with ",paste(trait[problem.index],collapse=', '))
+    }else{
+      trait<-new.trait
+    }
+  }
+  if(any(trait>ncol(sim$X))){
+    problem.index<-which(trait>ncol(sim$X))
+    stop("can't find trait(s) matching with ",paste(trait[problem.index],collapse=', '))
+  }
+  if(length(trait)>2){
+    pairs(sim,tree,trait=trait,lwd=lwd,col=col,alpha=alpha,val.range=val.range,res=res,...)
   }else{
-    plot(tree,edge.color=colvec,...)
+    colramp<-colorRampPalette(col)(res)
+    if((val.range[2]-val.range[1])==0){
+      colvec<-colramp[round((res+1)/2)]
+    }else{
+      inds<-round((sim$R-val.range[1])/(val.range[2]-val.range[1])*(res-1))+1
+      inds[inds<1]<-1;inds[inds>res]<-res
+      colvec<-colramp[inds]
+    }
+    colvec<-alter.cols(colvec,alph=alpha)
+    if(phenogram){
+      n<-length(tree$tip.label)
+      if(nrow(sim$X)==n){
+        scaled.tree<-tree
+        if(!is.null(sim$R)){
+          scaled.tree$edge.length<-tree$edge.length*exp(sim$R)
+        }
+        anc.states<-matrix(NA,tree$Nnode,ncol(sim$X))
+        rownames(anc.states)<-n+1:tree$Nnode
+        for(i in trait){
+          anc.states[,i]<-fastAnc(scaled.tree,sim$X[,i])
+        }
+        sim$X<-rbind(sim$X,anc.states)
+      }
+      sim$X<-as.matrix(sim$X[c(tree$tip.label,n+1:tree$Nnode),])
+      if(length(trait)==1){
+        if(hasArg(node.depths)){
+          xx<-list(...)$node.depths
+        }else{
+          xx<-node.depth.edgelength(tree)
+        }
+        if(!add){
+          do.call(plot,
+                  c(x=list(xx),
+                    y=list(sim$X[,trait]),
+                    xlab=xlab,
+                    ylab=ylab,
+                    col='white',
+                    type='p',
+                    pch=1,
+                    list(...)[!(names(list(...))%in%c('type','pch','edge.width','node.depths'))]))
+        }
+        do.call(segments,
+                c(x0=list(xx[tree$edge[,1]]),x1=list(xx[tree$edge[,2]]),
+                  y0=list(sim$X[,trait][tree$edge[,1]]),y1=list(sim$X[,trait][tree$edge[,2]]),
+                  lwd=ifelse(length(lwd)>1,list(lwd),lwd),
+                  col=list(colvec),
+                  list(...)[!(names(list(...))%in%c('edge.width','node.depths'))]))
+      }else{
+        if(!add){
+          do.call(plot,
+                  c(x=list(sim$X[,trait[1]]),
+                    y=list(sim$X[,trait[2]]),
+                    xlab=xlab,
+                    ylab=ylab,
+                    col='white',
+                    type='p',
+                    pch=1,
+                    list(...)[!(names(list(...))%in%c('type','pch','edge.width','node.depths'))]))
+        }
+        do.call(segments,
+                c(x0=list(sim$X[,trait[1]][tree$edge[,1]]),x1=list(sim$X[,trait[1]][tree$edge[,2]]),
+                  y0=list(sim$X[,trait[2]][tree$edge[,1]]),y1=list(sim$X[,trait[2]][tree$edge[,2]]),
+                  lwd=ifelse(length(lwd)>1,list(lwd),lwd),
+                  col=list(colvec),
+                  list(...)[!(names(list(...))%in%c('edge.width','node.depths'))]))
+      }
+    }else{
+      do.call(plot,
+              c(x=list(tree),
+                edge.color=list(colvec),
+                edge.width=ifelse(length(lwd)>1,list(lwd),lwd),
+                list(...)[!(names(list(...))%in%c('edge.color','edge.width'))]))
+    }
   }
 }
