@@ -6,19 +6,19 @@
 \usage{
 fit.corateBM(
   tree,
-  X,
+  Y,
   R0.prior = 10,
   Rsig2.prior = 20,
   X0.prior = 100,
   intra.var = F,
-  X.prior = 200,
-  Xsig2.prior = 50,
+  Ysig2.prior = 50,
   trend = F,
   Rmu.prior = Rsig2.prior,
   constrain.Rsig2 = F,
   report.quantiles = c(0.025, 0.5, 0.975),
   report.means = T,
   report.devs = T,
+  return.stanfit = F,
   ...
 )
 }
@@ -26,7 +26,7 @@ fit.corateBM(
 \item{tree}{A phylogenetic tree of class 'phylo'; function does not yet support multiple phylogenies
 but will handle polytomous trees just fine.}
 
-\item{X}{A vector of trait data, with each element labelled according to its corresponding tip label.}
+\item{Y}{A vector of trait data, with each element labelled according to its corresponding tip label.}
 
 \item{R0.prior}{The standard deviation of the cauchy prior for the \code{R0} parameter determining
 the rate of trait evolution at the root.}
@@ -41,10 +41,7 @@ the trait value at the root.}
 \item{intra.var}{TRUE or FALSE value: should tip means be estimated with an error term or fixed
 according to the data?}
 
-\item{X.prior}{The standard deviation of the cauchy prior for the \code{X} parameter determining the
-mean trait values at the tips. Only matters when \code{intra.var} is set to TRUE.}
-
-\item{Xsig2.prior}{The standard deviation of the cauchy prior for the \code{Xsig2} parameter
+\item{Ysig2.prior}{The standard deviation of the cauchy prior for the \code{Ysig2} parameter
 determining the variance of observed trait values due to both intraspecific variation and/or
 measurement error. Only matters when \code{intra.var} is set to TRUE.}
 
@@ -79,7 +76,7 @@ reporting in the R console (\code{iter/10} by default). See \code{rstan::samplin
 A list of class 'corateBM_fit', containing an array 'chains', with rows corresponding to
 iterations in the mcmc sampler and columns to parameters. The array is 3D, with each
 matrix slice corresponding to a particular mcmc chain. Parameters may include \code{R0}, \code{Rsig2},
-\code{X0}, \code{Xsig2}, and \code{Rmu}, as defined above. Average branch-wise rates are also included
+\code{X0}, \code{Ysig2}, and \code{Rmu}, as defined above. Average branch-wise rates are also included
 and denoted
 \code{R[i]} where \code{i} is the index of the edge as given in \code{tree}. If \code{intra.var} is
 set to TRUE, the array will also include the tip mean parameters, denoted by their tip labels as given

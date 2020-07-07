@@ -137,9 +137,11 @@ trace.plot<-function(fit,select='.',separate.R=F,separate.X=F,separate.dev=F,tog
       args.master[[i]]$lty<-rep(args.master[[i]]$lty,length.out=dim(chains)[3])
     }
     if(is.null(args.master[[i]]$col)){
-      args.master[[i]]$col<-rep(alter.cols(palette(),alph=args.master[[i]]$alpha),length.out=dim(tmp.chains)[2])
+      args.master[[i]]$col<-rep(alter.cols(palette(),alph=args.master[[i]]$alpha),
+                                length.out=dim(tmp.chains)[2])
     }else{
-      args.master[[i]]$col<-rep(alter.cols(args.master[[i]]$col,alph=args.master[[i]]$alpha),length.out=dim(tmp.chains)[2])
+      args.master[[i]]$col<-rep(alter.cols(args.master[[i]]$col,alph=args.master[[i]]$alpha),
+                                length.out=dim(tmp.chains)[2])
     }
     for(j in 1:dim(chains)[3]){
       do.call(matplot,c(y=list(tmp.chains[,,j]),
