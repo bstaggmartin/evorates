@@ -1,21 +1,11 @@
 library(contSimmap)
 library(phytools)
-tree<-pbtree(n=25,scale=5)
-gen.eb<-function(R0,b,tree){
-  mat<-mrca(tree)
-  mat[]<-R0*(exp(b*node.depth.edgelength(tree)[mat])-1)/b
-  mat
-}
-X<-mvnfast::rmvn(1,rep(0,50),gen.eb(1,-1.5,tree))
-names(X)<-tree$tip.label
-X<-rnorm(length(X)*10,rep(X,each=10),0.2)
-names(X)<-rep(tree$tip.label,each=10)
-phenogram(tree,X,ftype='off')
-test<-gen.corateBM(tree,Rsig2=0,intra.var=F)
-library(geiger)
-data(whales)
-tree<-keep.tip(whales$phy,rownames(whales$dat))
-X<-whales$dat[,'lnlength']
+tree<-pbtree(n=50,scale=5)
+test<-gen.corateBM(tree,X0=rep(0,3),intra.var=F)
+# library(geiger)
+# data(whales)
+# tree<-keep.tip(whales$phy,rownames(whales$dat))
+# X<-whales$dat[,'lnlength']
 plot(test,tree)
 
 testy<-fit.corateBM(tree,test$X[-33],chains=1,return.stanfit = T)

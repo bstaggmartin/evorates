@@ -127,15 +127,15 @@ model {
 	
 	
 	//likelihood of X: pruning algorithm
-	{matrix[k, k] Xprec;
+	{matrix[k, k] Xprec; //inverse of Xcov
 	vector[2 * n - 1] SS; //edge lengths multiplied by respective average rate
   matrix[k, 2 * n - 1] XX; //node-wise trait values, indexed by ancestral edge
   vector[2 * n - 1] VV; //node-wise trait variances, indexed by ancestral edge
   vector[n - 1] LL; //PARTIAL log-likelihoods of node-wise contrasts, indexed by postorder sequence
   int counter; //position along LL
   matrix[k, 2] des_X; //temporary: descendant node trait values for given iteration in loop
-  vector[2] des_V; //temporary: descendant node trait covariance matrices for given iteration in loop
-  vector[k] contr;
+  vector[2] des_V; //temporary: descendant node trait variances for given iteration in loop
+  vector[k] contr; //temporary: contrast between descendant node trait values
   Xprec = inverse_spd(Xcov);
 	SS = rep_vector(0, 2 * n - 1);
 	SS[real_e] = prune_T[real_e] .* exp(R) ;
@@ -300,7 +300,7 @@ dat<-list('n'=n,'e'=e,'Y'=t(Y),'eV'=eV,'k'=k,
           'constr_Rsig2'=T,'constr_Rmu'=T,
           'Xsig2_prior'=rep(1,k),'Xcor_prior'=1)
 ####
-fit<-sampling(object=my.model,data=dat,chains=1,refresh=1,iter=2000)
+ret<-sampling(object=my.model,data=dat,chains=1,refresh=1,iter=1000)
 plot(fit@sim$samples[[1]]$`cent_Y[1,1]`~fit@sim$samples[[1]]$`X[1,1]`)
 hmmm<-as.array(fit)[,1,]
 hmmm[,grep('Ycov',dimnames(hmmm)[[2]])]

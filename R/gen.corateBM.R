@@ -48,6 +48,7 @@ gen.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,
     }
     Ysig2<-coerce.to.cov.mat(Ysig2,k)
     chol.Ysig2<-t(chol(Ysig2))
+    n_obs<-rep(n_obs,length.out=n)
     seed<-matrix(rnorm(k*sum(n_obs)),k,sum(n_obs))
     Y<-X[rep(1:n,n_obs),]+t(chol.Ysig2%*%seed)
     rownames(Y)<-rep(tree$tip.label,n_obs)

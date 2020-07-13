@@ -10,7 +10,7 @@ functions {
         continue;
       }
       X[i, segment(which_mis, counter, k_mis[i])] = segment(mis_Y, counter, k_mis[i])';
-      counter = counter + 1;
+      counter = counter + k_mis[i];
     }
     return(X);
   }

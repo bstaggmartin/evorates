@@ -80,7 +80,7 @@ get_X(const int& n,
                         transpose(segment(mis_Y, counter, get_base1(k_mis, i, "k_mis", 1))), 
                         "assigning variable X");
             current_statement_begin__ = 13;
-            stan::math::assign(counter, (counter + 1));
+            stan::math::assign(counter, (counter + get_base1(k_mis, i, "k_mis", 1)));
         }
         current_statement_begin__ = 15;
         return stan::math::promote_scalar<fun_return_scalar_t__>(X);

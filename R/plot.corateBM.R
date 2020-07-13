@@ -1,6 +1,7 @@
 #plot an autocorrelated Brownian motion simulation
 #' @export
-plot.corateBM<-function(sim,tree,trait=1,lwd=1,col=c('deepskyblue','darkgray','brown1'),alpha=NA,
+plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
+                        lwd=1,col=c('deepskyblue','darkgray','brown1'),alpha=NA,
                         phenogram=T,val.range=if(is.null(sim$R)) c(0,0) else range(sim$R),res=100,
                         xlab=NULL,ylab=NULL,add=F,...){
   if(!is.character(trait)&!is.numeric(trait)){
