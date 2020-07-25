@@ -4,12 +4,27 @@ Relaxed clock model:
  
  - Extend to multivariate traits
 ***7/7 update: In progress, stan functions are all set; need to update fit.corateBM, operators, and profile/trace.plot
+***7/14 update: fit.corateBM is (mostly) integrated, but operators and plot functions still need to be reworked
  
  - Add legend support for trace/profile plot
- 
- - Add support for 'parameter operations' with the %% operators--like, let a user could say this parameter minus this other one and have it return that instead, appropriately labelled. If done correctly, this will extend the capabilities of profile. and trace.plot...
+***7/17 thought: add ability to plot divergent transitions with trace and profile.plot
  
  - Phylogenetic plotting functions--plot rates mapped onto phylogeny
+ 
+ - print and summary methods for class corateBM_fit
+ 
+ - diagnose() function that checks ess's, divergent/max treedepth transitions, Rhats, etc. to see if the chain seems good enough
+ 
+ - functions for viewing/manipulating covariance matrices
+ 
+ - fit.corateBM overhaul: split into data prep and output processing functions, add support for converting
+ stanfits and text files into corateBM_fit objects with parameter back-transform constants supplied
+ add support for passing dat to optimizing() rather than sampling()
+ 
+ - transformation from inputted user priors in normal scale to sampling scale?
+ 
+ - Add support for 'parameter operations' with the %% operators--like, let a user could say this parameter minus this other one and have it return that instead, appropriately labelled. If done correctly, this will extend the capabilities of profile. and trace.plot...
+***7/14 update: postponing until further notice
 
 simBM:
 

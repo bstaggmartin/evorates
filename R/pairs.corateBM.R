@@ -11,7 +11,7 @@ pairs.corateBM<-function(sim,tree,trait=1:ncol(sim$X),lwd=1,col=c('deepskyblue',
     anc.states<-matrix(NA,tree$Nnode,ncol(sim$X))
     rownames(anc.states)<-n+1:tree$Nnode
     for(i in trait){
-      anc.states[,i]<-fastAnc(scaled.tree,sim$X[,i])
+      anc.states[,i]<-quick.recon(sim$X[,i],scaled.tree)
     }
     sim$X<-rbind(sim$X,anc.states)
   }

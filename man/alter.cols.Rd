@@ -4,13 +4,13 @@
 \alias{alter.cols}
 \title{Modify the transparency and shade of colors}
 \usage{
-alter.cols(x, alph = NA, mod.val = 0)
+alter.cols(x, alpha = NA, mod.val = 0)
 }
 \arguments{
 \item{x}{Vector of color values, which can either be a character vector of color names and/or hexadecimal codes, or a numeric
 vector. In the latter case, the vecotr will be coerced to integers taken to correspond to colors currently defined in palette().}
 
-\item{alph}{Vector of alpha (transparency) values (numeric), with 0 corresponding to complete transparency and 1 to complete
+\item{alpha}{Vector of alpha (transparency) values (numeric), with 0 corresponding to complete transparency and 1 to complete
 opaqueness. Use NA to not modify transparency of original color vector. alph must consist of NA's and/or values between 0 and 1.}
 
 \item{mod.val}{Vector of values (numeric) by which to brighten/darken colors, with positive and negative numbers corresponding to

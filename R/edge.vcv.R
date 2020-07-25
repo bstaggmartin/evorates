@@ -13,8 +13,8 @@ edge.vcv<-function(tree){
   for(i in 1:length(ancs)){
     ancs[[i]]<-ancs[[i]][-which(ancs[[i]]==i)]
   }
-  edge.hgts<-ape::node.depth.edgelength(tree)[tree$edge[,2]]
-  mrcas<-ape::mrca(tree,full=T)
+  edge.hgts<-node.depth.edgelength(tree)[tree$edge[,2]]
+  mrcas<-mrca(tree,full=T)
   mat<-matrix(NA,nrow=nrow(tree$edge),ncol=nrow(tree$edge))
   mat[1,1]<-edge.hgts[1]-2*tree$edge.length[1]/3
   for(i in 2:nrow(tree$edge)){

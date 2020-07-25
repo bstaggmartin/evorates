@@ -1,31 +1,37 @@
-#' Fit an autocorrelated rates Brownian motion model to a tree and trait data
+#' Fit a correlated rates Brownian motion model to a tree and trait data
 #'
-#' This function processes tree and trait data and fits an autocorrelated rates Brownian motion model to
-#' it using a Stan-based mcmc sampler. Under an autocorrelated rates Brownian motion model, the rates at
+#' This function processes tree and trait data and fits an correlated rates Brownian motion model to
+#' it using a Stan-based mcmc sampler. Under an correlated rates Brownian motion model, the rates at
 #' trait evolution themselves evolve according to a Brownian motion process, allowing rates of
 #' evolution to vary across the tree in a phylogenetically autocorrelated manner. The results are
 #' formatted into a (relatively) user-friendly list of arrays for further analysis and diagnostics.
 #'
 #' @param tree A phylogenetic tree of class 'phylo'; function does not yet support multiple phylogenies
-#' but will handle polytomous trees just fine.
-#' @param Y A numeric vector/matrix or data.frame of trait data. Rows of data (or elements of vector) must
+#' but will handle polytomous trees just fine. Tree must be in cladewise order with all edges of length
+#' of length 0 collapsed into polytomies; running your tree through the function \code{prep.tree} first
+#' takes care of this.
+#' @param trait.data A numeric vector/matrix or data.frame of trait data. Rows of data (or elements of vector) must
 #' correspond to observations and be appropriately labelled with their corresponding tip label as given in 
 #' \code{tree}. Columns must correspond to different traits. Missing data must be coded as \code{NA}.
-#' If \code{Y} is a vector, labels are taken from the vector's \code{names} attribute. If \code{Y} is a
-#' matrix, labels are taken from the matrix's \code{rownames} attribute. If \code{Y} is a data.frame, it is
+#' If a vector, labels are taken from the vector's \code{names} attribute. If a
+#' matrix, labels are taken from the matrix's \code{rownames} attribute. If a data.frame, it is
 #' best practice to have a column corresponding to tip labels with \code{colname} 'tip.label', as R doesn't
-#' allow for non-unique rownames in data.frame objects (thus one can't have multiple observations per tip).
+#' allow non-unique rownames in data.frame objects (thus one can't have multiple observations per tip).
 #' If no 'tip.label' column is found, labels are taken from the data.frame's \code{rownames} attribute.
-#' @param R0.prior The standard deviation of the cauchy prior for the \code{R0} parameter determining
+#' @param R0.prior The standard deviation of the cauchy prior for the \code{R_0} parameter determining
 #' the rate of trait evolution at the root.
-#' @param Rsig2.prior The standard deviation of the cauchy prior for the \code{Rsig2} parameter
-#' determining the rate at which rate variance accumulates over time (inversely related to phylogenetic
-#' autocorrelation of rates).
-#' @param X0.prior The standard deviation of the cauchy prior for the \code{X0} parameter determining
-#' the trait value at the root.
+#' @param Rsig2.prior The standard deviation of the cauchy prior for the \code{R_sig2} parameter
+#' determining the rate at which rate variance accumulates over time (inversely related to the apparent
+#' 'phylogenetic correlation' of rates).
+#' @param X0.prior The standard deviation of the cauchy prior(s) for the parameters determining
+#' the trait value(s) at the root. In the case of multiple traits, can be a vector to specify different
+#' standard deviations for each trait, in the same order as the corresponding columns in \code{trait.data}.
+#' Will be recycled when length of vector and number of traits don't match.
+#' 
+#' 
 #' @param intra.var TRUE or FALSE value: should tip means be estimated with an error term or fixed
 #' according to the data?
-#' @param Ysig2.prior The standard deviation of the cauchy prior for the \code{Ysig2} parameter
+#' @param intrasig2.prior The standard deviation of the cauchy prior for the \code{Ysig2} parameter
 #' determining the variance of observed trait values due to both intraspecific variation and/or
 #' measurement error. Only matters when \code{intra.var} is set to TRUE.
 #' @param trend TRUE or FALSE value: should the model fit an overall temporal trend to rates, as in an
@@ -47,7 +53,7 @@
 #' of chains to run (4 by default), \code{iter} for the number of iterations (2000 by default),
 #' \code{warmup} for the number of iterations devoted to the warmup period (\code{iter/2} by default),
 #' \code{thin} to set the thinning rate (1 by default), and \code{refresh} to set the frequency of
-#' reporting in the R console (\code{iter/10} by default). See \code{rstan::sampling} for more options.
+#' reporting in the R console (\code{iter/10} by default). See \code{sampling} for more options.
 #' 
 #' @return A list of class 'corateBM_fit', containing an array 'chains', with rows corresponding to
 #' iterations in the mcmc sampler and columns to parameters. The array is 3D, with each
@@ -72,31 +78,45 @@
 #' low probabilities indicate anomalously low rates). Quantiles and mean posterior estimates will also be
 #' calculated for rate deviation parameters, if applicable.
 #' 
+#' 
 #' @export
 
 #5/14: add trace and profile plotting functions
 #rename Y to dat, Ysig2.prior to intrasig2.prior, Xsig2.prior to evosig2.prior,
-#Xcor.prior to evocor.prior, and Ycor.prior to intracor.prior...
+#Xcor.prior to evocor.prior, and Ycor.prior to intracor.prior... --done!
 #additional out components:
-##diagnostics--Rhats, effective sample sizes, stepsizes, energy, lp__
-##MAPs?
-##data used for MCMC
+##diagnostics--Rhats, effective sample sizes, stepsizes, energy, lp__,... --done!
+##MAPs? --done!
+##data used for MCMC --done!
 #report warnings BEFORE starting stan sampler? --done!
-fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
-                       intra.var=F,Ysig2.prior=50,
+fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
+                       intra.var=F,intrasig2.prior=50,
                        trend=F,Rmu.prior=Rsig2.prior,
-                       Xsig2.prior=1,Xcor.prior=1,Ycor.prior=1,
+                       evosig2.prior=1,evocor.prior=1,intracor.prior=1,
                        constrain.Rsig2=F,
-                       report.quantiles=c(0.025,0.5,0.975),report.means=T,report.devs=T,
-                       return.stanfit=F,...){
+                       report.quantiles=NULL,report.means=FALSE,report.MAPs=FALSE,report.devs=TRUE,
+                       return.stanfit=F,
+                       include.warmup=F,
+                       ...){
   #initial checks
+  if(tree$edge[1,1]!=length(tree$tip.label)+1){
+    stop("tree doesn't appear to be in 'cladwise' order: please first run tree through prep.tree()")
+  }
+  if(any(tree$edge.length==0)){
+    stop("tree has edges of length 0, which must be collapsed into polytomies (don't worry, it doesn't make a mathematical difference in fitting the model, it only prevents the creation of unidentifiable parameters): please first run tree through prep.tree()")
+  }
+  Y<-trait.data
+  Ysig2.prior<-intrasig2.prior
+  Xsig2.prior<-evosig2.prior
+  Xcor.prior<-evocor.prior
+  Ycor.prior<-intracor.prior
   if(is.data.frame(Y)){
     if(!is.null(Y$tip.label)){
       labels<-Y$tip.label
       labels.col<-which(colnames(Y)=='tip.label')
     }else if(!is.null(rownames(Y))){
       labels<-rownames(Y)
-      warning('Y is a data.frame with no tip.label column: used rownames as labels instead',
+      warning("trait data is a data.frame with no 'tip.label' column: used rownames as labels instead",
               immediate.=T)
     }else{
       stop('trait data is unlabelled: please name each row with its corresponding tip label or add tip.label column')
@@ -221,7 +241,8 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     if(any(n.obs>1)){
       warning("multiple observations per tip found: observations were averaged, but it's strongly recommend to run function with intra.var set to TRUE",
               immediate.=T)
-      Y<-as.matrix(sapply(1:k,function(ii) tapply(Y[,ii],rownames(Y),mean)))
+      Y<-as.matrix(sapply(1:k,function(ii) tapply(Y[,ii],rownames(Y),mean,na.rm=T)))
+      Y[is.nan(Y)]<-NA
     }
     missing.Y<-names(which(sapply(tree$tip.label,function(ii) sum(rownames(Y)==ii))==0))
     Y<-do.call(rbind,c(list(Y),setNames(rep(list(NA),length(missing.Y)),missing.Y)))
@@ -239,6 +260,7 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
       which_mis<-unlist(which_mis)
     }
   }
+  untrans.Y<-Y
   o.hgt<-max(eV)
   tree$edge.length<-tree$edge.length/o.hgt
   eV<-eV/o.hgt
@@ -249,12 +271,12 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     missing.dat<-names(which(tapply(tmp.Y,names(tmp.Y),function(ii) sum(!is.na(ii)))==0))
     missing.dat<-c(missing.dat,tree$tip.label[!(tree$tip.label%in%names(tmp.Y))])
     if(length(missing.dat)>0){
-      tmp.tree<-ape::drop.tip(tree,missing.dat)
+      tmp.tree<-drop.tip(tree,missing.dat)
     }else{
       tmp.tree<-tree
     }
     tmp.X<-tapply(tmp.Y,names(tmp.Y),mean,na.rm=T)[tmp.tree$tip.label]
-    o.Xsig2[i]<-sum(ape::pic(tmp.X,ape::multi2di(tmp.tree))^2)/n
+    o.Xsig2[i]<-sum(pic(tmp.X,multi2di(tmp.tree))^2)/n
     xx<-c(tmp.X,rep(NA,tmp.tree$Nnode))
     for(ee in nrow(tmp.tree$edge):0){
       if(ee==0){
@@ -272,7 +294,7 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     o.X0[i]<-xx[n+1]
     Y[,i]<-(Y[,i]-o.X0[i])/sqrt(o.Xsig2[i])
   }
-  if(!ape::is.binary(tree)){
+  if(!is.binary(tree)){
     poly.nodes<-which(sapply(1:max(tree$edge),function(ii) length(which(ii==tree$edge[,1])))>2)
     d_poly<-lapply(poly.nodes,function(ii) which(ii==tree$edge[,1]))
     tmp<-sort(unlist(lapply(d_poly,function(ii) ii[seq(2,length(ii)-1)])))
@@ -314,10 +336,10 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
       dat$Xsig2_prior=rep(Xsig2.prior,length.out=k)
       dat$Xcor_prior=Xcor.prior
       dat$Ycor_prior=Ycor.prior
-      ret<-rstan::sampling(object=stanmodels$intravar_multivar_corateBM,data=dat,...)
+      ret<-sampling(object=stanmodels$intravar_multivar_corateBM,data=dat,...)
     }else{
       dat$Y<-as.vector(Y)
-      ret<-rstan::sampling(object=stanmodels$intravar_univar_corateBM,data=dat,...)
+      ret<-sampling(object=stanmodels$intravar_univar_corateBM,data=dat,...)
     }
   }else{
     dat$which_mis<-which_mis
@@ -327,35 +349,57 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
       dat$k_mis<-k_mis
       dat$Xsig2_prior=rep(Xsig2.prior,length.out=k)
       dat$Xcor_prior=Xcor.prior
-      ret<-rstan::sampling(object=stanmodels$multivar_corateBM,data=dat,...)
+      ret<-sampling(object=stanmodels$multivar_corateBM,data=dat,...)
     }else{
       dat$Y<-as.vector(Y)
       dat$mis<-length(which_mis)
-      ret<-rstan::sampling(object=stanmodels$univar_corateBM,data=dat,...)
+      ret<-sampling(object=stanmodels$univar_corateBM,data=dat,...)
     }
   }
 
+  #get sampler arguments/parameters for diagnostics
+  sampler.args<-attr(ret@sim[[1]][[1]],'args')
+  if(include.warmup){
+    niter<-sampler.args$iter
+    excl.iter<-niter+1
+  }else{
+    niter<-sampler.args$iter-sampler.args$warmup+1
+    excl.iter<-2:sampler.args$warmup
+  }
+  lp__<-extract(ret,"lp__",permute=F,inc_warmup=T)
+  sampler.params<-array(NA,c(sampler.args$iter,7,nchain))
+  dimnames(sampler.params)<-list(iterations=NULL,
+                                parameters=c(names(attr(ret@sim$samples[[1]],'sampler_params')),'lp__'),
+                                chains=paste('chain',1:nchain))
+  for(i in 1:nchain){
+    sampler.params[,,i]<-as.matrix(do.call(cbind,
+                                           c(attr(ret@sim$samples[[i]],'sampler_params'),list(lp__[,i,]))))
+  }
+  out<-list(diagnostics=c(sampler.args[-2],sampler=list(sampler.params)))
+
   #process/format output
-  R0<-rstan::extract(ret,"R0",permute=FALSE,inc_warmup=FALSE)-log(o.hgt)
-  niter<-dim(R0)[1]
-  X0<-rstan::extract(ret,"X0",permute=FALSE,inc_warmup=FALSE)*
-    rep(sqrt(o.Xsig2),each=niter*nchain)+rep(o.X0,each=niter*nchain)
-  out<-list(chains=array(dim=c(niter,4+e+k*(n+3+(k-1)),nchain)))
+  out$chains<-array(dim=c(niter,4+e+k*(n+3+(k-1)),nchain))
   X.param.names<-paste(rep(colnames(Y),n),'_',rep(tree$tip.label,each=k),sep='')
-  Xcov.param.names<-paste(rep(colnames(Y),each=k),
-                          ifelse(1:k^2%%(k+1)==1,'',paste(',',rep(colnames(Y),k),sep=''))
-                          ,'_evocov',sep='')[lower.tri(matrix(NA,k,k),diag=T)]
-  Ycov.param.names<-paste(rep(colnames(Y),each=k),
-                          ifelse(1:k^2%%(k+1)==1,'',paste(',',rep(colnames(Y),k),sep=''))
-                          ,'_intracov',sep='')[lower.tri(matrix(NA,k,k),diag=T)]
+  Xcov.param.names<-paste(rep(colnames(Y),each=k),',',
+                          rep(colnames(Y),k),'_evocov',
+                          sep='')[lower.tri(matrix(NA,k,k),diag=T)]
+  Ycov.param.names<-paste(rep(colnames(Y),each=k),',',
+                          rep(colnames(Y),k),'_intracov',
+                          sep='')[lower.tri(matrix(NA,k,k),diag=T)]
   param.names<-c('R_0','R_sig2','R_mu','bg_rate',
                  paste('R_',1:e,sep=''),
                  paste(colnames(Y),'_0',sep=''),Xcov.param.names,Ycov.param.names,X.param.names)
   dimnames(out$chains)<-list(iterations=NULL,
                              parameters=param.names,
                              chains=paste('chain',1:nchain))
+  X0<-reduce.array(extract(ret,"X0",permute=F,inc_warmup=T),excl.iter)*
+    rep(sqrt(o.Xsig2),each=niter*nchain)+rep(o.X0,each=niter*nchain)
+  out$chains[,paste(colnames(Y),'_0',sep=''),]<-aperm(X0,c(1,3,2))
+  out$call$X0.prior<-X0.prior
+  R0<-reduce.array(extract(ret,"R0",permute=F,inc_warmup=T),excl.iter)-
+    log(o.hgt)
   if(k>1){
-    chol_Xcov<-rstan::extract(ret,"chol_Xcov",permute=FALSE,inc_warmup=FALSE)
+    chol_Xcov<-reduce.array(extract(ret,"chol_Xcov",permute=F,inc_warmup=T),excl.iter)
     Xcov<-array(0,c(k,k,niter*nchain))
     for(i in 1:k){
       for(j in 1:i){
@@ -371,9 +415,11 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     for(i in 1:length(Xcov.param.names)){
       out$chains[,Xcov.param.names[i],]<-Xcov[tmp[i,1],tmp[i,2],]
     }
+    out$call$evosig2.prior<-Xsig2.prior
+    out$call$evocor.prior<-Xcor.prior
     R0<-R0-log(new.fac)
     if(intra.var){
-      chol_Ycov<-rstan::extract(ret,"chol_Ycov",permute=FALSE,inc_warmup=FALSE)
+      chol_Ycov<-reduce.array(extract(ret,"chol_Ycov",permute=F,inc_warmup=T),excl.iter)
       Ycov<-array(0,c(k,k,niter*nchain))
       for(i in 1:k){
         for(j in 1:i){
@@ -386,36 +432,45 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
       for(i in 1:length(Ycov.param.names)){
         out$chains[,Ycov.param.names[i],]<-Ycov[tmp[i,1],tmp[i,2],]
       }
+      out$call$intrasig2.prior<-Ysig2.prior
+      out$call$intracor.prior<-Ycor.prior
     }
   }else{
     if(intra.var){
-      Ysig2<-rstan::extract(ret,"Ysig2",permute=FALSE,inc_warmup=FALSE)
-      out$chains[,Ycov.param.names,]<-Ysig2*sqrt(o.Xsig2)
+      Ysig2<-reduce.array(extract(ret,"Ysig2",permute=F,inc_warmup=T),excl.iter)*
+        sqrt(o.Xsig2)
+      out$chains[,Ycov.param.names,]<-Ysig2
+      out$call$intrasig2.prior<-Ysig2.prior
     }
     R0<-R0+log(o.Xsig2)
   }
   out$chains[,'R_0',]<-R0
-  out$chains[,paste(colnames(Y),'_0',sep=''),]<-aperm(X0,c(1,3,2))
+  out$call$R0.prior<-R0.prior
   if(intra.var){
-    out.X<-rstan::extract(ret,"X",permute=FALSE,inc_warmup=FALSE)*
+    out.X<-reduce.array(extract(ret,"X",permute=F,inc_warmup=T),excl.iter)*
       rep(sqrt(o.Xsig2),each=niter*nchain)+rep(o.X0,each=niter*nchain)
     out$chains[,X.param.names,]<-aperm(out.X,c(1,3,2))
   }else if(length(which_mis)>0){
-    mis.Y<-rstan::extract(ret,"mis_Y",permute=FALSE,inc_warmup=FALSE)*
+    mis.Y<-reduce.array(extract(ret,"mis_Y",permute=F,inc_warmup=T),excl.iter)*
       rep(sqrt(o.Xsig2),niter*nchain*k_mis)+rep(o.X0,niter*nchain*k_mis)
     tmp<-(which_mis-1)*k+rep(1:k,k_mis)
     out$chains[,X.param.names[tmp],]<-aperm(mis.Y,c(1,3,2))
   }
   if(!constrain.Rsig2){
-    Rsig2<-rstan::extract(ret,"Rsig2",permute=FALSE,inc_warmup=FALSE)/o.hgt
+    Rsig2<-reduce.array(extract(ret,"Rsig2",permute=F,inc_warmup=T),excl.iter)/
+      o.hgt
     out$chains[,'R_sig2',]<-Rsig2
+    out$call$Rsig2.prior<-Rsig2.prior
   }
   if(trend){
-    Rmu<-rstan::extract(ret,"Rmu",permute=FALSE,inc_warmup=FALSE)/o.hgt
+    Rmu<-reduce.array(extract(ret,"Rmu",permute=F,inc_warmup=T),excl.iter)/
+      o.hgt
     out$chains[,'R_mu',]<-Rmu
+    out$call$Rmu.prior<-Rmu.prior
   }
   if(!constrain.Rsig2|trend){
-    R<-rstan::extract(ret,"R",permute=FALSE,inc_warmup=FALSE)-log(o.hgt)
+    R<-reduce.array(extract(ret,"R",permute=F,inc_warmup=T),excl.iter)-
+      log(o.hgt)
     if(k>1){
       R<-R-log(new.fac)
     }else{
@@ -453,6 +508,13 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
                             dimnames=tmp[c(1,3,2)]),
                       c(1,3,2))
   }
+  
+  #create parameter diagnostics table
+  out$diagnostics$params<-reduce.array(out$chains,5:dim(out$chains)[1])
+  dimnames(out$diagnostics$params)<-c(list(c('inits','bulk_ess','tail_ess','Rhat')),dimnames(out$chains)[-1])
+  if(!include.warmup){
+    out$chains<-reduce.array(out$chains,1)
+  }
 
   #add quantiles
   if(!is.null(report.quantiles)){
@@ -471,17 +533,35 @@ fit.corateBM<-function(tree,Y,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   #add rate deviation posterior probabilities
   if(report.devs){
     if(nchain==1){
-      out$post.probs<-apply(out%chains%'dev',2,function(ii) sum(ii>0)/length(ii))
+      out$post.probs<-apply(out%chains%'_dev',2,function(ii) sum(ii>0)/length(ii))
       out$post.probs<-as.matrix(out$post.probs)
       dimnames(out$post.probs)<-list(parameters=rownames(out$post.probs),chains='chain 1')
     }else{
-      out$post.probs<-apply(out%chains%'dev',c(2,3),function(ii) sum(ii>0)/length(ii))
+      out$post.probs<-apply(out%chains%'_dev',c(2,3),function(ii) sum(ii>0)/length(ii))
     }
   }
   
+  if(report.MAPs){
+    if(include.warmup){
+      trimmed.sampler.params<-out$diagnostics$sampler
+    }else{
+      trimmed.sampler.params<-reduce.array(out$diagnostics$sampler,1:out$diagnostics$warmup)
+    }
+    MAP.inds<-sapply(1:nchain, function(ii) which.max(trimmed.sampler.params[,'lp__',ii]))
+    MAPs<-sapply(1:nchain,function(ii) out$chains[MAP.inds[ii],,ii])
+    dimnames(MAPs)<-dimnames(out$chains)[-1]
+    out$MAPs<-MAPs
+  }
+
   if(return.stanfit){
     out$stanfit<-ret
   }
+
+  out$call$trait.data<-untrans.Y
+
+  out$diagnostics$params[2,,]<-apply(out$chains,c(2,3),rstan::ess_bulk)
+  out$diagnostics$params[3,,]<-apply(out$chains,c(2,3),rstan::ess_tail)
+  out$diagnostics$params[4,,]<-apply(out$chains,c(2,3),rstan::Rhat)
 
   out
 }

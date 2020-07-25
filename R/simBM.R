@@ -26,7 +26,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,rates=NULL
   ####
   
   ##EXTRACTING USEFUL PARAMETERS##
-  tree<-ape::reorder.phylo(tree)
+  tree<-reorder.phylo(tree)
   ntax<-length(tree$tip.label)
   edges<-tree$edge
   edge.lens<-tree$edge.length
@@ -46,7 +46,7 @@ simBM<-function(tree,x,n.sim=1000,along.branch=T,res=100,return.MLE=T,rates=NULL
     names(x)<-tree$tip.label
   }
   tip.states<-x[tree$tip.label]
-  sigma<-mean(ape::pic(x[1:ntax],phy=multi2di(tree))^2)
+  sigma<-mean(pic(x[1:ntax],phy=multi2di(tree))^2)
   if(!lb.reflective){
     lb.trunc<-lb
   }else{

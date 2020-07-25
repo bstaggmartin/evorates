@@ -2,46 +2,62 @@
 % Please edit documentation in R/fit.corateBM.R
 \name{fit.corateBM}
 \alias{fit.corateBM}
-\title{Fit an autocorrelated rates Brownian motion model to a tree and trait data}
+\title{Fit a correlated rates Brownian motion model to a tree and trait data}
 \usage{
 fit.corateBM(
   tree,
-  Y,
+  trait.data,
   R0.prior = 10,
   Rsig2.prior = 20,
   X0.prior = 100,
   intra.var = F,
-  Ysig2.prior = 50,
+  intrasig2.prior = 50,
   trend = F,
   Rmu.prior = Rsig2.prior,
+  evosig2.prior = 1,
+  evocor.prior = 1,
+  intracor.prior = 1,
   constrain.Rsig2 = F,
-  report.quantiles = c(0.025, 0.5, 0.975),
-  report.means = T,
-  report.devs = T,
+  report.quantiles = NULL,
+  report.means = FALSE,
+  report.MAPs = FALSE,
+  report.devs = TRUE,
   return.stanfit = F,
+  include.warmup = F,
   ...
 )
 }
 \arguments{
 \item{tree}{A phylogenetic tree of class 'phylo'; function does not yet support multiple phylogenies
-but will handle polytomous trees just fine.}
+but will handle polytomous trees just fine. Tree must be in cladewise order with all edges of length
+of length 0 collapsed into polytomies; running your tree through the function \code{prep.tree} first
+takes care of this.}
 
-\item{Y}{A vector of trait data, with each element labelled according to its corresponding tip label.}
+\item{trait.data}{A numeric vector/matrix or data.frame of trait data. Rows of data (or elements of vector) must
+correspond to observations and be appropriately labelled with their corresponding tip label as given in 
+\code{tree}. Columns must correspond to different traits. Missing data must be coded as \code{NA}.
+If a vector, labels are taken from the vector's \code{names} attribute. If a
+matrix, labels are taken from the matrix's \code{rownames} attribute. If a data.frame, it is
+best practice to have a column corresponding to tip labels with \code{colname} 'tip.label', as R doesn't
+allow non-unique rownames in data.frame objects (thus one can't have multiple observations per tip).
+If no 'tip.label' column is found, labels are taken from the data.frame's \code{rownames} attribute.}
 
-\item{R0.prior}{The standard deviation of the cauchy prior for the \code{R0} parameter determining
+\item{R0.prior}{The standard deviation of the cauchy prior for the \code{R_0} parameter determining
 the rate of trait evolution at the root.}
 
-\item{Rsig2.prior}{The standard deviation of the cauchy prior for the \code{Rsig2} parameter
-determining the rate at which rate variance accumulates over time (inversely related to phylogenetic
-autocorrelation of rates).}
+\item{Rsig2.prior}{The standard deviation of the cauchy prior for the \code{R_sig2} parameter
+determining the rate at which rate variance accumulates over time (inversely related to the apparent
+'phylogenetic correlation' of rates).}
 
-\item{X0.prior}{The standard deviation of the cauchy prior for the \code{X0} parameter determining
-the trait value at the root.}
+\item{X0.prior}{The standard deviation of the cauchy prior(s) for the parameters determining
+the trait value(s) at the root. In the case of multiple traits, can be a vector to specify different
+standard deviations for each trait, in the same order as the corresponding columns in \code{trait.data}.
+Will be recycled when length of vector and number of traits don't match.}
 
 \item{intra.var}{TRUE or FALSE value: should tip means be estimated with an error term or fixed
 according to the data?}
 
-\item{Ysig2.prior}{The standard deviation of the cauchy prior for the \code{Ysig2} parameter
+\item{intrasig2.prior}{The standard deviation of the cauchy prior for the \code{Ysig2} parameter
 determining the variance of observed trait values due to both intraspecific variation and/or
 measurement error. Only matters when \code{intra.var} is set to TRUE.}
 
@@ -70,7 +86,7 @@ branch-wise rates and the 'background rate' (see below)?}
 of chains to run (4 by default), \code{iter} for the number of iterations (2000 by default),
 \code{warmup} for the number of iterations devoted to the warmup period (\code{iter/2} by default),
 \code{thin} to set the thinning rate (1 by default), and \code{refresh} to set the frequency of
-reporting in the R console (\code{iter/10} by default). See \code{rstan::sampling} for more options.}
+reporting in the R console (\code{iter/10} by default). See \code{sampling} for more options.}
 }
 \value{
 A list of class 'corateBM_fit', containing an array 'chains', with rows corresponding to
@@ -78,11 +94,11 @@ iterations in the mcmc sampler and columns to parameters. The array is 3D, with 
 matrix slice corresponding to a particular mcmc chain. Parameters may include \code{R0}, \code{Rsig2},
 \code{X0}, \code{Ysig2}, and \code{Rmu}, as defined above. Average branch-wise rates are also included
 and denoted
-\code{R[i]} where \code{i} is the index of the edge as given in \code{tree}. If \code{intra.var} is
+\code{R_i} where \code{i} is the index of the edge as given in \code{tree}. If \code{intra.var} is
 set to TRUE, the array will also include the tip mean parameters, denoted by their tip labels as given
 in \code{tree}. Additionally, the function calculates the posterior distribution of 'background rates'
 by taking the average of all average branch-wise rate parameters, weighted by the relative lengths of 
-their respective branches, denoted \code{bg.rate}.
+their respective branches, denoted \code{bg_rate}.
 
 Optionally, the object may contain additional arrays including 'quantiles', 'means', and 'post.probs'.
 'quantiles' is an array formatted similarly to 'chains' with rows corresponding to quantiles of the
@@ -97,8 +113,8 @@ low probabilities indicate anomalously low rates). Quantiles and mean posterior 
 calculated for rate deviation parameters, if applicable.
 }
 \description{
-This function processes tree and trait data and fits an autocorrelated rates Brownian motion model to
-it using a Stan-based mcmc sampler. Under an autocorrelated rates Brownian motion model, the rates at
+This function processes tree and trait data and fits an correlated rates Brownian motion model to
+it using a Stan-based mcmc sampler. Under an correlated rates Brownian motion model, the rates at
 trait evolution themselves evolve according to a Brownian motion process, allowing rates of
 evolution to vary across the tree in a phylogenetically autocorrelated manner. The results are
 formatted into a (relatively) user-friendly list of arrays for further analysis and diagnostics.

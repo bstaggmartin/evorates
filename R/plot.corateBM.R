@@ -45,7 +45,7 @@ plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
     problem.index<-which(trait>ncol(sim$X))
     stop("can't find trait(s) matching with ",paste(trait[problem.index],collapse=', '))
   }
-  if(length(trait)>2){
+  if(length(trait)>2&!phenogram){
     pairs(sim,tree,trait=trait,lwd=lwd,col=col,alpha=alpha,val.range=val.range,res=res,...)
   }else{
     colramp<-colorRampPalette(col)(res)
@@ -56,7 +56,7 @@ plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
       inds[inds<1]<-1;inds[inds>res]<-res
       colvec<-colramp[inds]
     }
-    colvec<-alter.cols(colvec,alph=alpha)
+    colvec<-alter.cols(colvec,alpha=alpha)
     if(phenogram){
       n<-length(tree$tip.label)
       if(nrow(sim$X)==n){
@@ -67,7 +67,7 @@ plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
         anc.states<-matrix(NA,tree$Nnode,ncol(sim$X))
         rownames(anc.states)<-n+1:tree$Nnode
         for(i in trait){
-          anc.states[,i]<-fastAnc(scaled.tree,sim$X[,i])
+          anc.states[,i]<-quick.recon(sim$X[,i],scaled.tree)
         }
         sim$X<-rbind(sim$X,anc.states)
       }
