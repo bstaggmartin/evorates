@@ -1,3 +1,5 @@
+#need to update %MAPs%, %chains%, %means%, %sampler% with updated functions to be more efficient
+
 #' Extract posterior distributions from a fitted correlated rates Brownian Motion model
 #'
 #'
@@ -55,14 +57,22 @@
 #' 
 #' @export
 `%chains%`<-function(fit,select){
+  if(!inherits(fit,'corateBM_fit')){
+    stop("the %chains% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
   }
-  fit[['chains']]<-check.n.proc(fit,'chains')
-  int.op(fit,'chains',select)
+  fit[['chains']]<-expand.element(fit[['chains']])
+  out<-int.op(fit,'chains',select)
+  simplify.element(out)
 }
 
+#takes ~760 milliseconds! (holy shit)
+#check if def.report.quantiles are in an already existing quantiles object
+#if not, select parameters, then extract quantiles!
+#improved speed 760-fold (als created helpful new function, simplify.array...)
 #' Extract posterior distribution quantiles from a fitted correlated rates Brownian Motion model
 #'
 #'
@@ -130,6 +140,9 @@
 #' 
 #' @export
 `%quantiles%`<-function(fit,select){
+  if(!inherits(fit,'corateBM_fit')){
+    stop("the %quantiles% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
@@ -137,7 +150,7 @@
   if(is.null(fit[['quantiles']])){
     def.report.quantiles<-c(0.025,0.5,0.975)
   }else{
-    fit[['quantiles']]<-check.n.proc(fit,'quantiles')
+    fit[['quantiles']]<-expand.element(fit[['quantiles']])
     def.report.quantiles<-as.numeric(substr(dimnames(fit[['quantiles']])[[1]],0,
                                             nchar(dimnames(fit[['quantiles']])[[1]])-1))/100
   }
@@ -148,22 +161,21 @@
   }else{
     select<-list(select,def.report.quantiles)
   }
-  fit[['chains']]<-check.n.proc(fit,'chains')
-  fit[['quantiles']]<-apply(fit[['chains']],c(2,3),quantile,probs=select[[2]])
-  if(is.matrix(fit[['quantiles']])){
-    fit[['quantiles']]<-array(fit[['quantiles']],dim=c(1,dim(fit[['quantiles']])))
-    dimnames(fit[['quantiles']])<-c('quantiles'=paste(select[[2]]*100,'%',sep=''),
-                                    dimnames(fit[['chains']])[-1])
+  fit[['chains']]<-expand.element(fit[['chains']])
+  tmp<-int.op(fit,'chains',select[[1]])
+  out<-array(NA,dim=c(length(select[[2]]),dim(tmp)[-1]))
+  dimnames(out)<-c('quantiles'=list(paste(select[[2]]*100,'%',sep='')),
+                   dimnames(tmp)[-1])
+  if(!is.null(fit[['quantiles']])){
+    matches<-match(select[[2]],def.report.quantiles)
+    out[(1:dim(out)[1])[!is.na(matches)],,]<-
+      fit[['quantiles']][matches[!is.na(matches)],dimnames(tmp)[[2]],]
+    select[[2]]<-select[[2]][is.na(matches)]
   }
-  out<-int.op(fit,'quantiles',select[[1]])
-  if(length(dim(out))==0){
-    if(length(out)==length(select[[2]])){
-      names(out)<-paste(select[[2]]*100,'%',sep='')
-    }else{
-      attr(out,'quantiles')<-paste(select[[2]]*100,'%',sep='')
-    }
+  if(length(select[[2]])>0){
+    out[is.na(out[,1,1]),,]<-apply(tmp,c(2,3),quantile,probs=select[[2]])
   }
-  out
+  simplify.element(out)
 }
 
 #' Extract posterior distribution means from a fitted correlated rates Brownian Motion model
@@ -223,21 +235,22 @@
 #' 
 #' @export
 `%means%`<-function(fit,select){
+  if(!inherits(fit,'corateBM_fit')){
+    stop("the %means% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
   }
   if(is.null(fit[['means']])){
-    fit[['chains']]<-check.n.proc(fit,'chains')
-    fit[['means']]<-apply(fit[['chains']],c(2,3),mean)
+    fit[['chains']]<-expand.element(fit[['chains']])
+    tmp<-int.op(fit,'chains',select)
+    out<-array(apply(tmp,c(2,3),mean),c(1,dim(tmp)[-1]),dimnames(tmp))
+  }else{
+    fit[['means']]<-expand.element(fit[['means']])
+    out<-int.op(fit,'means',select)
   }
-  fit[['means']]<-check.n.proc(fit,'means')
-  out<-int.op(fit,'means',select)
-  if(length(out)==1){
-    names(out)<-attr(out,'parameters')
-    attr(out,'parameters')<-NULL
-  }
-  out
+  simplify.element(out)
 }
 
 #' Extract max a posteriori parameter estimates from a fitted correlated rates Brownian Motion model
@@ -310,34 +323,31 @@
 #' 
 #' @export
 `%MAPs%`<-function(fit,select){
+  if(!inherits(fit,'corateBM_fit')){
+    stop("the %MAPs% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
   }
   if(is.null(fit[['MAPs']])){
-    fit[['chains']]<-check.n.proc(fit,'chains')
-    chains.len<-dim(fit[['chains']])[1]
-    nchain<-dim(fit[['chains']])[3]
-    fit[['sampler']]<-fit[['diagnostics']][['sampler']]
-    fit[['sampler']]<-check.n.proc(fit,'sampler')
-    diags.len<-dim(fit[['diagnostics']][['sampler']])[1]
+    fit[['chains']]<-expand.element(fit[['chains']])
+    tmp<-int.op(fit,'chains',select)
+    chains.len<-dim(tmp)[1]
+    nchain<-dim(tmp)[3]
+    lp<-as.matrix('%sampler%'(fit,'lp'))
+    diags.len<-nrow(lp)
     if(diags.len-chains.len>0){
-      trimmed.sampler.params<-reduce.array(fit[['sampler']],1:(diags.len-chains.len))
-    }else{
-      trimmed.sampler.params<-fit[['sampler']]
+      lp<-as.matrix(lp[-(1:(diags.len-chains.len)),])
     }
-    MAP.inds<-sapply(1:nchain, function(ii) which.max(trimmed.sampler.params[,'lp__',ii]))
-    MAPs<-sapply(1:nchain,function(ii) fit[['chains']][MAP.inds[ii],,ii])
-    dimnames(MAPs)<-dimnames(fit[['chains']])[-1]
-    fit[['MAPs']]<-MAPs
+    MAP.inds<-sapply(1:nchain, function(ii) which.max(lp[,ii]))
+    out<-array(sapply(1:nchain,function(ii) tmp[MAP.inds[ii],,ii]),
+               c(1,dim(tmp)[-1]),dimnames(tmp))
+  }else{
+    fit[['MAPs']]<-expand.element(fit[['MAPs']])
+    out<-int.op(fit,'MAPs',select)
   }
-  fit[['MAPs']]<-check.n.proc(fit,'MAPs')
-  out<-int.op(fit,'MAPs',select)
-  if(length(out)==1){
-    names(out)<-attr(out,'parameters')
-    attr(out,'parameters')<-NULL
-  }
-  out
+  simplify.element(out)
 }
 
 #' Extract MCMC sampler parameters from a fitted correlated rates Brownian Motion model
@@ -384,47 +394,20 @@
 #' 
 #' @export
 `%sampler%`<-function(fit,select){
+  if(!inherits(fit,'corateBM_fit')){
+    stop("the %sampler% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
   }
-  fit[['sampler']]<-fit[['diagnostics']][['sampler']]
-  fit[['sampler']]<-check.n.proc(fit,'sampler')
+  fit[['sampler']]<-expand.element(fit[['diagnostics']][['sampler']])
   if(is.numeric(select)){
     select<-paste(c('accept_stat','stepsize','treedepth','n_leapfrog','diverget','energy','lp'),
                   '__',sep='')[select]
   }
-  int.op(fit,'sampler',select)
-}
-
-#check and process -- make sure fit is of appropriate class and coerce fit$element to an array
-#' @keywords internal
-#' @export
-check.n.proc<-function(fit,element){
-  if(!inherits(fit,'corateBM_fit')){
-    stop("the %",element,"% operator only accepts fitted autocorrelated BM objects (class 'corateBM_fit') on left hand side")
-  }
-  if(length(dim(fit[[element]]))==0){
-    new.element<-array(fit[[element]],c(1,length(fit[[element]]),1))
-    if(element=='quantiles'){
-      dimnames(new.element)<-list(attr(fit[[element]],'quantiles'),'parameters'=names(fit[[element]]),NULL)
-    }else{
-      dimnames(new.element)<-list(NULL,'parameters'=names(fit[[element]]),NULL)
-    }
-    new.element
-  }else if(length(dim(fit[[element]]))==2){
-    if(names(dimnames(fit[[element]]))[1]=='parameters'){
-      new.element<-array(fit[[element]],c(1,dim(fit[[element]])))
-      dimnames(new.element)<-c(list(NULL),dimnames(fit[[element]]))
-      new.element
-    }else{
-      new.element<-array(fit[[element]],c(dim(fit[[element]]),1))
-      dimnames(new.element)<-c(dimnames(fit[[element]]),list(NULL))
-      new.element
-    }
-  }else{
-    fit[[element]]
-  }
+  out<-int.op(fit,'sampler',select)
+  simplify.element(out)
 }
 
 #internal operator -- select parameters out of fit$element based on edge numbers or regular expressions
@@ -492,9 +475,11 @@ int.op<-function(fit,element,select){
   }
   if(any(lengths(tmp)==0)){
     problem.select<-which(lengths(tmp)==0)
-    for(i in 1:nrow(connect.inds)){
-      if(any(lengths(tmp[connect.inds[i,]])!=0)){
-        problem.select<-problem.select[-which(problem.select%in%connect.inds[i,])]
+    if(!is.null(connect.inds)){
+      for(i in 1:nrow(connect.inds)){
+        if(any(lengths(tmp[connect.inds[i,]])!=0)){
+          problem.select<-problem.select[-which(problem.select%in%connect.inds[i,])]
+        }
       }
     }
     if(length(problem.select)>0){
@@ -503,9 +488,5 @@ int.op<-function(fit,element,select){
     }
   }
   inds<-sort(unique(unlist(tmp)))
-  out<-fit[[element]][,inds,]
-  if(length(inds)==1){
-    attr(out,'parameters')<-param.names[inds]
-  }
-  out
+  index.array(fit[[element]],inds,2)
 }
