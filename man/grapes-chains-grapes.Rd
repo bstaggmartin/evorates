@@ -7,22 +7,21 @@
 fit \%chains\% select
 }
 \arguments{
-\item{fit}{An object of class 'corateBM_fit', which is the typical output of a call to
-\code{fit.corateBM}.}
+\item{fit}{An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.}
 
-\item{select}{A character or numeric vector. If of class character, the given text is matched to
-parameter names using regular expressions. If of class numeric, the numbers are matched to indices
-of rate parameters (\code{R_i}), include root (\code{R_0}). Exhibits special behavior with regards to
-rate deviation (\code{R_i_dev}) and commas (','); see details below.}
+\item{select}{A character or numeric vector. If of class character, the given text is matched to parameter
+names using regular expressions. If of class numeric, the numbers are matched to indices of rate parameters
+("\code{R_i}"), including the root ("\code{R_0}"). Exhibits special behavior with regards to rate deviation
+parameters ("\code{R_i_dev}") and commas ("\code{,}"); see details below.}
 }
 \value{
 A numeric vector, matrix, or 3D array. The dimensions will always go in the order of iterations,
-then parameters, then chains, collapsing any dimensions of length 1. When \code{select} matches to a
-single parameter, the parameter name is stored as an attribute labelled "parameters".
+then parameters, then chains, collapsing any dimensions of length 1 and storing associated name
+information in attributes.
 }
 \description{
-This is an operator for efficiently extracting sampled parameter values for particular parameters
-from output of the function \code{fit.corateBM}.
+This is an operator for efficiently extracting sampled parameter values for particular parameters from
+output of the function \code{fit.corateBM}.
 }
 \details{
 These operators become really useful with some knowledge on how to use regular expressions.
@@ -30,19 +29,19 @@ Please consult Rstudio's
 \href{https://rstudio.com/wp-content/uploads/2016/09/RegExCheatsheet.pdf}{Regular Expressions Cheat Sheet}
 to learn more about regular expressions.
 
-For convenience, when faced with text including a single comma (','), this operator will attempt to
-switch the text preceding the comma with any text comeing after the comma and before an underscore
-('_'). In practice, this helps extract parameters related to covariance matrices, as
-'trait1,trait2_evocov' is automatically converted to 'trait2,trait1_evocov'. This is helpful because
-corateBM model outputs only store values for the lower triangle of the covariance matrix, since they are
-symmetric. Can return unpredictable results in cases where ',' or '_' are part of trait names or
-tip labels. Use double-backslashes ('\\,'/'\\_') to indicate 'escaped' commas and underscores that the
-function should ignore during this swapping behavior. Note that you can also use '\\,' to do encode
-expression searches of the form '{m,n}'.
+For convenience, when faced with text including a single comma ("\code{,}"), this operator will attempt to
+switch the text preceding the comma with any text comeing after the comma and before an underscore 
+("\code{_}"). In practice, this helps extract parameters related to covariance matrices, as
+"\code{trait1,trait2_evocov}" is automatically converted to "\code{trait2,trait1_evocov}". This is helpful
+because corateBM model outputs only store values for the lower triangle of the covariance matrix, since
+they are symmetric. Can return unpredictable results in cases where "\code{,}" or "\code{_}" are part of
+trait names or tip labels. Use double-backslashes ("\code{\\\\,}" or "\code{\\\\_}") to indicate "escaped"
+commas and underscores that the function should ignore during this swapping behavior. Note that you can
+also use "\code{\\\\,}" to do encode regular expression searches of the form "\code{{m,n}}".
 
 Since rate deviation parameters are oftentimes redundant with rate parameters, parameter names ending in
-'_dev' are by default excluded unless text with 'dev' is explicitly included at the end of a text
-element the select argument.
+"\code{_dev}" are by default excluded unless text with "\code{dev}" is explicitly included at the end of a
+text element the select argument.
 }
 \examples{
 #requires example fitted model object and tree
@@ -57,5 +56,11 @@ example.fit\%chains\%c('.','dev') #all parameters
 
 }
 \seealso{
-\code{\link{\%quantiles\%}}, \code{\link{\%means\%}}, \code{\link{\%MAPs\%}}, \code{\link{\%sampler\%}}
+Other corateBM_fit operators: 
+\code{\link{\%MAPs\%}()},
+\code{\link{\%diagnostics\%}()},
+\code{\link{\%means\%}()},
+\code{\link{\%quantiles\%}()},
+\code{\link{\%sampler\%}()}
 }
+\concept{corateBM_fit operators}

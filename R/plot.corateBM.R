@@ -67,7 +67,7 @@ plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
         anc.states<-matrix(NA,tree$Nnode,ncol(sim$X))
         rownames(anc.states)<-n+1:tree$Nnode
         for(i in trait){
-          anc.states[,i]<-quick.recon(sim$X[,i],scaled.tree)
+          anc.states[,i]<-.quick.recon(sim$X[,i],scaled.tree)
         }
         sim$X<-rbind(sim$X,anc.states)
       }

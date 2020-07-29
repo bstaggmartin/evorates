@@ -94,7 +94,7 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
                        trend=F,Rmu.prior=Rsig2.prior,
                        evosig2.prior=1,evocor.prior=1,intracor.prior=1,
                        constrain.Rsig2=F,
-                       report.quantiles=NULL,report.means=FALSE,report.MAPs=FALSE,report.devs=TRUE,
+                       report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.MAPs=TRUE,report.devs=TRUE,
                        return.stanfit=F,
                        include.warmup=F,
                        ...){
@@ -366,16 +366,16 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     niter<-sampler.args$iter-sampler.args$warmup+1
     excl.iter<-2:sampler.args$warmup
   }
-  lp__<-extract(ret,"lp__",permute=F,inc_warmup=T)
+  lp<-extract(ret,"lp__",permute=F,inc_warmup=T)
   sampler.params<-array(NA,c(sampler.args$iter,7,nchain))
   dimnames(sampler.params)<-list(iterations=NULL,
                                 parameters=c(names(attr(ret@sim$samples[[1]],'sampler_params')),'lp__'),
                                 chains=paste('chain',1:nchain))
   for(i in 1:nchain){
     sampler.params[,,i]<-as.matrix(do.call(cbind,
-                                           c(attr(ret@sim$samples[[i]],'sampler_params'),list(lp__[,i,]))))
+                                           c(attr(ret@sim$samples[[i]],'sampler_params'),list(lp[,i,]))))
   }
-  out<-list(diagnostics=c(sampler.args[-2],sampler=list(sampler.params)))
+  out<-list(sampler.control=sampler.args[-2],sampler.params=sampler.params)
 
   #process/format output
   out$chains<-array(dim=c(niter,4+e+k*(n+3+(k-1)),nchain))
@@ -392,14 +392,14 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   dimnames(out$chains)<-list(iterations=NULL,
                              parameters=param.names,
                              chains=paste('chain',1:nchain))
-  X0<-reduce.array(extract(ret,"X0",permute=F,inc_warmup=T),excl.iter)*
+  X0<-.index.element(extract(ret,"X0",permute=F,inc_warmup=T),excl.iter,1,T)*
     rep(sqrt(o.Xsig2),each=niter*nchain)+rep(o.X0,each=niter*nchain)
   out$chains[,paste(colnames(Y),'_0',sep=''),]<-aperm(X0,c(1,3,2))
-  out$call$X0.prior<-X0.prior
-  R0<-reduce.array(extract(ret,"R0",permute=F,inc_warmup=T),excl.iter)-
+  out$call$X0.prior<-dat$X0_prior
+  R0<-.index.element(extract(ret,"R0",permute=F,inc_warmup=T),excl.iter,1,T)-
     log(o.hgt)
   if(k>1){
-    chol_Xcov<-reduce.array(extract(ret,"chol_Xcov",permute=F,inc_warmup=T),excl.iter)
+    chol_Xcov<-.index.element(extract(ret,"chol_Xcov",permute=F,inc_warmup=T),excl.iter,1,T)
     Xcov<-array(0,c(k,k,niter*nchain))
     for(i in 1:k){
       for(j in 1:i){
@@ -415,11 +415,11 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     for(i in 1:length(Xcov.param.names)){
       out$chains[,Xcov.param.names[i],]<-Xcov[tmp[i,1],tmp[i,2],]
     }
-    out$call$evosig2.prior<-Xsig2.prior
-    out$call$evocor.prior<-Xcor.prior
+    out$call$evosig2.prior<-dat$Xsig2_prior
+    out$call$evocor.prior<-dat$Xcor_prior
     R0<-R0-log(new.fac)
     if(intra.var){
-      chol_Ycov<-reduce.array(extract(ret,"chol_Ycov",permute=F,inc_warmup=T),excl.iter)
+      chol_Ycov<-.index.element(extract(ret,"chol_Ycov",permute=F,inc_warmup=T),excl.iter,1,T)
       Ycov<-array(0,c(k,k,niter*nchain))
       for(i in 1:k){
         for(j in 1:i){
@@ -432,44 +432,44 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
       for(i in 1:length(Ycov.param.names)){
         out$chains[,Ycov.param.names[i],]<-Ycov[tmp[i,1],tmp[i,2],]
       }
-      out$call$intrasig2.prior<-Ysig2.prior
-      out$call$intracor.prior<-Ycor.prior
+      out$call$intrasig2.prior<-dat$Ysig2_prior
+      out$call$intracor.prior<-dat$Ycor_prior
     }
   }else{
     if(intra.var){
-      Ysig2<-reduce.array(extract(ret,"Ysig2",permute=F,inc_warmup=T),excl.iter)*
+      Ysig2<-.index.element(extract(ret,"Ysig2",permute=F,inc_warmup=T),excl.iter,1,T)*
         sqrt(o.Xsig2)
       out$chains[,Ycov.param.names,]<-Ysig2
-      out$call$intrasig2.prior<-Ysig2.prior
+      out$call$intrasig2.prior<-dat$Ysig2_prior
     }
     R0<-R0+log(o.Xsig2)
   }
   out$chains[,'R_0',]<-R0
-  out$call$R0.prior<-R0.prior
+  out$call$R0.prior<-dat$R0_prior
   if(intra.var){
-    out.X<-reduce.array(extract(ret,"X",permute=F,inc_warmup=T),excl.iter)*
+    out.X<-.index.element(extract(ret,"X",permute=F,inc_warmup=T),excl.iter,1,T)*
       rep(sqrt(o.Xsig2),each=niter*nchain)+rep(o.X0,each=niter*nchain)
     out$chains[,X.param.names,]<-aperm(out.X,c(1,3,2))
   }else if(length(which_mis)>0){
-    mis.Y<-reduce.array(extract(ret,"mis_Y",permute=F,inc_warmup=T),excl.iter)*
+    mis.Y<-.index.element(extract(ret,"mis_Y",permute=F,inc_warmup=T),excl.iter,1,T)*
       rep(sqrt(o.Xsig2),niter*nchain*k_mis)+rep(o.X0,niter*nchain*k_mis)
     tmp<-(which_mis-1)*k+rep(1:k,k_mis)
     out$chains[,X.param.names[tmp],]<-aperm(mis.Y,c(1,3,2))
   }
   if(!constrain.Rsig2){
-    Rsig2<-reduce.array(extract(ret,"Rsig2",permute=F,inc_warmup=T),excl.iter)/
+    Rsig2<-.index.element(extract(ret,"Rsig2",permute=F,inc_warmup=T),excl.iter,1,T)/
       o.hgt
     out$chains[,'R_sig2',]<-Rsig2
-    out$call$Rsig2.prior<-Rsig2.prior
+    out$call$Rsig2.prior<-dat$Rsig2_prior
   }
   if(trend){
-    Rmu<-reduce.array(extract(ret,"Rmu",permute=F,inc_warmup=T),excl.iter)/
+    Rmu<-.index.element(extract(ret,"Rmu",permute=F,inc_warmup=T),excl.iter,1,T)/
       o.hgt
     out$chains[,'R_mu',]<-Rmu
-    out$call$Rmu.prior<-Rmu.prior
+    out$call$Rmu.prior<-dat$Rmu_prior
   }
   if(!constrain.Rsig2|trend){
-    R<-reduce.array(extract(ret,"R",permute=F,inc_warmup=T),excl.iter)-
+    R<-.index.element(extract(ret,"R",permute=F,inc_warmup=T),excl.iter,1,T)-
       log(o.hgt)
     if(k>1){
       R<-R-log(new.fac)
@@ -486,9 +486,7 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     out$chains[,paste('R_',1:e,sep=''),]<-aperm(R,c(1,3,2))
   }
   incl.inds<-which(apply(out$chains[,,1],2,function(ii) !all(is.na(ii))))
-  new.dim<-dim(out$chains);new.dim[2]<-length(incl.inds)
-  new.dimnames<-dimnames(out$chains);new.dimnames[[2]]<-dimnames(out$chains)[[2]][incl.inds]
-  out$chains<-array(out$chains[,incl.inds,],dim=new.dim,dimnames=new.dimnames)
+  out$chains<-.index.element(out$chains,incl.inds,2)
   class(out)<-'corateBM_fit'
 
   #add rate deviation chains
@@ -510,47 +508,36 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   }
   
   #create parameter diagnostics table
-  out$diagnostics$params<-reduce.array(out$chains,5:dim(out$chains)[1])
-  dimnames(out$diagnostics$params)<-c(list(c('inits','bulk_ess','tail_ess','Rhat')),dimnames(out$chains)[-1])
+  out$param.diags<-.index.element(out$chains,1:4,1)
+  dimnames(out$param.diags)<-c(diagnostics=list(c('inits','bulk_ess','tail_ess','Rhat')),
+                               dimnames(out$chains)[-1])
   if(!include.warmup){
-    out$chains<-reduce.array(out$chains,1)
+    out$chains<-.index.element(out$chains,1,1,T)
   }
+  out$param.diags[2,,]<-apply(out$chains,c(2,3),rstan::ess_bulk)
+  out$param.diags[3,,]<-apply(out$chains,c(2,3),rstan::ess_tail)
+  out$param.diags[4,,]<-apply(out$chains,c(2,3),rstan::Rhat)
 
   #add quantiles
   if(!is.null(report.quantiles)){
-    out$quantiles<-apply(out$chains,c(2,3),quantile,probs=report.quantiles)
-    if(is.matrix(out$quantiles)){
-      out$quantiles<-array(out$quantiles,dim=c(1,dim(out$quantiles)))
-      dimnames(out$quantiles)<-c('quantiles'=paste(report.quantiles*100,'%',sep=''),dimnames(out$chains)[-1])
-    }
+    out$quantiles<-.int.quantiles(out,c('.','dev'))
   }
 
-  #add mean posterior estimates
+  #add means
   if(report.means){
-    out$means<-apply(out$chains,c(2,3),mean)
+    out$means<-.int.means(out,c('.','dev'))
+    out$means<-array(out$means,dim(out$means)[-1],dimnames(out$means)[-1])
+  }
+  
+  #add MAPs
+  if(report.MAPs){
+    out$MAPs<-.int.MAPs(out,c('.','dev'))
+    out$MAPs<-array(out$MAPs,dim(out$MAPs)[-1],dimnames(out$MAPs)[-1])
   }
 
   #add rate deviation posterior probabilities
   if(report.devs){
-    if(nchain==1){
-      out$post.probs<-apply(out%chains%'_dev',2,function(ii) sum(ii>0)/length(ii))
-      out$post.probs<-as.matrix(out$post.probs)
-      dimnames(out$post.probs)<-list(parameters=rownames(out$post.probs),chains='chain 1')
-    }else{
-      out$post.probs<-apply(out%chains%'_dev',c(2,3),function(ii) sum(ii>0)/length(ii))
-    }
-  }
-  
-  if(report.MAPs){
-    if(include.warmup){
-      trimmed.sampler.params<-out$diagnostics$sampler
-    }else{
-      trimmed.sampler.params<-reduce.array(out$diagnostics$sampler,1:out$diagnostics$warmup)
-    }
-    MAP.inds<-sapply(1:nchain, function(ii) which.max(trimmed.sampler.params[,'lp__',ii]))
-    MAPs<-sapply(1:nchain,function(ii) out$chains[MAP.inds[ii],,ii])
-    dimnames(MAPs)<-dimnames(out$chains)[-1]
-    out$MAPs<-MAPs
+    out$post.probs<-apply(.int.chains(out,'_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
   }
 
   if(return.stanfit){
@@ -558,10 +545,6 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   }
 
   out$call$trait.data<-untrans.Y
-
-  out$diagnostics$params[2,,]<-apply(out$chains,c(2,3),rstan::ess_bulk)
-  out$diagnostics$params[3,,]<-apply(out$chains,c(2,3),rstan::ess_tail)
-  out$diagnostics$params[4,,]<-apply(out$chains,c(2,3),rstan::Rhat)
 
   out
 }

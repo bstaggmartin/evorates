@@ -7,20 +7,18 @@
 fit \%sampler\% select
 }
 \arguments{
-\item{fit}{An object of class 'corateBM_fit', which is the typical output of a call to
-\code{fit.corateBM}.}
+\item{fit}{An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.}
 
-\item{select}{A character or numeric vector. If of class character, the given text is matched to
-parameter names using regular expressions. If of class numeric, the numbers are taken simply taken
-as indices. See details for names/order of available parameters.}
+\item{select}{A character or numeric vector. If of class character, the given text is matched to parameter
+names using regular expressions. If of class numeric, the numbers are taken simply taken as indices. See
+details for names/order of available parameters.}
 }
 \value{
-A numeric vector, matrix, or 3D array. The dimensions will always go in the order of iterations,
-then parameters, then chains, collapsing any dimensions of length 1. When \code{select} matches to a
-single parameter, the parameter name is stored as an attribute labelled "parameters". Note that
-sampler parameters include warmup iterations. If output from the \code{\%chains\%} operator includes n
-iterations, these will correspond to the last n iterations included in output from the \code{\%sampler\%}
-opertator.
+A numeric vector, matrix, or 3D array. The dimensions will always go in the order of quantiles,
+then parameters, then chains, collapsing any dimensions of length 1 and storing associated name
+information in attributes. Note that sampler parameters include warmup iterations. If output from the
+\code{\%chains\%} operator includes \code{n} iterations, these will correspond to the last \code{n}
+iterations included in output from the \code{\%sampler\%} operator.
 }
 \description{
 This is an operator for efficiently extracting parameters used to tune the behavior of the stan-based
@@ -28,9 +26,9 @@ Markov chain Monte Carlo (MCMC) sampler from output of the function \code{fit.co
 assessing problematic MCMC behavior.
 }
 \details{
-The names of the available parameters are 'accept_stat__', 'stepsize__', treedepth__',
-'n_leapfrog__', 'divergent__', 'energy__', and 'lp__', in that order. See Stan documentation for more
-information on what these parameters mean.
+The names of the available parameters are "\code{accept_stat__}", "\code{stepsize__}",
+"\code{treedepth__}", "\code{n_leapfrog__}", "\code{divergent__}", "\code{energy__}", and "\code{lp__}",
+in that order. See Stan documentation for more information on what these parameters mean.
 }
 \examples{
 #requires example fitted model object
@@ -44,6 +42,13 @@ example.fit\%sampler\%1:7
 
 }
 \seealso{
-\code{\link{\%chains\%}}, \code{\link{\%quantiles\%}}, \code{\link{\%means\%}}, \code{\link{\%MAPs\%}},
 \code{\link[rstan]{check_hmc_diagnostics}}
+
+Other corateBM_fit operators: 
+\code{\link{\%MAPs\%}()},
+\code{\link{\%chains\%}()},
+\code{\link{\%diagnostics\%}()},
+\code{\link{\%means\%}()},
+\code{\link{\%quantiles\%}()}
 }
+\concept{corateBM_fit operators}

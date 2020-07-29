@@ -13,7 +13,7 @@ gen.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,
   }else if(length(dim(Xsig2))==0&k>1){
     warning('Xsig2 is a vector: turned Xsig2 into a matrix with no covariance')
   }
-  Xsig2<-coerce.to.cov.mat(Xsig2,k)
+  Xsig2<-.coerce.to.cov.mat(Xsig2,k)
   chol.Xsig2<-t(chol(Xsig2))
   n<-length(tree$tip.label)
   n_e<-nrow(tree$edge)
@@ -46,7 +46,7 @@ gen.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,
     }else if(length(dim(Ysig2))==0&k>1){
       warning('Ysig2 is a vector: turned Ysig2 into a matrix with no covariance')
     }
-    Ysig2<-coerce.to.cov.mat(Ysig2,k)
+    Ysig2<-.coerce.to.cov.mat(Ysig2,k)
     chol.Ysig2<-t(chol(Ysig2))
     n_obs<-rep(n_obs,length.out=n)
     seed<-matrix(rnorm(k*sum(n_obs)),k,sum(n_obs))
