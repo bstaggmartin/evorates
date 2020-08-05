@@ -436,7 +436,7 @@ select.chains<-function(fit,chains,simplify=T){
       return(fit)
     }else{
       for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-        fit[[i]]<-.expand.element(fit[[i]],auto.simplify=T)
+        fit[[i]]<-.expand.element(fit[[i]],simplify=T)
       }
     }
   }
@@ -451,8 +451,8 @@ select.chains<-function(fit,chains,simplify=T){
     warning(paste(chains[which(!chains.exist)],collapse=', '),' not found')
     chains<-chains[which(chains.exist)]
   }
+  fit$sampler.control$chains<-length(chains)
   inds<-match(chains,dimnames(fit$chains)[[3]])
-  
   #subset chains
   for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
     fit[[i]]<-.index.element(fit[[i]],inds,length(dim(fit[[i]])))
@@ -463,154 +463,249 @@ select.chains<-function(fit,chains,simplify=T){
   fit
 }
 
-#automatically excludes warmup not included in chains and inits--doesn't make sense anymore
+#automatically excludes iterations not included in chains and inits--doesn't make sense anymore
 #' @export
-combine.chains<-function(fit,exclude.all.warmup=T,simplify=T){
+combine.chains<-function(fit,simplify=T){
+  #process input
   if(length(dim(fit$chains))==2){
-    warning("correlated rate BM fit appears to have already been simplified to a single chain: nothing done")
-  }else{
-    if(exclude.all.warmup){
+    if(simplify){
+      return(fit)
+    }else{
+      for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
+        fit[[i]]<-.expand.element(fit[[i]],simplify=T)
+      }
       chains.len<-dim(fit$chains)[1]
-      fit$chains<-fit$chains[((chains.len-fit$diagnostics$iter+fit$diagnostics$warmup)+1):chains.len,,]
+      diags.len<-dim(fit$sampler.params)[1]
+      if(diags.len-chains.len>0){
+        fit$sampler.params<-.index.element(fit$sampler.params,1:(diags.len-chains.len),1,T)
+      }
+      return(fit)
     }
-    diags.len<-dim(fit$diagnostics$sampler)[1]
+  }else{
+    fit$sampler.control$chains<-1
+    #trim sampler.params to iterations included in chains
     chains.len<-dim(fit$chains)[1]
-    if(diags.len-chains.len!=0){
-      fit$diagnostics$sampler<-reduce.array(fit$diagnostics$sampler,1:(diags.len-chains.len))
+    diags.len<-dim(fit$sampler.params)[1]
+    if(diags.len-chains.len>0){
+      fit$sampler.params<-.index.element(fit$sampler.params,1:(diags.len-chains.len),1,T)
     }
-    fit$chains<-do.call(rbind,asplit(fit$chains,3))
-    names(dimnames(fit$chains))<-c('iterations','parameters')
-    fit$diagnostics$sampler<-do.call(rbind,asplit(fit$diagnostics$sampler,3))
-    names(dimnames(fit$diagnostics$sampler))<-c('iterations','parameters')
-    fit$diagnostics$params<-fit$diagnostics$params[,,1]
-    fit$diagnostics$params[1,]<-NA
-    fit$diagnostics$params[2,]<-apply(fit$chains,2,rstan::ess_bulk)
-    fit$diagnostics$params[3,]<-apply(fit$chains,2,rstan::ess_tail)
-    fit$diagnostics$params[4,]<-apply(fit$chains,2,rstan::Rhat)
-    if(!is.null(fit$quantiles)){
-      report.quantiles<-as.numeric(substr(dimnames(fit$quantiles)[[1]],0,
-                                          nchar(dimnames(fit$quantiles)[[1]])-1))/100
-      fit$quantiles<-apply(fit$chains,2,quantile,probs=report.quantiles)
-      if(length(dim(fit$quantiles))==0){
-        attr(fit$quantiles,'quantiles')<-paste(report.quantiles*100,'%',sep='')
+    #combine chains, sampler.params, and param.diags
+    out.chains<-paste(dimnames(fit$chains)[[3]],collapse=', ')
+    for(i in c('chains','sampler.params')){
+      tmp<-do.call(rbind,asplit(fit[[i]],3))
+      fit[[i]]<-array(tmp,c(dim(tmp),1),c(dimnames(fit[[i]])[-3],chains=out.chains))
+    }
+    fit$param.diags<-.index.element(fit$chains,1:4,1)
+    dimnames(fit$param.diags)<-c(diagnostics=list(c('inits','bulk_ess','tail_ess','Rhat')),
+                                 dimnames(fit$chains)[-1])
+    fit$param.diags[1,,]<-NA
+    fit$param.diags[2,,]<-apply(fit$chains,c(2,3),rstan::ess_bulk)
+    fit$param.diags[3,,]<-apply(fit$chains,c(2,3),rstan::ess_tail)
+    fit$param.diags[4,,]<-apply(fit$chains,c(2,3),rstan::Rhat)
+    #redo any other elements
+    for(i in names(fit)[names(fit)%in%c('quantiles','means','MAPs')]){
+      fit[[i]]<-NULL
+      fit[[i]]<-do.call(paste('.int.',i,sep=''),list(fit=fit,select='.|dev'))
+      if(i=='means'|i=='MAPs'){
+        fit[[i]]<-array(fit[[i]],dim(fit[[i]])[-1],dimnames(fit[[i]])[-1])
       }
     }
-    if(!is.null(fit$means)){
-      fit$means<-apply(fit$chains,2,mean)
-    }
-    if(!is.null(fit$MAPs)){
-      fit$MAPs<-fit$chains[which.max(fit$diagnostics$sampler[,'lp__']),]
-    }
     if(!is.null(fit$post.probs)){
-      fit$post.probs<-apply(fit%chains%'_dev',2,function(ii) sum(ii>0)/length(ii))
+      fit$post.probs<-apply(.int.chains(fit,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
+    }
+    #simplify as needed
+    if(simplify){
+      for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
+        fit[[i]]<-.simplify.element(fit[[i]])
+      }
     }
     fit
   }
 }
 
 #for getting rid of warmup in chains and related elements
-#making it only reduce sampler
 #' @export
-exclude.warmup<-function(fit,sampler=T){
+exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
+  #process input
   if(length(dim(fit$chains))==2){
     simplified<-T
   }else{
     simplified<-F
   }
+  if(simplified){
+    for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
+      fit[[i]]<-.expand.element(fit[[i]],simplify=T)
+    }
+  }
+  target.len<-fit$sampler.control$iter-warmup
+  diags.len<-dim(fit$sampler.params)[1]
+  #trim sampler as needed if desired
+  if(sampler){
+    if(diags.len-target.len>0){
+      fit$sampler.params<-.index.element(fit$sampler.params,1:(diags.len-target.len),1,T)
+    }else if(diags.len-target.len<0){
+      warning('desired number of iterations (',target.len,') is longer than number of available iterations (',diags.len,') in sampler.params element: no iterations excluded')
+    }
+  }
+  #trim chains as needed if desired
   chains.len<-dim(fit$chains)[1]
-  incl.inds<-((chains.len-fit$diagnostics$iter+fit$diagnostics$warmup)+1):chains.len
-  if(all(incl.inds==(1:chains.len))){
-    if(sampler){
-      diags.len<-dim(fit$diagnostics$sampler)[1]
-      if(diags.len<fit$diagnostics$iter){
-        warning('warmup is already excluded from chains and sampler: nothing done')
-      }else{
-        fit$diagnostics$sampler<-coerce.to.array(fit$diagnostics$sampler)
-        fit$diagnostics$sampler<-reduce.array(fit$diagnostics$sampler,1:fit$diagnostics$warmup)
-        if(simplified){
-          fit$diagnostics$sampler<-fit$diagnostics$sampler[,,1]
-        }
-      }
+  if(chains.len-target.len<=0){
+    if(chains.len-target.len<0){
+      warning('desired number of iterations (',target.len,') is longer than number of available iterations (',chains.len,') in chains element: no iterations excluded')
+    }
+    if(!simplified){
+      return(fit)
     }else{
-      warning('warmup is already excluded from chains: nothing done')
+      for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
+        fit[[i]]<-.simplify.element(fit[[i]])
+      }
+      return(fit)
     }
   }else{
-    fit$chains<-coerce.to.array(fit$chains)
-    fit$chains<-fit$chains[incl.inds,,]
-    chains.len<-dim(fit$chains)[1]
-    fit$diagnostics$params<-coerce.to.array(fit$diagnostics$params)
-    fit$diagnostics$params[2,,]<-apply(fit$chains,c(2,3),rstan::ess_bulk)
-    fit$diagnostics$params[3,,]<-apply(fit$chains,c(2,3),rstan::ess_tail)
-    fit$diagnostics$params[4,,]<-apply(fit$chains,c(2,3),rstan::Rhat)
-    if(sampler){
-      fit$diagnostics$sampler<-coerce.to.array(fit$diagnostics$sampler)
-      fit$diagnostics$sampler<-reduce.array(fit$diagnostics$sampler,1:fit$diagnostics$warmup)
+    fit$chains<-.index.element(fit$chains,1:(chains.len-target.len),1,T)
+  }
+  #redo parameter diagnostics (other than inits)
+  fit$param.diags[2,,]<-apply(fit$chains,c(2,3),rstan::ess_bulk)
+  fit$param.diags[3,,]<-apply(fit$chains,c(2,3),rstan::ess_tail)
+  fit$param.diags[4,,]<-apply(fit$chains,c(2,3),rstan::Rhat)
+  #redo any other elements
+  for(i in names(fit)[names(fit)%in%c('quantiles','means','MAPs')]){
+    fit[[i]]<-NULL
+    fit[[i]]<-do.call(paste('.int.',i,sep=''),list(fit=fit,select='.|dev'))
+    if(i=='means'|i=='MAPs'){
+      fit[[i]]<-array(fit[[i]],dim(fit[[i]])[-1],dimnames(fit[[i]])[-1])
     }
-    if(!is.null(fit$quantiles)){
-      report.quantiles<-as.numeric(substr(dimnames(fit$quantiles)[[1]],0,
-                                          nchar(dimnames(fit$quantiles)[[1]])-1))/100
-      fit$quantiles<-apply(fit$chains,c(2,3),quantile,probs=report.quantiles)
-      if(length(dim(fit$quantiles))==0){
-        attr(fit$quantiles,'quantiles')<-paste(report.quantiles*100,'%',sep='')
-      }
+  }
+  if(!is.null(fit$post.probs)){
+    fit$post.probs<-apply(.int.chains(fit,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
+  }
+  #simplify as needed
+  if(simplified){
+    for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
+      fit[[i]]<-.simplify.element(fit[[i]])
     }
-    if(!is.null(fit$means)){
-      fit$means<-apply(fit$chains,c(2,3),mean)
+  }
+  fit
+}
+#seems to work for various situations now--things will get funky as you include thinning, though...
+
+thin.chains<-function(fit,thin=2){
+  #process input
+  if(thin<=1){
+    return(fit)
+  }
+  if(length(dim(fit$chains))==2){
+    simplified<-T
+  }else{
+    simplified<-F
+  }
+  if(simplified){
+    for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
+      fit[[i]]<-.expand.element(fit[[i]],simplify=T)
     }
-    if(!is.null(fit$MAPs)){
-      nchain<-dim(fit$chains)[3]
-      diags.len<-dim(fit$diagnostics$sampler)[1]
-      if(diags.len-chains.len>0){
-        trimmed.sampler.params<-reduce.array(fit$diagnostics$sampler,1:(diags.len-chains.len))
-      }else{
-        trimmed.sampler.params<-fit$diagnostics$sampler
-      }
-      MAP.inds<-sapply(1:nchain, function(ii) which.max(trimmed.sampler.params[,'lp__',ii]))
-      MAPs<-sapply(1:nchain,function(ii) fit$chains[MAP.inds[ii],,ii])
-      dimnames(MAPs)<-dimnames(fit$chains)[-1]
-      fit$MAPs<-MAPs
+  }
+  #get indices of iterations to be included, modify sampler.control element accordingly
+  chains.len<-dim(fit$chains)[1]
+  diags.len<-dim(fit$sampler.params)[1]
+  incl.inds<-rep(list(seq(1,chains.len,thin)),2)
+  names(incl.inds)<-c('chains','sampler.params')
+  diff.iter<-chains.len-length(incl.inds$chains)
+  true.warmup<-chains.len-fit$sampler.control$iter+fit$sampler.control$warmup
+  if(true.warmup>0){
+    diff.warmup<-diff.iter-length(incl.inds$chains[incl.inds$chains>true.warmup])
+  }else{
+    diff.warmup<-0
+  }
+  fit$sampler.control$iter<-fit$sampler.control$iter-diff.iter
+  fit$sampler.control$warmup<-fit$sampler.control$warmup-diff.warmup
+  #account for any iterations in parameter diagnostics not inlcuded in chains
+  if(diags.len-chains.len>0){
+    incl.inds$sampler.params<-c(1:(diags.len-chains.len),incl.inds$sampler.params+diags.len-chains.len)
+  }
+  #thin the chains
+  for(i in c('chains','sampler.params')){
+    fit[[i]]<-.index.element(fit[[i]],incl.inds[[i]],1)
+  }
+  #redo parameter diagnostics (other than inits)
+  fit$param.diags[2,,]<-apply(fit$chains,c(2,3),rstan::ess_bulk)
+  fit$param.diags[3,,]<-apply(fit$chains,c(2,3),rstan::ess_tail)
+  fit$param.diags[4,,]<-apply(fit$chains,c(2,3),rstan::Rhat)
+  #redo any other elements
+  for(i in names(fit)[names(fit)%in%c('quantiles','means','MAPs')]){
+    fit[[i]]<-NULL
+    fit[[i]]<-do.call(paste('.int.',i,sep=''),list(fit=fit,select='.|dev'))
+    if(i=='means'|i=='MAPs'){
+      fit[[i]]<-array(fit[[i]],dim(fit[[i]])[-1],dimnames(fit[[i]])[-1])
     }
-    if(!is.null(fit$post.probs)){
-      fit$post.probs<-apply(fit%chains%'_dev',c(2,3),function(ii) sum(ii>0)/length(ii))
-    }
-    if(simplified){
-      fit$chains<-fit$chains[,,1]
-      fit$diagnostics$sampler<-fit$diagnostics$sampler[,,1]
-      fit$diagnostics$params<-fit$diagnostics$params[,,1]
+  }
+  if(!is.null(fit$post.probs)){
+    fit$post.probs<-apply(.int.chains(fit,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
+  }
+  #simplify as needed
+  if(simplified){
+    for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
+      fit[[i]]<-.simplify.element(fit[[i]])
     }
   }
   fit
 }
 
-#it works, but you have to think of the implications of the sampler excluding warmup--is that okay?
-#still gotta work on it--returns error in this case.
-#I think it works now--gotta double-check when I'm less tired...
-
-
 ####OTHER####
 
 
 #' @export
-get.cov.mat<-function(fit,element='chains',traits=colnames(fit$call$trait.data),type='evocov',output.list=F){
-  #check if fit is corateBM_fit
-  #check if element isn't appropriate
-  #check if type is evocov or intracov
-  #check if any trait names not available
-  k<-length(traits)
+get.cov.mat<-function(fit,traits=colnames(fit$call$trait.data),
+                      element=c('chains','quantiles','means','MAPs','diagnostics'),
+                      type=c('evocov','intracov'),
+                      output.list=F,select.extra=NULL,
+                      simplify=T){
+  if(!inherits(fit,'corateBM_fit')){
+    stop("fit must be a fitted correlated rates BM fit (class 'corateBM_fit')")
+  }
+  if(ncol(fit$call$trait.data)==1){
+    stop('fit appears to be for univariate trait dataset: there are no trait covariance parameters')
+  }
+  try.element<-try(match.arg(element,c('chains','quantiles','means','MAPs','diagnostics')),silent=T)
+  if(inherits(try.element,'try-error')){
+    stop(element," is not an available element to extract from a correlated rates BM fit: please specify one of the following: 'chains', 'quantiles', 'means', 'MAPs', or 'diagnostics'")
+  }
+  element<-try.element
+  try.type<-try(match.arg(type,c('evocov','intracov')),silent=T)
+  if(inherits(try.type,'try-error')){
+    stop(type," is not an available option for covariance type: please specifiy either 'evocov' for evolutionary covariance or 'intracov' for intraspecific covariance")
+  }
+  type<-try.type
+  if(type=='intracov'&sum(grepl('intracov',dimnames(fit$chains)[['parameters']]))==0){
+    warning("covariance type 'intracov' selected, but no intraspecific variance modeled in corateBM_fit: defaulted to 'evocov'")
+    type<-'evocov'
+  }
   if(is.numeric(traits)){
-    #check if any traits out of bounds
     traits<-colnames(fit$call$trait.data)[traits]
   }
+  #check if any trait names not available
+  traits.exist<-traits%in%colnames(fit$call$trait.data)
+  if(all(!traits.exist)){
+    stop('none of the specified traits found')
+  }
+  if(any(!traits.exist)){
+    warning(paste(traits[which(!traits.exist)],collapse=', '),' not found')
+    traits<-traits[which(traits.exist)]
+  }
+  k<-length(traits)
   new.traits<-gsub(',','\\\\,',traits)
   new.traits<-gsub('_','\\\\_',new.traits)
   select<-paste(rep(new.traits,each=k),',',
                 rep(new.traits,k),paste('_',type,sep=''),
                 sep='')[lower.tri(matrix(NA,k,k),diag=T)]
-  tmp<-do.call(paste('.int.',element,sep=''),list(fit=fit,selec=select))
+  if(element=='quantiles'|element=='diagnostics'&!is.null(select.extra)){
+    select<-list(select,select.extra)
+  }
+  tmp<-do.call(paste('.int.',element,sep=''),list(fit=fit,select=select))
   out<-array(NA,c(k,k,dim(tmp)[1],dim(tmp)[3]),c(rep(list(parameters=traits),2),dimnames(tmp)[c(1,3)]))
   for(i in 1:k){
     for(j in 1:i){
-      tmp.name<-paste(traits[j],',',traits[i],'_',type,sep='')
+      tmp.name<-grep(paste(paste(traits[c(i,j)],',',traits[c(j,i)],'_',type,sep=''),collapse='|'),
+                     dimnames(tmp)[[2]])
       out[i,j,,]<-tmp[,tmp.name,]
       if(i!=j){
         out[j,i,,]<-tmp[,tmp.name,]
@@ -619,13 +714,19 @@ get.cov.mat<-function(fit,element='chains',traits=colnames(fit$call$trait.data),
   }
   if(output.list){
     out<-asplit(out,4)
-    out<-lapply(out,asplit,MARGIN=3)
+    out<-lapply(out,function(ii) if(dim(ii)[3]==1) ii else asplit(ii,3))
     if(length(out)==1){
       attr(out[[1]],'chains')<-names(out)
       out<-out[[1]]
     }
-  }else{
-    out<-.simplify.element(out)
+  }else if(simplify){
+    new.dims<-c(dim(out)[1:2],ifelse(dim(out)[3:4]==1,NA,dim(out)[3:4]))
+    new.dimnames<-dimnames(out)[!is.na(new.dims)]
+    new.out<-array(out,new.dims[!is.na(new.dims)],new.dimnames)
+    for(i in which(is.na(new.dims))){
+      attr(new.out,names(dimnames(out))[i])<-dimnames(out)[[i]]
+    }
+    out<-new.out
   }
   out
 }

@@ -16,7 +16,7 @@
                                             nchar(dimnames(fit[['quantiles']])[[1]])-1))/100
   }
   if(is.list(select)){
-    if(length(select)<2){
+    if(length(select)<2|is.null(select[[2]])){
       select[[2]]<-def.report.quantiles
     }
   }else{
@@ -193,7 +193,7 @@
 #finally got it to a point where it should work with just about anything...
 #I made it just always return 3D arrays, and label means and MAPs projects with 'iterations' along
 #1st dimension; just makes things easier for other functions to deal with...
-.expand.element<-function(arr,auto.simplify=F){
+.expand.element<-function(arr,simplify=F){
   if(length(dim(arr))==0){
     new.arr<-as.matrix(arr)
     new.dimnames<-dimnames(new.arr)
@@ -246,7 +246,7 @@
     }
     arr<-array(aperm(arr,perm),out.dim,out.dimnames)
   }
-  if(auto.simplify){
+  if(simplify){
     if(is.null(dimnames(arr)[[1]])&dim(arr)[1]==1){
       arr<-array(arr,dim(arr)[-1],dimnames(arr)[-1])
     }

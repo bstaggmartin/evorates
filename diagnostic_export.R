@@ -126,7 +126,7 @@ library(ape)
 plot(tree,edge.width=10,cex=0.8)
 tmp<-list(R=apply(fit%means%1:nrow(tree$edge),1,mean));class(tmp)<-'corateBM'
 plot(tmp,tree,phenogram=F,lwd=10,show.tip.label=F,val.range=range(sim$R))
-plot(sim,tree,trait=k,phenogram=F,lwd=10,show.tip.label=F,val.range=range(sim$R))
+plot(sim,tree,phenogram=F,lwd=10,show.tip.label=F,val.range=range(sim$R))
 coords<-get("last_plot.phylo",envir=.PlotPhyloEnv)
 trans<-fit$post.probs
 colvec<-rep('gray',nrow(tree$edge))
@@ -184,4 +184,5 @@ saveRDS(fit3,'shit_fit')
 saveRDS(fit2,'good_fit')
 
 sim<-gen.corateBM(tree,Rsig2=0.5,X0=rnorm(2),Xsig2=rWishart(1,2,diag(2))[,,1])
-fit<-fit.corateBM(tree,sim$X,iter=1000,refresh=10,chains=1)
+fit<-fit.corateBM(tree,sim$X,warmup=700,iter=1000,refresh=10,chains=3,cores=3)
+plot(as.vector(fit%means%'R_[1-9]')~rep(sim$R,3))

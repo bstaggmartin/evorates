@@ -80,7 +80,6 @@
 #' 
 #' 
 #' @export
-
 #5/14: add trace and profile plotting functions
 #rename Y to dat, Ysig2.prior to intrasig2.prior, Xsig2.prior to evosig2.prior,
 #Xcor.prior to evocor.prior, and Ycor.prior to intracor.prior... --done!
@@ -99,12 +98,9 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
                        include.warmup=F,
                        ...){
   #initial checks
-  if(tree$edge[1,1]!=length(tree$tip.label)+1){
-    stop("tree doesn't appear to be in 'cladwise' order: please first run tree through prep.tree()")
-  }
-  if(any(tree$edge.length==0)){
-    stop("tree has edges of length 0, which must be collapsed into polytomies (don't worry, it doesn't make a mathematical difference in fitting the model, it only prevents the creation of unidentifiable parameters): please first run tree through prep.tree()")
-  }
+  attr(tree,'order')<-NULL
+  tree<-reorder(tree,'cladewise')
+  tree<-di2multi(tree,tol=0)
   Y<-trait.data
   Ysig2.prior<-intrasig2.prior
   Xsig2.prior<-evosig2.prior
@@ -197,11 +193,6 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     warning('report.devs was set to FALSE: rate deviations are meaningless with no rate heterogeneity',
             immediate.=T)
   }
-  if(hasArg(chains)){
-    nchain<-list(...)$chains
-  }else{
-    nchain<-4
-  }
   
   #process/format data
   n<-length(tree$tip.label)
@@ -260,6 +251,7 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
       which_mis<-unlist(which_mis)
     }
   }
+  untrans.tree<-tree
   untrans.Y<-Y
   o.hgt<-max(eV)
   tree$edge.length<-tree$edge.length/o.hgt
@@ -359,9 +351,16 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
 
   #get sampler arguments/parameters for diagnostics
   sampler.args<-attr(ret@sim[[1]][[1]],'args')
+  sampler.args$chains<-length(ret@sim[[1]])
+  nchain<-sampler.args$call.chains<-sampler.args$chains
+  sampler.args$call.iter<-sampler.args$iter
+  sampler.args$call.warmup<-sampler.args$warmup
+  sampler.args$iter<-floor(sampler.args$iter/sampler.args$thin)
+  sampler.args$warmup<-floor(sampler.args$warmup/sampler.args$thin)
+  sampler.args$call.thin<-sampler.args$thin
   if(include.warmup){
     niter<-sampler.args$iter
-    excl.iter<-niter+1
+    excl.iter<-numeric(0)
   }else{
     niter<-sampler.args$iter-sampler.args$warmup+1
     excl.iter<-2:sampler.args$warmup
@@ -520,24 +519,24 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
 
   #add quantiles
   if(!is.null(report.quantiles)){
-    out$quantiles<-.int.quantiles(out,c('.','dev'))
+    out$quantiles<-.int.quantiles(out,c('.|dev'))
   }
 
   #add means
   if(report.means){
-    out$means<-.int.means(out,c('.','dev'))
+    out$means<-.int.means(out,c('.|dev'))
     out$means<-array(out$means,dim(out$means)[-1],dimnames(out$means)[-1])
   }
   
   #add MAPs
   if(report.MAPs){
-    out$MAPs<-.int.MAPs(out,c('.','dev'))
+    out$MAPs<-.int.MAPs(out,c('.|dev'))
     out$MAPs<-array(out$MAPs,dim(out$MAPs)[-1],dimnames(out$MAPs)[-1])
   }
 
   #add rate deviation posterior probabilities
   if(report.devs){
-    out$post.probs<-apply(.int.chains(out,'_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
+    out$post.probs<-apply(.int.chains(out,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
   }
 
   if(return.stanfit){
@@ -545,6 +544,9 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   }
 
   out$call$trait.data<-untrans.Y
+  out$call$tree<-untrans.tree
 
   out
 }
+
+#returns error when thin!=1, probs need to distinguish between 'true' iter and call.iter...same for warmup
