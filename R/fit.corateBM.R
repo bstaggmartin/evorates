@@ -197,7 +197,12 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
   #process/format data
   n<-length(tree$tip.label)
   e<-nrow(tree$edge)
-  eV<-edge.vcv(tree)
+  if(constrain.Rsig2){
+    eV<-matrix(0,e,e)
+    diag(eV)<-node.depth.edgelength(tree)[tree$edge[,2]]-2*tree$edge.length/3
+  }else{
+    eV<-edge.vcv(tree)
+  }
   if(intra.var){
     is.obs<-!as.matrix(apply(Y,1,is.na))
     if(k>1){
@@ -314,11 +319,23 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
             'constr_Rsig2'=as.numeric(constrain.Rsig2),'constr_Rmu'=as.numeric(!trend))
   
   #run mcmc
+  exclude.pars<-c('unif_R0','unif_X0','unif_Rsig2','unif_Rmu','raw_R')
+  if(constrain.Rsig2){
+    exclude.pars<-c(exclude.pars,'Rsig2')
+  }
+  if(!trend){
+    exclude.pars<-c(exclude.pars,'Rmu')
+  }
+  if(constrain.Rsig2&!trend){
+    exclude.pars<-c(exclude.pars,'R')
+  }
   if(intra.var){
+    exclude.pars<-c(exclude.pars,'unif_Ysig2','raw_X','Ysig2','cent_Y')
     dat$obs<-nrow(Y)
     datX_id<-X_id
     dat$Ysig2_prior<-rep(Ysig2.prior,length.out=k)
     if(k>1){
+      exclude.pars<-c(exclude.pars,'unif_Xsig2','Xsig2','Ycov')
       dat$k<-k
       dat$obs_code<-obs_code
       dat$n_code<-n_code
@@ -328,24 +345,29 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
       dat$Xsig2_prior=rep(Xsig2.prior,length.out=k)
       dat$Xcor_prior=Xcor.prior
       dat$Ycor_prior=Ycor.prior
-      ret<-sampling(object=stanmodels$intravar_multivar_corateBM,data=dat,...)
+      ret<-sampling(object=stanmodels$intravar_multivar_corateBM,data=dat,
+                    pars=exclude.pars,include=F,...)
     }else{
       dat$Y<-as.vector(Y)
-      ret<-sampling(object=stanmodels$intravar_univar_corateBM,data=dat,...)
+      ret<-sampling(object=stanmodels$intravar_univar_corateBM,data=dat,
+                    pars=exclude.pars,include=F,...)
     }
   }else{
     dat$which_mis<-which_mis
     dat$postorder<-postorder
     if(k>1){
+      exclude.pars<-c(exclude.pars,'unif_Xsig2','Xsig2','Xcov')
       dat$k<-k
       dat$k_mis<-k_mis
       dat$Xsig2_prior=rep(Xsig2.prior,length.out=k)
       dat$Xcor_prior=Xcor.prior
-      ret<-sampling(object=stanmodels$multivar_corateBM,data=dat,...)
+      ret<-sampling(object=stanmodels$multivar_corateBM,data=dat,
+                    pars=exclude.pars,include=F,...)
     }else{
       dat$Y<-as.vector(Y)
       dat$mis<-length(which_mis)
-      ret<-sampling(object=stanmodels$univar_corateBM,data=dat,...)
+      ret<-sampling(object=stanmodels$univar_corateBM,data=dat,
+                    pars=exclude.pars,include=F,...)
     }
   }
 

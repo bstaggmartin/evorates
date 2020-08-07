@@ -53,12 +53,17 @@ data {
 }
 
 transformed data {
-  matrix[e, e] chol_eV; //cholesky decomp of edge variance-covariance matrix
-  vector[e] T_midpts; //overall 'height' of edge mid-points
+  matrix[constr_Rsig2 ? 0:e, constr_Rsig2 ? 0:e] chol_eV; //cholesky decomp of edge variance-covariance matrix
+  vector[constr_Rmu ? 0:e] T_midpts; //overall 'height' of edge mid-points
+  
   
   //for sampling from R prior
-  chol_eV = cholesky_decompose(eV);
-  T_midpts = diagonal(eV) + prune_T[real_e] / 6;
+  if(!constr_Rsig2){
+    chol_eV = cholesky_decompose(eV);
+  }
+  if(!constr_Rmu){
+    T_midpts = diagonal(eV) + prune_T[real_e] / 6;
+  }
 }
 
 parameters {

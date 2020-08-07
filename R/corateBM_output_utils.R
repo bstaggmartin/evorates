@@ -544,14 +544,14 @@ exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
     if(diags.len-target.len>0){
       fit$sampler.params<-.index.element(fit$sampler.params,1:(diags.len-target.len),1,T)
     }else if(diags.len-target.len<0){
-      warning('desired number of iterations (',target.len,') is longer than number of available iterations (',diags.len,') in sampler.params element: no iterations excluded')
+      warning('desired number of iterations (',target.len,') is longer than number of available iterations (',diags.len,') in sampler.params element: no iterations excluded from sampler.params')
     }
   }
   #trim chains as needed if desired
   chains.len<-dim(fit$chains)[1]
   if(chains.len-target.len<=0){
     if(chains.len-target.len<0){
-      warning('desired number of iterations (',target.len,') is longer than number of available iterations (',chains.len,') in chains element: no iterations excluded')
+      warning('desired number of iterations (',target.len,') is longer than number of available iterations (',chains.len,') in chains element: no iterations excluded from chains')
     }
     if(!simplified){
       return(fit)
@@ -589,6 +589,7 @@ exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
 }
 #seems to work for various situations now--things will get funky as you include thinning, though...
 
+#' @export
 thin.chains<-function(fit,thin=2){
   #process input
   if(thin<=1){
@@ -605,23 +606,16 @@ thin.chains<-function(fit,thin=2){
     }
   }
   #get indices of iterations to be included, modify sampler.control element accordingly
+  niter<-fit$sampler.control$iter
+  incl.inds<-setNames(rep(list(seq(1,niter,thin)),2),c('chains','sampler.params'))
   chains.len<-dim(fit$chains)[1]
   diags.len<-dim(fit$sampler.params)[1]
-  incl.inds<-rep(list(seq(1,chains.len,thin)),2)
-  names(incl.inds)<-c('chains','sampler.params')
-  diff.iter<-chains.len-length(incl.inds$chains)
-  true.warmup<-chains.len-fit$sampler.control$iter+fit$sampler.control$warmup
-  if(true.warmup>0){
-    diff.warmup<-diff.iter-length(incl.inds$chains[incl.inds$chains>true.warmup])
-  }else{
-    diff.warmup<-0
-  }
-  fit$sampler.control$iter<-fit$sampler.control$iter-diff.iter
-  fit$sampler.control$warmup<-fit$sampler.control$warmup-diff.warmup
-  #account for any iterations in parameter diagnostics not inlcuded in chains
-  if(diags.len-chains.len>0){
-    incl.inds$sampler.params<-c(1:(diags.len-chains.len),incl.inds$sampler.params+diags.len-chains.len)
-  }
+  incl.inds$chains<-incl.inds$chains-niter+chains.len
+  incl.inds$sampler.params<-incl.inds$sampler.params-niter+diags.len
+  incl.inds<-lapply(incl.inds,function(ii) ii[ii>0])
+  fit$sampler.control$iter<-floor(fit$sampler.control$iter/thin)
+  fit$sampler.control$warmup<-floor(fit$sampler.control$warmup/thin)
+  fit$sampler.control$thin<-fit$sampler.control$thin*thin
   #thin the chains
   for(i in c('chains','sampler.params')){
     fit[[i]]<-.index.element(fit[[i]],incl.inds[[i]],1)
