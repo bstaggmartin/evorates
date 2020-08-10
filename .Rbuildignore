@@ -3,3 +3,4 @@
 .Rhistory
 .pdf
 to-do_list.txt
+misc_R_tests/.*
