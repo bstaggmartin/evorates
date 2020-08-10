@@ -88,6 +88,7 @@
 ##MAPs? --done!
 ##data used for MCMC --done!
 #report warnings BEFORE starting stan sampler? --done!
+#Should I split inits from param.diags--param.diags should ideally be done to summarize mutliple chains?
 fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
                        intra.var=F,intrasig2.prior=50,
                        trend=F,Rmu.prior=Rsig2.prior,

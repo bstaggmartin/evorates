@@ -372,3 +372,45 @@
   }
   XX[-(1:length(tree$tip.label))]
 }
+
+.to.chains.array<-function(fit,in.params){
+  params<-in.params
+  if(any(names(dimnames(params))=='parameters')|!is.null(attr(params,'parameters'))){
+    params<-list(params)
+  }
+  if(!is.list(params)){
+    params<-as.list(params)
+  }
+  types<-lapply(params,
+                function(ii) if(any(names(dimnames(ii))=='parameters')|!is.null(attr(ii,'parameters'))) 'chains' else 'select')
+  if(all(types=='select')&is.null(fit)){
+    stop(deparse(substitute(in.params)),' appears to consist of strings/numbers specifying parameters to extract out of a corateBM_fit, but no corateBM_fit is supplied')
+  }
+  if(any(types=='select')&is.null(fit)){
+    warning(deparse(substitute(in.params)),' contains ',paste(params[which(types=='select')],collapse=', '),', which appear to be strings/numbers specifying parameters to extract out of a corateBM_fit, but no corateBM_fit is supplied: these strings/numbers were excluded')
+    params<-params[-which(types=='select')]
+    types<-types[-which(types=='select')]
+  }
+  tmp<-lapply(1:length(params),function(ii) if(types[[ii]]=='select') .int.chains(fit,params[[ii]]) else .expand.element(params[[ii]]))
+  iterations.dim<-unique(sapply(tmp,function(ii) dim(ii)[1]))
+  if(length(iterations.dim)!=1){
+    stop('differing number of iterations in chains specified by ',deparse(substitute(in.params)),': did these all come from the same corateBM_fit, and were they all extracted from the chains element?')
+  }
+  out.dimnames<-lapply(tmp,dimnames)
+  chains.dim<-unique(sapply(out.dimnames,'[',3))
+  if(length(chains.dim)!=1){
+    stop('different chains specified by ',deparse(substitute(in.params)),': did these all come from the same corateBM_fit?')
+  }
+  chains.dim<-unlist(chains.dim)
+  params.dim<-unlist(lapply(out.dimnames,'[',2))
+  out<-array(NA,
+             c(iterations.dim,length(params.dim),length(chains.dim)),
+             dimnames=list(iterations=NULL,parameters=params.dim,chains=chains.dim))
+  for(i in 1:length(tmp)){
+    tmp.param.names<-dimnames(tmp[[i]])[[2]]
+    out[,tmp.param.names,]<-tmp[[i]]
+  }
+  out
+}
+#can get duplicates of the same parameter and probs not super efficient since it runs a separate call to %chains% each time it runs...
+#could cannabalize this function to add parameters to your corateBM_fit...
