@@ -1,12 +1,18 @@
 #plot an autocorrelated Brownian motion simulation
 #' @export
-plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
-                        lwd=1,col=c('deepskyblue','darkgray','brown1'),alpha=NA,
-                        phenogram=T,val.range=if(is.null(sim$R)) c(0,0) else range(sim$R),res=100,
-                        xlab=NULL,ylab=NULL,add=F,...){
+plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
+                        col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
+                        alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
+                        xlab=NULL,ylab=NULL,add=F,color.element='R',...,
+                        legend=T,legend.args=NULL){
+  tree<-sim$tree
   if(!is.character(trait)&!is.numeric(trait)){
     stop('trait must be a numeric or character vector')
   }
+  plot.args<-c(names(formals(plot.default)),
+               names(formals(axis)),names(formals(box)),names(formals(plot.window)),names(formals(title)))
+  plot.args<-plot.args[-which(plot.args=='...')]
+  gen.args<-graphics:::.Pars
   if(is.null(xlab)){
     if(length(trait)==1){
       xlab<-'time'
@@ -29,8 +35,14 @@ plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
       }
     }
   }
+  if(any(names(list(...))=='edge.color')){
+    warning('plot.corateBM uses col rather than edge.color to control line color: edge.color was ignored')
+  }
   if(any(names(list(...))=='edge.width')){
     warning('plot.corateBM uses lwd rather than edge.width to control line width: edge.width was ignored')
+  }
+  if(any(names(list(...))=='edge.lty')){
+    warning('plot.corateBM uses lty rather than edge.lty to control line type: edge.lty was ignored')
   }
   if(is.character(trait)){
     new.trait<-match(trait,colnames(sim$X))
@@ -45,18 +57,43 @@ plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
     problem.index<-which(trait>ncol(sim$X))
     stop("can't find trait(s) matching with ",paste(trait[problem.index],collapse=', '))
   }
-  if(length(trait)>2&!phenogram){
-    pairs(sim,tree,trait=trait,lwd=lwd,col=col,alpha=alpha,val.range=val.range,res=res,...)
+  if(length(trait)>2&phenogram){
+    pairs(sim,trait=trait,col=col,val.range=val.range,res=res,alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
+          color.element=color.element,...,
+          legend=legend,legend.args=legend.args)
   }else{
-    colramp<-colorRampPalette(col)(res)
-    if((val.range[2]-val.range[1])==0){
-      colvec<-colramp[round((res+1)/2)]
+    if(is.null(colvec)){
+      if(is.null(breaks)){
+        if(is.null(val.range)){
+          val.range<-range(sim[[color.element]])
+        }
+        colramp<-colorRampPalette(col,alpha=T)(res)
+        colramp<-alter.cols(colramp,alpha=.lin.interp(alpha,length(colramp)))
+        if((val.range[2]-val.range[1])==0){
+          colvec<-colramp[round((res+1)/2)]
+        }else{
+          inds<-round((sim[[color.element]]-val.range[1])/(val.range[2]-val.range[1])*(res-1))+1
+          inds[inds<1]<-1;inds[inds>res]<-res
+          colvec<-colramp[inds]
+        }
+      }else{
+        colramp<-colorRampPalette(col,alpha=T)(length(breaks)+1)
+        colramp<-alter.cols(colramp,alpha=.lin.interp(alpha,length(colramp)))
+        if(is.null(sim[[color.element]])){
+          colvec<-colramp[round((length(breaks)+2)/2)]
+        }else{
+          colvec<-colramp[cut(sim[[color.element]],c(min(sim[[color.element]])-1,breaks,max(sim[[color.element]])+1))]
+        }
+      }
     }else{
-      inds<-round((sim$R-val.range[1])/(val.range[2]-val.range[1])*(res-1))+1
-      inds[inds<1]<-1;inds[inds>res]<-res
-      colvec<-colramp[inds]
+      colvec<-rep(colvec,length.out=nrow(tree$edge))
+      colvec<-alter.cols(colvec,alpha=alpha)
+      if(legend){
+        warning('skipped plotting a legend since corateBM was plotted with custom color vector')
+      }
     }
-    colvec<-alter.cols(colvec,alpha=alpha)
+    lwdvec<-rep(lwd,length.out=nrow(tree$edge))
+    ltyvec<-rep(lty,length.out=nrow(tree$edge))
     if(phenogram){
       n<-length(tree$tip.label)
       if(nrow(sim$X)==n){
@@ -87,14 +124,16 @@ plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
                     col='white',
                     type='p',
                     pch=1,
-                    list(...)[!(names(list(...))%in%c('type','pch','edge.width','node.depths'))]))
+                    list(...)[!(names(list(...))%in%c('x','y','xlab','ylab','col','type','pch'))&
+                                names(list(...))%in%c(gen.args,plot.args)]))
         }
         do.call(segments,
                 c(x0=list(xx[tree$edge[,1]]),x1=list(xx[tree$edge[,2]]),
                   y0=list(sim$X[,trait][tree$edge[,1]]),y1=list(sim$X[,trait][tree$edge[,2]]),
-                  lwd=ifelse(length(lwd)>1,list(lwd),lwd),
                   col=list(colvec),
-                  list(...)[!(names(list(...))%in%c('edge.width','node.depths'))]))
+                  lwd=list(lwdvec),
+                  lty=list(ltyvec),
+                  list(...)[names(list(...))%in%gen.args]))
       }else{
         if(!add){
           do.call(plot,
@@ -105,29 +144,137 @@ plot.corateBM<-function(sim,tree,trait=1:NCOL(sim$X),
                     col='white',
                     type='p',
                     pch=1,
-                    list(...)[!(names(list(...))%in%c('type','pch','edge.width','node.depths'))]))
+                    list(...)[!(names(list(...))%in%c('x','y','xlab','ylab','col','type','pch'))&
+                                names(list(...))%in%c(gen.args,plot.args)]))
         }
         do.call(segments,
                 c(x0=list(sim$X[,trait[1]][tree$edge[,1]]),x1=list(sim$X[,trait[1]][tree$edge[,2]]),
                   y0=list(sim$X[,trait[2]][tree$edge[,1]]),y1=list(sim$X[,trait[2]][tree$edge[,2]]),
-                  lwd=ifelse(length(lwd)>1,list(lwd),lwd),
                   col=list(colvec),
-                  list(...)[!(names(list(...))%in%c('edge.width','node.depths'))]))
+                  lwd=list(lwdvec),
+                  lty=list(ltyvec),
+                  list(...)[names(list(...))%in%gen.args]))
       }
     }else{
-      do.call(plot,
-              c(x=list(tree),
-                edge.color=list(colvec),
-                edge.width=ifelse(length(lwd)>1,list(lwd),lwd),
-                list(...)[!(names(list(...))%in%c('edge.color','edge.width'))]))
+      if(add){
+        #no support for adding tip labels if add is set to TRUE..yet
+        tree.plot<-try(get("last_plot.phylo",envir=.PlotPhyloEnv),silent=T)
+        if(inherits(tree.plot,'try-error')){
+          tmpf<-tempfile()
+          pdf(tmpf)
+          do.call(plot,
+                  c(x=list(tree),
+                    edge.color=list(colvec),
+                    edge.width=ifelse(length(lwd)>1,list(lwd),lwd),
+                    edge.lty=ifelse(length(lwd)>1,list(lty),lty),
+                    list(...)[!(names(list(...))%in%c('edge.color','edge.width','edge.lty'))]))
+          dev.off()
+          unlink(tmpf)
+          tree.plot<-get("last_plot.phylo",envir=.PlotPhyloEnv)
+        }
+        if(hasArg(type)){
+          tree.plot$type<-list(...)$type
+        }
+        if(tree.plot$type=='cladogram'){
+          if(tree.plot$direction%in%c('leftwards','rightwards')){
+            coords.list<-c(y0=list(tree.plot$yy[as.vector(t(tree$edge))]),y1=list(tree.plot$yy[rep(tree$edge[,2],each=2)]),
+                           x0=list(tree.plot$xx[rep(tree$edge[,1],each=2)]),x1=list(tree.plot$xx[as.vector(t(tree$edge))]))
+          }else{
+            coords.list<-c(y0=list(tree.plot$yy[rep(tree$edge[,1],each=2)]),y1=list(tree.plot$yy[as.vector(t(tree$edge))]),
+                           x0=list(tree.plot$xx[as.vector(t(tree$edge))]),x1=list(tree.plot$xx[rep(tree$edge[,2],each=2)]))
+          }
+          colvec<-rep(colvec,each=2)
+          lwdvec<-rep(lwdvec,each=2)
+          ltyvec<-rep(ltyvec,each=2)
+        }else if(tree.plot$type=='fan'){
+          r<-sqrt(tree.plot$xx^2+tree.plot$yy^2)
+          theta<-atan(tree.plot$yy/tree.plot$xx)
+          theta[tree.plot$xx<0]<-theta[tree.plot$xx<0]+pi
+          theta[is.nan(theta)]<-0
+          theta[theta<theta[1]]<-theta[theta<theta[1]]+2*pi
+          theta0<-theta[as.vector(t(tree$edge))]
+          theta1<-theta[rep(tree$edge[,2],each=2)]
+          r0<-r[rep(tree$edge[,1],each=2)]
+          r1<-r[as.vector(t(tree$edge))]
+          colvec<-rep(colvec,each=2)
+          lwdvec<-rep(lwdvec,each=2)
+          ltyvec<-rep(ltyvec,each=2)
+          if(hasArg(ang.res)){
+            ang<-seq(0,2*pi,length.out=list(...)$ang.res)
+          }else{
+            ang<-seq(0,2*pi,length.out=100)
+          }
+          new.theta0<-new.theta1<-new.r0<-new.r1<-new.colvec<-new.lwdvec<-new.ltyvec<-NULL
+          for(i in 1:length(theta0)){
+            tmp<-c(theta0[i],theta1[i])
+            int.ang<-ang[ang>min(tmp)&ang<max(tmp)]
+            if(r0[i]==0|theta0[i]==theta1[i]|length(int.ang)==0){
+              new.theta0<-c(new.theta0,theta0[i])
+              new.theta1<-c(new.theta1,theta1[i])
+              new.r0<-c(new.r0,r0[i])
+              new.r1<-c(new.r1,r1[i])
+              new.colvec<-c(new.colvec,colvec[i])
+              new.lwdvec<-c(new.lwdvec,lwdvec[i])
+              new.ltyvec<-c(new.ltyvec,ltyvec[i])
+              next
+            }else{
+              if(tmp[1]>tmp[2]){
+                int.ang<-rev(int.ang)
+              }
+              new.theta0<-c(new.theta0,theta0[i],int.ang)
+              new.theta1<-c(new.theta1,int.ang,theta1[i])
+              new.r0<-c(new.r0,rep(r0[i],length(int.ang)+1))
+              new.r1<-c(new.r1,rep(r1[i],length(int.ang)+1))
+              new.colvec<-c(new.colvec,rep(colvec[i],length(int.ang)+1))
+              new.lwdvec<-c(new.lwdvec,rep(lwdvec[i],length(int.ang)+1))
+              new.ltyvec<-c(new.ltyvec,rep(ltyvec[i],length(int.ang)+1))
+            }
+          }
+          colvec<-new.colvec
+          lwdvec<-new.lwdvec
+          ltyvec<-new.ltyvec
+          coords.list<-c(x0=list(new.r0*cos(new.theta0)),
+                         x1=list(new.r1*cos(new.theta1)),
+                         y0=list(new.r0*sin(new.theta0)),
+                         y1=list(new.r1*sin(new.theta1)))
+        }else{
+          coords.list<-c(y0=list(tree.plot$yy[tree$edge[,1]]),y1=list(tree.plot$yy[tree$edge[,2]]),
+                         x0=list(tree.plot$xx[tree$edge[,1]]),x1=list(tree.plot$xx[tree$edge[,2]]))
+        }
+        do.call(segments,
+                c(coords.list,
+                  col=list(colvec),
+                  lwd=list(lwdvec),
+                  lty=list(ltyvec),
+                  list(...)[names(list(...))%in%gen.args]))
+      }else{
+        do.call(plot,
+                c(x=list(tree),
+                  edge.color=list(colvec),
+                  edge.width=list(lwdvec),
+                  edge.lty=list(ltyvec),
+                  list(...)[!(names(list(...))%in%c('edge.color','edge.width','edge.lty'))]))
+      }
+    }
+    if(legend){
+      legend.call<-c(sim=list(sim),color.element=color.element,
+                     col=list(col),val.range=list(val.range),res=res,
+                     alpha=if(length(alpha)==1) alpha else list(alpha),breaks=if(length(breaks)==1) breaks else list(breaks),
+                     legend.args)
+      do.call(legend.corateBM,
+              legend.call)
     }
   }
 }
 
 #improve label handling
 #' @export
-pairs.corateBM<-function(sim,tree,trait=1:ncol(sim$X),lwd=1,col=c('deepskyblue','darkgray','brown1'),alpha=NA,
-                         val.range=if(is.null(sim$R)) c(0,0) else range(sim$R),res=100,...){
+pairs.corateBM<-function(sim,trait=1:ncol(sim$X),
+                         col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
+                         alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
+                         color.element='R',...,
+                         legend=T,legend.args=NULL){
+  tree<-sim$tree
   n<-length(tree$tip.label)
   if(nrow(sim$X)==n){
     scaled.tree<-tree
@@ -168,26 +315,221 @@ pairs.corateBM<-function(sim,tree,trait=1:ncol(sim$X),lwd=1,col=c('deepskyblue',
       }
       if(i==j){
         if(i==length(trait)){
-          plot(sim,tree,trait=c(trait[i],trait[j]),alpha=0,
-               xaxt=xaxt,yaxt=yaxt,...)
+          plot(sim,trait=c(trait[i],trait[j]),
+               alpha=0,colvec=rgb(0,0,0,0),
+               xaxt=xaxt,yaxt=yaxt,...,
+               legend=F)
           new.range<-range(sim$X[,i])
           node.depths<-node.depth.edgelength(tree)
           node.depths<-node.depths/max(node.depths)*diff(new.range)+min(new.range)
-          plot(sim,tree,trait=i,lwd=lwd,col=col,alpha=alpha,val.range=val.range,res=res,
-               xaxt='n',yaxt=yaxt,add=T,node.depths=node.depths,...)
+          plot(sim,trait=trait[i],
+               col=col,val.range=val.range,res=res,
+               alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
+               xaxt='n',yaxt=yaxt,add=T,color.element=color.element,node.depths=node.depths,...,
+               legend=F)
         }else{
-          plot(sim,tree,trait=trait[i],lwd=lwd,col=col,alpha=alpha,val.range=val.range,res=res,
-               xaxt=xaxt,yaxt=yaxt,...)
+          plot(sim,trait=trait[i],
+               col=col,val.range=val.range,res=res,
+               alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
+               xaxt=xaxt,yaxt=yaxt,color.element=color.element,...,
+               legend=F)
         }
         do.call(mtext,args.x.mtext)
         do.call(mtext,args.y.mtext)
       }else{
-        plot(sim,tree,trait=c(trait[j],trait[i]),lwd=lwd,col=col,alpha=alpha,val.range=val.range,res=res,
-             xaxt=xaxt,yaxt=yaxt,...)
+        plot(sim,trait=c(trait[j],trait[i]),
+             col=col,val.range=val.range,res=res,
+             alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
+             xaxt=xaxt,yaxt=yaxt,color.element=color.element,...,
+             legend=F)
         do.call(mtext,args.x.mtext)
         do.call(mtext,args.y.mtext)
       }
     }
   }
+  if(legend){
+    par(fig=c(0,1,0,1),oma=c(5.1,4.1,0,0),mar=c(0,0,0,0),new=T)
+    if(is.null(legend.args$box.scale)){
+      legend.args$box.scale<-1
+    }
+    legend.args$box.scale<-legend.args$box.scale*0.4
+    if(is.null(legend.args$cex)){
+      legend.args$cex<-1
+    }
+    legend.args$cex<-legend.args$cex*0.8
+    bds<-par('usr')
+    bds.dims<-c(diff(bds[1:2]),diff(bds[3:4]))
+    if(length(legend.args$box.offset)==0){
+      legend.args$box.offset<-rep(NA,2)
+    }else if(length(legend.args$box.offset)==1){
+      legend.args$box.offset<-c(legend.args$box.offset,NA)
+    }
+    legend.args$box.offset<-ifelse(is.na(legend.args$box.offset),bds.dims/c(40,-20),legend.args$box.offset)
+    if(is.null(legend.args$xpd)){
+      legend.args$xpd<-T
+    }
+    legend.call<-c(sim=list(sim),color.element=color.element,
+                   col=list(col),val.range=list(val.range),res=res,
+                   alpha=if(length(alpha)==1) alpha else list(alpha),breaks=if(length(breaks)==1) breaks else list(breaks),
+                   legend.args)
+    do.call(legend.corateBM,
+            legend.call)
+  }
   par(old.par)
+}
+
+#' @export
+legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','topright'),color.element='R',
+                          col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
+                          alpha=NA,breaks=NULL,select.levels=NULL,
+                          box.dims=NULL,box.offset=NULL,box.scale=1,
+                          txt.col=NULL,main=expression(ln~(sigma^2)),...){
+  try.location<-try(match.arg(location,c('bottomleft','topleft','bottomright','topright')),silent=T)
+  if(inherits(try.location,'try-error')){
+    stop(location," is not an available named position to put the legend: please specify one of the following: 'bottomleft', 'topleft', 'bottomright', or 'topright'")
+  }
+  location<-try.location
+  gen.args<-graphics:::.Pars
+  poly.args<-names(formals(polygon))
+  poly.args<-poly.args[-which(poly.args=='...')]
+  txt.args<-names(formals(text.default))
+  txt.args<-txt.args[-which(txt.args=='...')]
+  if(is.null(breaks)){
+    if(is.null(val.range)){
+      val.range<-range(sim[[color.element]])
+    }
+    colramp<-colorRampPalette(col,alpha=T)(res)
+    colramp<-alter.cols(colramp,alpha=.lin.interp(alpha,length(colramp)))
+  }else{
+    colramp<-colorRampPalette(col,alpha=T)(length(breaks)+1)
+    colramp<-alter.cols(colramp,alpha=.lin.interp(alpha,length(colramp)))
+    if(is.null(select.levels)){
+      select.levels<-1:length(colramp)
+    }
+    select.levels<-select.levels[select.levels>=1&select.levels<=(length(breaks)+1)]
+    select.levels<-sort(select.levels)
+    colramp<-colramp[select.levels]
+  }
+  bds<-par('usr')
+  bds.dims<-c(diff(bds[1:2]),diff(bds[3:4]))
+  if(length(box.dims)==0){
+    box.dims<-rep(NA,2)
+  }else if(length(box.dims)==1){
+    box.dims<-c(box.dims,NA)
+  }
+  box.dims<-ifelse(is.na(box.dims),bds.dims/c(30,5),box.dims)
+  if(length(box.offset)==0){
+    box.offset<-rep(NA,2)
+  }else if(length(box.offset)==1){
+    box.offset<-c(box.offset,NA)
+  }
+  box.offset<-ifelse(is.na(box.offset),bds.dims/c(15,15),box.offset)
+  x.offset<-box.offset[1]
+  y.offset<-box.offset[2]
+  if(grepl('right',location)){
+    x.offset<- bds.dims[1]-box.dims[1]-box.offset[1]
+  }
+  if(grepl('top',location)){
+    y.offset<- bds.dims[2]-box.dims[2]-box.offset[2]
+  }
+  coords<-list(x=c(0,box.dims[1],box.dims[1],0)+x.offset+bds[1],y=c(0,0,box.dims[2],box.dims[2])+y.offset+bds[3])
+  box.midpt<-sapply(coords,mean)
+  coords$x<-(coords$x-box.midpt[1])*box.scale+box.midpt[1]
+  coords$y<-(coords$y-box.midpt[2])*box.scale+box.midpt[2]
+  y.int<-seq(coords$y[2],coords$y[3],length.out=length(colramp)+1)
+  for(i in 1:length(colramp)){
+    do.call(polygon,
+            c(x=list(coords$x),
+              y=list(c(y.int[i],y.int[i],y.int[i+1],y.int[i+1])),
+              border=NA,
+              col=colramp[i],
+              list(...)[!(names(list(...))%in%c('x','y','border','col','adj'))&
+                          names(list(...))%in%gen.args]))
+  }
+  do.call(polygon,
+          c(x=list(coords$x),
+            y=list(coords$y),
+            col=NA,
+            list(...)[!(names(list(...))%in%c('x','y','col','adj'))&
+                        names(list(...))%in%c(gen.args,poly.args)]))
+  side<-NA
+  if(hasArg(side)){
+    if(list(...)$side<=2&list(...)$side>=1){
+      side<-list(...)$side
+    }
+  }
+  if(is.na(side)){
+    side<-if(grepl('left',location)) 2 else 1
+  }
+  txt.args<-list(...)[!(names(list(...))%in%c('x','y','labels'))&names(list(...))%in%c(gen.args,txt.args)]
+  if(is.null(txt.args$adj)&is.null(txt.args$pos)){
+    txt.args$pos<-side*2
+  }
+  if(!is.null(txt.col)){
+    txt.args$col<-txt.col
+  }
+  if(is.null(breaks)){
+    labels<-pretty(seq(val.range[1],val.range[2],length.out=100))
+    labels<-labels[c(2,length(labels)-1)]
+    y.pos<-coords$y[2]+(labels-val.range[1])/
+      (diff(val.range))*
+      (coords$y[3]-coords$y[2])
+    do.call(text,
+            c(x=coords$x[side],
+              y=list(y.pos),
+              labels=list(labels),
+              txt.args))
+  }else{
+    labels<-paste(breaks[-length(breaks)],'-',breaks[-1])
+    labels<-c(paste('<',breaks[1]),labels,paste('>',breaks[length(breaks)]))
+    labels<-labels[select.levels]
+    y.pos<-apply(cbind(y.int[-length(y.int)],y.int[-1]),1,mean)
+    do.call(text,
+            c(x=coords$x[side],
+              y=list(y.pos),
+              labels=list(labels),
+              txt.args))
+  }
+  main.side<-NA
+  if(hasArg(main.side)){
+    if(list(...)$main.side<=4&list(...)$main.side>=1){
+      main.side<-list(...)$main.side
+    }
+  }
+  if(is.na(main.side)){
+    main.side<-if(grepl('left',location)) 2 else 4
+  }
+  main.args<-list(...)[!(names(list(...))%in%paste0('main.',c('x','y','labels','side')))&
+                           names(list(...))%in%paste0('main.',c(gen.args,txt.args))]
+  names(main.args)<-gsub('main.','',names(main.args))
+  txt.args<-txt.args[!names(txt.args)%in%c('srt','pos','adj','offset')]
+  txt.args[names(main.args)%in%names(txt.args)]<-main.args[names(main.args)%in%names(txt.args)]
+  main.args<-c(txt.args,main.args[!(names(main.args)%in%names(txt.args))])
+  if(is.null(main.args$adj)&is.null(main.args$pos)){
+    main.args$pos<-main.side
+    if(main.side%in%c(2,4)&is.null(main.args$srt)){
+      main.args$srt<-90
+      main.args$pos<-NULL
+      main.args$adj<-c(0.5,c(-0.3,1.3)[main.side/2])
+    }
+  }
+  if(main.side%in%c(2,4)&is.null(main.args$srt)){
+    main.args$srt<-90
+  }
+  if(is.null(main.args$cex)){
+    main.args$cex<-1
+  }
+  main.args$cex<-main.args$cex*1.5
+  if(main.side%in%c(2,4)){
+    x.pos<-coords$x[main.side/2]
+    y.pos<-mean(coords$y[2:3])
+  }else{
+    x.pos<-mean(coords$x[1:2])
+    y.pos<-coords$y[main.side/2+1.5]
+  }
+  do.call(text,
+          as.list(c(x=x.pos,
+                    y=y.pos,
+                    labels=main,
+                    main.args)))
 }

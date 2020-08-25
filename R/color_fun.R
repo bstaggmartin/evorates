@@ -34,6 +34,7 @@ alter.cols<-function(x,alpha=NA,mod.val=0){
   }
   cols[1:3,]<-cols[1:3,]+mod.val
   cols[1:3,]<-ifelse(cols[1:3,]<0,0,ifelse(cols[1:3,]>1,1,cols[1:3,]))
+  alpha<-rep(alpha,length.out=length(x))
   alpha<-ifelse(is.na(alpha),cols[4,],alpha)
   cols[4,]<-alpha
   mapply(rgb,red=cols[1,],green=cols[2,],blue=cols[3,],alpha=cols[4,])

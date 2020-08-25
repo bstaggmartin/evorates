@@ -1,3 +1,4 @@
+#allow for simultaneously getting multiple clades via passing a list to node?
 #' @export
 get.bg.rate<-function(fit,node=NULL,element=c('chains','quantiles','means','MAPs'),edge.group=NULL,
                       name=NULL,select.extra=NULL){
@@ -17,7 +18,7 @@ get.bg.rate<-function(fit,node=NULL,element=c('chains','quantiles','means','MAPs
   }
   if(is.null(edge.group)){
     if(!is.null(node)){
-      edge.group<-get.edge.des(tree,node)
+      edge.group<-get.clade.edges(tree,node)
     }else{
       stop('must specify a set of edges of interest by setting node equal to set of nodes defining a monophyletic clade OR setting edge.group equal to a vector of edge indices')
     }

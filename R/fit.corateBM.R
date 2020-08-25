@@ -188,6 +188,8 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
             paste(unique(rownames(Y)[unmatched.names]),collapse=', '),': these data were removed',
             immediate.=T)
     Y<-as.matrix(Y[-ind.unmatched.names,])
+  }else{
+    ind.unmatched.names<-NULL
   }
   if(constrain.Rsig2&!trend&report.devs){
     report.devs<-F
@@ -216,12 +218,14 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
       Y<-Y[-null.obs,]
       is.obs<-is.obs[-null.obs,]
       codes<-codes[-null.obs]
-      for(i in sort(ind.unmatched.names)){
-        tmp.codes<-append(tmp.codes,-1,i)
+      if(!is.null(ind.unmatched.names)){
+        for(i in sort(ind.unmatched.names)){
+          tmp.codes<-append(tmp.codes,-1,i)
+        }
       }
       report.null.obs<-which(tmp.codes==0)
       warning('found no trait data for observation(s) ',
-              paste(report.null.obs,collapse=', '),': these data were removed')
+              paste(report.null.obs,collapse=', '),': these data were removed',immediate.=T)
     }
     X_id<-match(rownames(Y),tree$tip.label)
     code_sizes<-tapply(codes,codes,length)
@@ -331,12 +335,12 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     exclude.pars<-c(exclude.pars,'R')
   }
   if(intra.var){
-    exclude.pars<-c(exclude.pars,'unif_Ysig2','raw_X','Ysig2','cent_Y')
+    exclude.pars<-c(exclude.pars,'unif_Ysig2','raw_X','cent_Y')
     dat$obs<-nrow(Y)
     datX_id<-X_id
     dat$Ysig2_prior<-rep(Ysig2.prior,length.out=k)
     if(k>1){
-      exclude.pars<-c(exclude.pars,'unif_Xsig2','Xsig2','Ycov')
+      exclude.pars<-c(exclude.pars,'unif_Xsig2','Xsig2','Ysig2','Ycov')
       dat$k<-k
       dat$obs_code<-obs_code
       dat$n_code<-n_code
