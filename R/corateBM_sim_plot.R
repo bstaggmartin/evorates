@@ -1,40 +1,20 @@
 #plot an autocorrelated Brownian motion simulation
 #' @export
-plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
+plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram','cladogram','fan','unrooted','radial'),
                         col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
                         alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
                         xlab=NULL,ylab=NULL,add=F,color.element='R',...,
                         legend=T,legend.args=NULL){
   tree<-sim$tree
-  if(!is.character(trait)&!is.numeric(trait)){
-    stop('trait must be a numeric or character vector')
+  try.type<-try(match.arg(type,c('phenogram','phylogram','cladogram','fan','unrooted','radial')))
+  if(inherits(try.type,'try-error')){
+    stop(try.type," is not an available plotting type: please specify one of the following: 'phenogram', 'phylogram', 'cladogram', 'fan', 'unrooted', or 'radial'")
   }
+  type<-try.type
   plot.args<-c(names(formals(plot.default)),
                names(formals(axis)),names(formals(box)),names(formals(plot.window)),names(formals(title)))
   plot.args<-plot.args[-which(plot.args=='...')]
   gen.args<-graphics:::.Pars
-  if(is.null(xlab)){
-    if(length(trait)==1){
-      xlab<-'time'
-    }else{
-      xlab<-ifelse(is.numeric(trait),paste('trait',trait[1]),trait[1])
-    }
-  }
-  if(is.null(ylab)){
-    if(is.character(trait)){
-      if(length(trait)==1){
-        ylab<-trait
-      }else{
-        ylab<-trait[2]
-      }
-    }else if(is.numeric(trait)){
-      if(length(trait)==1){
-        ylab<-paste('trait',trait)
-      }else{
-        ylab<-paste('trait',trait[2])
-      }
-    }
-  }
   if(any(names(list(...))=='edge.color')){
     warning('plot.corateBM uses col rather than edge.color to control line color: edge.color was ignored')
   }
@@ -44,24 +24,43 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
   if(any(names(list(...))=='edge.lty')){
     warning('plot.corateBM uses lty rather than edge.lty to control line type: edge.lty was ignored')
   }
-  if(is.character(trait)){
-    new.trait<-match(trait,colnames(sim$X))
-    problem.index<-which(is.na(new.trait))
-    if(length(problem.index)>0){
-      stop("can't find trait(s) matching with ",paste(trait[problem.index],collapse=', '))
-    }else{
-      trait<-new.trait
-    }
+  if(is.null(colnames(sim$X))){
+    colnames(sim$X)<-paste('trait',1:ncol(sim$X))
+  }else{
+    names.lens<-nchar(colnames(sim$X))
+    colnames(sim$X)<-ifelse(names.lens==0,paste('trait',1:ncol(sim$X)),colnames(sim$X))
   }
-  if(any(trait>ncol(sim$X))){
-    problem.index<-which(trait>ncol(sim$X))
-    stop("can't find trait(s) matching with ",paste(trait[problem.index],collapse=', '))
+  if(is.numeric(traits)){
+    traits<-colnames(sim$X)[traits]
   }
-  if(length(trait)>2&phenogram){
-    pairs(sim,trait=trait,col=col,val.range=val.range,res=res,alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
+  #check if any trait names not available
+  traits.exist<-traits%in%colnames(sim$X)
+  if(all(!traits.exist)){
+    stop('none of the specified traits found')
+  }
+  if(any(!traits.exist)){
+    warning(paste(traits[which(!traits.exist)],collapse=', '),' not found')
+    traits<-traits[which(traits.exist)]
+  }
+  if(length(traits)>2&type=='phenogram'){
+    pairs(sim,traits=traits,col=col,val.range=val.range,res=res,alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
           color.element=color.element,...,
           legend=legend,legend.args=legend.args)
   }else{
+    if(is.null(xlab)){
+      if(length(traits)==1){
+        xlab<-'time'
+      }else{
+        xlab<-traits[1]
+      }
+    }
+    if(is.null(ylab)){
+      if(length(traits)==1){
+        ylab<-traits
+      }else{
+        ylab<-traits[2]
+      }
+    }
     if(is.null(colvec)){
       if(is.null(breaks)){
         if(is.null(val.range)){
@@ -94,7 +93,7 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
     }
     lwdvec<-rep(lwd,length.out=nrow(tree$edge))
     ltyvec<-rep(lty,length.out=nrow(tree$edge))
-    if(phenogram){
+    if(type=='phenogram'){
       n<-length(tree$tip.label)
       if(nrow(sim$X)==n){
         scaled.tree<-tree
@@ -103,13 +102,14 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
         }
         anc.states<-matrix(NA,tree$Nnode,ncol(sim$X))
         rownames(anc.states)<-n+1:tree$Nnode
-        for(i in trait){
+        colnames(anc.states)<-colnames(sim$X)
+        for(i in traits){
           anc.states[,i]<-.quick.recon(sim$X[,i],scaled.tree)
         }
         sim$X<-rbind(sim$X,anc.states)
       }
-      sim$X<-as.matrix(sim$X[c(tree$tip.label,n+1:tree$Nnode),])
-      if(length(trait)==1){
+      sim$X<-sim$X[c(tree$tip.label,n+1:tree$Nnode),,drop=F]
+      if(length(traits)==1){
         if(hasArg(node.depths)){
           xx<-list(...)$node.depths
         }else{
@@ -118,7 +118,7 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
         if(!add){
           do.call(plot,
                   c(x=list(xx),
-                    y=list(sim$X[,trait]),
+                    y=list(sim$X[,traits]),
                     xlab=xlab,
                     ylab=ylab,
                     col='white',
@@ -129,7 +129,7 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
         }
         do.call(segments,
                 c(x0=list(xx[tree$edge[,1]]),x1=list(xx[tree$edge[,2]]),
-                  y0=list(sim$X[,trait][tree$edge[,1]]),y1=list(sim$X[,trait][tree$edge[,2]]),
+                  y0=list(sim$X[,traits][tree$edge[,1]]),y1=list(sim$X[,traits][tree$edge[,2]]),
                   col=list(colvec),
                   lwd=list(lwdvec),
                   lty=list(ltyvec),
@@ -137,8 +137,8 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
       }else{
         if(!add){
           do.call(plot,
-                  c(x=list(sim$X[,trait[1]]),
-                    y=list(sim$X[,trait[2]]),
+                  c(x=list(sim$X[,traits[1]]),
+                    y=list(sim$X[,traits[2]]),
                     xlab=xlab,
                     ylab=ylab,
                     col='white',
@@ -148,8 +148,8 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
                                 names(list(...))%in%c(gen.args,plot.args)]))
         }
         do.call(segments,
-                c(x0=list(sim$X[,trait[1]][tree$edge[,1]]),x1=list(sim$X[,trait[1]][tree$edge[,2]]),
-                  y0=list(sim$X[,trait[2]][tree$edge[,1]]),y1=list(sim$X[,trait[2]][tree$edge[,2]]),
+                c(x0=list(sim$X[,traits[1]][tree$edge[,1]]),x1=list(sim$X[,traits[1]][tree$edge[,2]]),
+                  y0=list(sim$X[,traits[2]][tree$edge[,1]]),y1=list(sim$X[,traits[2]][tree$edge[,2]]),
                   col=list(colvec),
                   lwd=list(lwdvec),
                   lty=list(ltyvec),
@@ -157,25 +157,24 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
       }
     }else{
       if(add){
-        #no support for adding tip labels if add is set to TRUE..yet
+        #no support for adding tip labels if add is set to TRUE...yet
         tree.plot<-try(get("last_plot.phylo",envir=.PlotPhyloEnv),silent=T)
         if(inherits(tree.plot,'try-error')){
           tmpf<-tempfile()
           pdf(tmpf)
           do.call(plot,
                   c(x=list(tree),
+                    type=type,
                     edge.color=list(colvec),
                     edge.width=ifelse(length(lwd)>1,list(lwd),lwd),
                     edge.lty=ifelse(length(lwd)>1,list(lty),lty),
-                    list(...)[!(names(list(...))%in%c('edge.color','edge.width','edge.lty'))]))
+                    list(...)[!(names(list(...))%in%c('type','edge.color','edge.width','edge.lty'))]))
           dev.off()
           unlink(tmpf)
           tree.plot<-get("last_plot.phylo",envir=.PlotPhyloEnv)
         }
-        if(hasArg(type)){
-          tree.plot$type<-list(...)$type
-        }
-        if(tree.plot$type=='cladogram'){
+        tree.plot$type<-tree.plot$type
+        if(tree.plot$type=='phylogram'){
           if(tree.plot$direction%in%c('leftwards','rightwards')){
             coords.list<-c(y0=list(tree.plot$yy[as.vector(t(tree$edge))]),y1=list(tree.plot$yy[rep(tree$edge[,2],each=2)]),
                            x0=list(tree.plot$xx[rep(tree$edge[,1],each=2)]),x1=list(tree.plot$xx[as.vector(t(tree$edge))]))
@@ -250,10 +249,11 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
       }else{
         do.call(plot,
                 c(x=list(tree),
+                  type=type,
                   edge.color=list(colvec),
                   edge.width=list(lwdvec),
                   edge.lty=list(ltyvec),
-                  list(...)[!(names(list(...))%in%c('edge.color','edge.width','edge.lty'))]))
+                  list(...)[!(names(list(...))%in%c('type','edge.color','edge.width','edge.lty'))]))
       }
     }
     if(legend){
@@ -261,20 +261,37 @@ plot.corateBM<-function(sim,trait=1:NCOL(sim$X),phenogram=T,
                      col=list(col),val.range=list(val.range),res=res,
                      alpha=if(length(alpha)==1) alpha else list(alpha),breaks=if(length(breaks)==1) breaks else list(breaks),
                      legend.args)
-      do.call(legend.corateBM,
-              legend.call)
+      do.call(legend.corateBM,legend.call)
     }
   }
 }
 
-#improve label handling
+#improve label handling: DONE 8/25
 #' @export
-pairs.corateBM<-function(sim,trait=1:ncol(sim$X),
+pairs.corateBM<-function(sim,traits=1:ncol(sim$X),
                          col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
                          alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
-                         color.element='R',...,
+                         lab=NULL,color.element='R',...,
                          legend=T,legend.args=NULL){
   tree<-sim$tree
+  if(is.null(colnames(sim$X))){
+    colnames(sim$X)<-paste('trait',1:ncol(sim$X))
+  }else{
+    names.lens<-nchar(colnames(sim$X))
+    colnames(sim$X)<-ifelse(names.lens==0,paste('trait',1:ncol(sim$X)),colnames(sim$X))
+  }
+  if(is.numeric(traits)){
+    traits<-colnames(sim$X)[traits]
+  }
+  #check if any trait names not available
+  traits.exist<-traits%in%colnames(sim$X)
+  if(all(!traits.exist)){
+    stop('none of the specified traits found')
+  }
+  if(any(!traits.exist)){
+    warning(paste(traits[which(!traits.exist)],collapse=', '),' not found')
+    traits<-traits[which(traits.exist)]
+  }
   n<-length(tree$tip.label)
   if(nrow(sim$X)==n){
     scaled.tree<-tree
@@ -283,19 +300,25 @@ pairs.corateBM<-function(sim,trait=1:ncol(sim$X),
     }
     anc.states<-matrix(NA,tree$Nnode,ncol(sim$X))
     rownames(anc.states)<-n+1:tree$Nnode
-    for(i in trait){
+    colnames(anc.states)<-colnames(sim$X)
+    for(i in traits){
       anc.states[,i]<-.quick.recon(sim$X[,i],scaled.tree)
     }
     sim$X<-rbind(sim$X,anc.states)
   }
-  sim$X<-as.matrix(sim$X[c(tree$tip.label,n+1:tree$Nnode),])
+  sim$X<-sim$X[c(tree$tip.label,n+1:tree$Nnode),,drop=F]
+  if(is.null(lab)){
+    lab<-rep(NA,length.out=length(traits))
+  }
+  lab<-rep(lab,length.out=length(traits))
+  lab<-ifelse(is.na(lab),traits,lab)
   old.par<-par(no.readonly=T)
-  par(mfrow=c(length(trait),length(trait)),mar=c(0,0,0,0),oma=c(5.1,4.1,0,0),xpd=T)
-  for(i in 1:length(trait)){
-    for(j in 1:length(trait)){
+  par(mfrow=c(length(traits),length(traits)),mar=c(0,0,0,0),oma=c(5.1,4.1,0,0),xpd=T)
+  for(i in 1:length(traits)){
+    for(j in 1:length(traits)){
       if(j==1){
         yaxt=NULL
-        args.y.mtext<-list(text=paste('trait',trait[i]),
+        args.y.mtext<-list(text=lab[i],
                            side=2,
                            line=3,
                            cex=0.75)
@@ -303,9 +326,9 @@ pairs.corateBM<-function(sim,trait=1:ncol(sim$X),
         yaxt='n'
         args.y.mtext<-list(NULL)
       }
-      if(i==length(trait)){
+      if(i==length(traits)){
         xaxt=NULL
-        args.x.mtext<-list(text=paste('trait',trait[j]),
+        args.x.mtext<-list(text=lab[j],
                            side=1,
                            line=3,
                            cex=0.75)
@@ -314,33 +337,33 @@ pairs.corateBM<-function(sim,trait=1:ncol(sim$X),
         args.x.mtext<-list(NULL)
       }
       if(i==j){
-        if(i==length(trait)){
-          plot(sim,trait=c(trait[i],trait[j]),
+        if(i==length(traits)){
+          plot(sim,traits=c(traits[i],traits[j]),
                alpha=0,colvec=rgb(0,0,0,0),
-               xaxt=xaxt,yaxt=yaxt,...,
+               xaxt=xaxt,yaxt=yaxt,xlab='',ylab='',...,
                legend=F)
           new.range<-range(sim$X[,i])
           node.depths<-node.depth.edgelength(tree)
           node.depths<-node.depths/max(node.depths)*diff(new.range)+min(new.range)
-          plot(sim,trait=trait[i],
+          plot(sim,traits=traits[i],
                col=col,val.range=val.range,res=res,
                alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
                xaxt='n',yaxt=yaxt,add=T,color.element=color.element,node.depths=node.depths,...,
                legend=F)
         }else{
-          plot(sim,trait=trait[i],
+          plot(sim,traits=traits[i],
                col=col,val.range=val.range,res=res,
                alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
-               xaxt=xaxt,yaxt=yaxt,color.element=color.element,...,
+               xaxt=xaxt,yaxt=yaxt,color.element=color.element,xlab='',ylab='',...,
                legend=F)
         }
         do.call(mtext,args.x.mtext)
         do.call(mtext,args.y.mtext)
       }else{
-        plot(sim,trait=c(trait[j],trait[i]),
+        plot(sim,traits=c(traits[j],traits[i]),
              col=col,val.range=val.range,res=res,
              alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
-             xaxt=xaxt,yaxt=yaxt,color.element=color.element,...,
+             xaxt=xaxt,yaxt=yaxt,color.element=color.element,xlab='',ylab='',...,
              legend=F)
         do.call(mtext,args.x.mtext)
         do.call(mtext,args.y.mtext)

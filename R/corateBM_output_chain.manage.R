@@ -1,3 +1,32 @@
+#' Select chains in a fitted correlated rates Brownian Motion model
+#' 
+#' 
+#' This function extracts specific chains from the output of the function \code{fit.corateBM}.
+#' 
+#' 
+#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param chains A character or numeric vector. If of class character, the given text is matched to names of
+#' the available chains in \code{fit}. If of class numeric, the function assumes \code{chains} refers to the
+#' name "chain \code{chains}".
+#' @param simplify TRUE or FALSE value: should the resulting elements of \code{fit} have dimensions of length
+#' 1 collapsed and stored as attributes?
+#' 
+#' 
+#' @return an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+#' included.
+#' 
+#' 
+#' @family chain management
+#' 
+#' 
+#' @example
+#' #requires example fitted model object
+#' #get chain 1 and 2
+#' select.chains(example.fit,c('chain 1','chain 2'))
+#' #or
+#' select.chains(example.fit,1:2)
+#' 
+#' 
 #' @export
 select.chains<-function(fit,chains,simplify=T){
   #input processing
@@ -34,6 +63,47 @@ select.chains<-function(fit,chains,simplify=T){
 }
 
 #automatically excludes iterations not included in chains and inits--doesn't make sense anymore
+#' Combine chains in a fitted correlated rates Brownian Motion model
+#' 
+#' 
+#' This function combines all chains from the output of the function \code{fit.corateBM} in sequential order.
+#' 
+#' 
+#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param simplify TRUE or FALSE value: should the resulting elements of \code{fit} have dimensions of length
+#' 1 collapsed and stored as attributes?
+#' 
+#' 
+#' @return an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+#' included.
+#' 
+#' 
+#' @details By sequential, I mean that the chains beginning of the second chain will follow the end of the
+#' first chain, and so on. No permutation business is attempted. It is obviously unwise to run this function
+#' with a \code{corateBM_fit} including chains that have not yet reached a stationary distribution or include
+#' obvious burn-in/warmup iterations.
+#' 
+#' The resulting chain name will simply be all the previous chain names separated by commas (e.g.,
+#' "chain 1, chain 2, chain 3, ...).
+#' 
+#' Any iterations included in the sampler.params element but not in the chains element are
+#' automatically excluded. Otherwise, issues would result from other functions which assuming any
+#' difference between the number of iterations in sampler.params and chains are due to iterations missing from
+#' the beginning of chains (i.e., burn-in/warmup). Any warmup iterations remaining in the chains element,
+#' however, will be kept.
+#' 
+#' After combining chains, the resulting composite 'markov chain' no longer corresponds to any one set of
+#' initialization values. As such, the 'inits' diagnostic from the param.diags element is set to NA.
+#' 
+#' 
+#' @family chain management
+#' 
+#' 
+#' @example
+#' #requires example fitted model object
+#' combine.chains(example.fit)
+#' 
+#' 
 #' @export
 combine.chains<-function(fit,simplify=T){
   #process input
@@ -42,13 +112,15 @@ combine.chains<-function(fit,simplify=T){
       return(fit)
     }else{
       for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-        fit[[i]]<-.expand.element(fit[[i]],simplify=T)
+        fit[[i]]<-.expand.element(fit[[i]],simplify=simplify)
       }
       chains.len<-dim(fit$chains)[1]
       diags.len<-dim(fit$sampler.params)[1]
       if(diags.len-chains.len>0){
         fit$sampler.params<-.index.element(fit$sampler.params,1:(diags.len-chains.len),1,T)
       }
+      fit$sampler.control$warmup<-0
+      fit$sampler.control$iter<-chains.len
       return(fit)
     }
   }else{
@@ -89,11 +161,49 @@ combine.chains<-function(fit,simplify=T){
         fit[[i]]<-.simplify.element(fit[[i]])
       }
     }
+    fit$sampler.control$warmup<-0
+    fit$sampler.control$iter<-chains.len
     fit
   }
 }
 
 #for getting rid of warmup in chains and related elements
+#' Exclude warmup in a fitted correlated rates Brownian Motion model
+#' 
+#' 
+#' This function gets rid of an arbitrary number of iterations at the beginning of all chains from the output
+#' of the function \code{fit.corateBM}.
+#' 
+#' 
+#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param warmup the number of iterations to be excluded, counting from the 1st iteration, even if it isn't
+#' stored in \code{fit}.
+#' @param sampler TRUE or FALSE value: should the iterations be excluded from the \code{sampler.params} element
+#' too?
+#' 
+#' 
+#' @details Keep in \code{warmup} counts form the first iteration. For example, if \code{fit} has 2000
+#' iterations with the first 1000 as warmup, you would set \code{warmup} to 1500 to keep the last 500
+#' iterations.
+#' 
+#' 
+#' @return an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+#' included.
+#' 
+#' 
+#' @family chain management
+#' 
+#' 
+#' @example
+#' #requires example fitted model object
+#' #exclude warmup iterations from sampler
+#' exclude.warmup(example.fit)
+#' #exclude some non-warmup iterations
+#' exclude.warmup(example.fit,1100)
+#' #exclude some non-warmup iterations, but keep in sampler.params
+#' exclude.warmup(example.fit,1100,F)
+#' 
+#' 
 #' @export
 exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
   #process input
@@ -159,6 +269,35 @@ exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
 }
 #seems to work for various situations now--things will get funky as you include thinning, though...
 
+#' Thin chains in a fitted correlated rates Brownian Motion model
+#' 
+#' 
+#' This function thins all chains from the output of the function \code{fit.corateBM} by keeping only every
+#' \code{thin}th iteration.
+#' 
+#' 
+#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param thin 
+#' 
+#' 
+#' @details Keep in \code{warmup} counts form the first iteration. For example, if \code{fit} has 2000
+#' iterations with the first 1000 as warmup, you would set \code{warmup} to 1500 to keep the last 500
+#' iterations.
+#' 
+#' 
+#' @return an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+#' included.
+#' 
+#' 
+#' @family chain management
+#' 
+#' 
+#' @example
+#' #requires example fitted model object
+#' #keep every 3rd iteration
+#' thin.chains(example.fit,3)
+#' 
+#' 
 #' @export
 thin.chains<-function(fit,thin=2){
   #process input

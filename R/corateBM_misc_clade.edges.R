@@ -6,16 +6,20 @@ get.clade.edges<-function(tree,node){
   tree<-reorder(tree,'cladewise')
   tree<-di2multi(tree,tol=0)
   if(length(node)>1){
-    node<-getMRCA(tree,node)
+    try.node<-try(getMRCA(tree,node),silent=T)
+    if(inherits(try.node,'try-error')){
+      stop('one or more of the specified nodes (',paste(node,collapse=', '),') do not exist in tree')
+    }
+    node<-try.node
   }
   if(is.character(node)){
     node<-which(tree$tip.label==node)
     if(length(node)==0){
-      stop('specified node does not exist in tree')
+      stop('specified node ',node,' does not exist in tree')
     }
   }
   if(!(node%in%tree$edge)){
-    stop('specified node does not exist in tree')
+    stop('node ',node,' does not exist in tree')
   }
   out<-which(tree$edge[,1]==node)
   if(length(out)==0){
@@ -38,14 +42,14 @@ exclude.clade<-function(tree,node1=NULL,node2=NULL,return.both=F,
     if(!is.null(node1)){
       edge.group1<-get.edge.des(tree,node1)
     }else{
-      stop('must specify first set of edges of interest by setting node1 equal to a set of nodes defining a monophyletic clade OR setting edge.group1 equal to a vector of edge indices')
+      stop('must specify first set of edges of interest by either setting node1 equal to a set of nodes defining a monophyletic clade OR setting edge.group1 equal to a vector of edge indices')
     }
   }
   if(is.null(edge.group2)){
     if(!is.null(node2)){
       edge.group2<-get.edge.des(tree,node2)
     }else{
-      stop('must specify second set of edges of interest by setting node2 equal to a set of nodes defining a monophyletic clade OR setting edge.group2 equal to a vector of edge indices')
+      stop('must specify second set of edges of interest by either setting node2 equal to a set of nodes defining a monophyletic clade OR setting edge.group2 equal to a vector of edge indices')
     }
   }
   out<-list(edge.group1,edge.group2)

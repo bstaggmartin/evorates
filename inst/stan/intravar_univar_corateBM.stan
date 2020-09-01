@@ -23,6 +23,13 @@ data {
   matrix[e, e] eV; //edge variance-covariance matrix
   
   
+  //tip priors
+  int n_tp; //number of tip priors
+  int which_tp[n_tp]; //indicates to which tip each prior belongs
+  vector[n_tp] tp_mu; //tip prior means
+  vector[n_tp] tp_sig; //tip prior sds
+  
+  
   //data for pruning algorithm: note tree is coerced to be bifurcating and 1st edge is zero-length stem
   vector[2 * n - 1] prune_T; //edge lengths
   int des_e[2 * n - 1, 2]; //edge descendants (-1 for no descendants)
@@ -32,15 +39,22 @@ data {
   
   //prior specification: see below for parameter definitions
   real Ysig2_prior;
-  real R0_prior;
+  real R0_prior_mu;
+  real R0_prior_sig;
   real Rsig2_prior;
-  real X0_prior;
-  real Rmu_prior;
+  real X0_prior_mu;
+  real X0_prior_sig;
+  real Rmu_prior_mu;
+  real Rmu_prior_sig;
   
   
   //parameter constraints
 	int constr_Rsig2;
 	int constr_Rmu;
+	
+	
+	//sampling from prior/data cloning
+	real lik_power;
 }
 
 transformed data {
@@ -93,13 +107,13 @@ transformed parameters {
   
   
   //high level priors
-  R0 = R0_prior * tan(unif_R0); //R0 prior: cauchy(0, R0_prior)
-  X0 = X0_prior * tan(unif_X0); //X0 prior: cauchy(0, X0_prior)
+  R0 = R0_prior_mu + R0_prior_sig * tan(unif_R0); //R0 prior: cauchy(R0_prior_mu, R0_prior_sig)
+  X0 = X0_prior_mu + X0_prior_sig * tan(unif_X0); //X0 prior: cauchy(X0_prior_mu, X0_prior_sig)
 	if(!constr_Rsig2){
 	  Rsig2[1] = Rsig2_prior * tan(unif_Rsig2[1]); //Rsig2 prior: half-cauchy(0, Rsig2_prior)
 	}
 	if(!constr_Rmu){
-	  Rmu[1] = Rmu_prior * tan(unif_Rmu[1]); //Rmu prior: cauchy(0, Rmu_prior)
+	  Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * tan(unif_Rmu[1]); //Rmu prior: cauchy(Rmu_prior_mu, Rmu_prior_sig)
 	}
 	Ysig2 = Ysig2_prior * tan(unif_Ysig2); //Ysig2 prior: half-cauchy(0, Ysig2_prior)
   
@@ -119,7 +133,9 @@ transformed parameters {
   
   
   //center observations based on X
-  cent_Y = Y - X[X_id];
+  if(lik_power != 0){
+    cent_Y = Y - X[X_id];
+  }
 }
 
 model {
@@ -131,8 +147,20 @@ model {
 	
 	//'seed' for sampling from X prior: see above
 	raw_X ~ std_normal();
+	
+	
+	//tip priors
+	if(lik_power != 0){
+	  if(n_tp != 0){
+	    (X[which_tp] - tp_mu) .* tp_sig ~ std_normal();
+	  }
+	}
   
   
   //likelihood of Y
-  cent_Y ~ normal(0, sqrt(Ysig2));
+  if(lik_power == 1){
+    cent_Y ~ normal(0, sqrt(Ysig2));
+  }else if(lik_power != 0){
+    target += -0.5 * lik_power * (obs * log(2 * pi()) + obs * log(Ysig2) + sum(cent_Y^2) / (2 * Ysig2));
+  }
 }

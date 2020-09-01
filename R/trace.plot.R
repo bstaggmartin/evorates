@@ -5,7 +5,6 @@
   #would only involve manipulating get.args.master function, I believe
 #6/26: trace and profile plot are working well--I think the only thing left to do is add support for legends and POTENTIALLY
 #parameter transformations (though this might involve altering the %% operators themselves...)
-#' @export
 trace.plot<-function(fit,select='.',separate.R=F,separate.X=F,separate.dev=F,together=F,
                      alpha=NA,exp=F,sqrt=F,legend=F,...){
   plot.args<-c(names(formals(plot.default)),

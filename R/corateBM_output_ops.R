@@ -41,9 +41,9 @@
 #' 
 #' 
 #' @examples
-#' #requires example fitted model object and tree
+#' #requires example fitted model object
 #' #get rate posterior distributions
-#' example.fit%chains%1:nrow(example.tree$edge)
+#' example.fit%chains%1:nrow(example.fit$call$tree$edge)
 #' #',' behavior
 #' example.fit%chains%'X2,X1_evocov'
 #' #'dev' behavior
@@ -117,9 +117,9 @@
 #' 
 #' 
 #' @examples
-#' #requires example fitted model object and tree
+#' #requires example fitted model object
 #' #get rate posterior distribution quantiles
-#' example.fit%quantiles%1:nrow(example.tree$edge)
+#' example.fit%quantiles%1:nrow(example.fit$call$tree$edge)
 #' #',' behavior
 #' example.fit%quantiles%'X2,X1_evocov'
 #' #'dev' behavior
@@ -184,9 +184,9 @@
 #' 
 #' 
 #' @examples
-#' #requires example fitted model object and tree
+#' #requires example fitted model object
 #' #get rate posterior distributions
-#' example.fit%means%1:nrow(example.tree$edge)
+#' example.fit%means%1:nrow(example.fit$call$tree$edge)
 #' #',' behavior
 #' example.fit%means%'X2,X1_evocov'
 #' #'dev' behavior
@@ -261,9 +261,9 @@
 #' 
 #' 
 #' @examples
-#' #requires example fitted model object and tree
+#' #requires example fitted model object
 #' #get rate posterior distributions
-#' example.fit%MAPs%1:nrow(example.tree$edge)
+#' example.fit%MAPs%1:nrow(example.fit$call$tree$edge)
 #' #',' behavior
 #' example.fit%MAPs%'X2,X1_evocov'
 #' #'dev' behavior
@@ -391,9 +391,9 @@
 #' 
 #' 
 #' @examples
-#' #requires example fitted model object and tree
+#' #requires example fitted model object
 #' #get all rate posterior distribution diagnostics
-#' example.fit%diagnostics%1:nrow(example.tree$edge)
+#' example.fit%diagnostics%1:nrow(example.fit$call$tree$edge)
 #' #',' behavior
 #' example.fit%diagnostics%'X2,X1_evocov'
 #' #'dev' behavior

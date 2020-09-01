@@ -3,7 +3,7 @@
 
 .int.chains<-function(fit,select){
   fit[['chains']]<-.expand.element(fit[['chains']])
-  out<-.int.op(fit,'chains',select)
+  out<-.int.op(fit[['chains']],select)
   out
 }
 
@@ -44,7 +44,7 @@
     out<-array(apply(tmp,c(2,3),mean),c(1,dim(tmp)[-1]),dimnames(tmp))
   }else{
     fit[['means']]<-.expand.element(fit[['means']])
-    out<-.int.op(fit,'means',select)
+    out<-.int.op(fit[['means']],select)
   }
   out
 }
@@ -64,7 +64,7 @@
                c(1,dim(tmp)[-1]),dimnames(tmp))
   }else{
     fit[['MAPs']]<-.expand.element(fit[['MAPs']])
-    out<-.int.op(fit,'MAPs',select)
+    out<-.int.op(fit[['MAPs']],select)
   }
   out
 }
@@ -75,7 +75,7 @@
     select<-paste(c('accept_stat','stepsize','treedepth','n_leapfrog','diverget','energy','lp'),
                   '__',sep='')[select]
   }
-  out<-.int.op(fit,'sampler.params',select)
+  out<-.int.op(fit[['sampler.params']],select)
   out
 }
 
@@ -88,7 +88,7 @@
     select<-list(select,1:4)
   }
   fit[['param.diags']]<-.expand.element(fit[['param.diags']])
-  out<-.int.op(fit,'param.diags',select[[1]])
+  out<-.int.op(fit[['param.diags']],select[[1]])
   if(is.numeric(select[[2]])){
     select[[2]]<-dimnames(out)[[1]][select[[2]]]
   }
@@ -106,26 +106,22 @@
 }
 
 #internal operator -- select parameters out of fit$element based on edge numbers or regular expressions
-.int.op<-function(fit,element,select){
+.int.op<-function(element,select){
   select<-as.vector(select)
-  param.names<-dimnames(fit[[element]])[[2]]
+  param.names<-dimnames(element)[[2]]
   if(is.numeric(select)){
-    if(element=='sampler'){
-      select<-param.names[select]
-    }else{
-      n.R<-suppressWarnings(
-        max(as.numeric(substr(param.names,regexpr('R_',param.names)+2,nchar(param.names))),na.rm=T)
-      )
-      if(all(select>n.R|select<0)){
-        stop("all numbers out of range for edge rate (R) parameters: are edge indices based on right tree?")
-      }
-      if(any(select>n.R|select<0)){
-        warning(paste(select[select>n.R|select<0],collapse=', '),
-                " out of range for edge rate (R) parameters: are edge indices based on right tree?")
-        select<-select[select<=n.R&select>=0]
-      }
-      select<-paste('R_',sort(unique(select)),'$',sep='')
+    n.R<-suppressWarnings(
+      max(as.numeric(substr(param.names,regexpr('R_',param.names)+2,nchar(param.names))),na.rm=T)
+    )
+    if(all(select>n.R|select<0)){
+      stop("all numbers out of range for edge rate (R) parameters: are edge indices based on right tree?")
     }
+    if(any(select>n.R|select<0)){
+      warning(paste(select[select>n.R|select<0],collapse=', '),
+              " out of range for edge rate (R) parameters: are edge indices based on right tree?")
+      select<-select[select<=n.R&select>=0]
+    }
+    select<-paste('R_',sort(unique(select)),'$',sep='')
   }else if(!is.character(select)){
     stop("the %",element,"% operator only accepts numeric or character vectors on right hand side")
   }
@@ -186,7 +182,7 @@
     }
   }
   inds<-sort(unique(unlist(tmp)))
-  .index.element(fit[[element]],inds,2)
+  .index.element(element,inds,2)
 }
 #flip flop any question mark dohickeys...
 
@@ -387,116 +383,11 @@
     new.dim<-append(new.dim,length(param.names),1)
     new.dimnames<-new.dimnames[-param.dims]
     new.dimnames<-append(new.dimnames,list(param.names),1)
+    names(new.dimnames)<-c(names(new.dimnames)[1],'parameters',names(new.dimnames)[3])
     arr<-array(arr,new.dim,new.dimnames)
   }
   arr
 }
-
-.combine.elements<-function(in.params,fit,element=NULL,select.extra=NULL,simplify=T){
-  params<-in.params
-  if(.is.corateBM.element(params)){
-    params<-list(params)
-  }
-  if(!is.list(params)){
-    params<-as.list(params)
-  }
-  types<-sapply(params,function(ii) if(.is.corateBM.element(ii)) 'element' else 'select')
-  if(all(types=='select')&is.null(fit)){
-    stop(deparse(substitute(in.params)),' appears to consist of strings/numbers specifying parameters to extract out of a corateBM_fit, but no corateBM_fit is supplied')
-  }
-  if(any(types=='select')&is.null(fit)){
-    warning(deparse(substitute(in.params)),' contains ',paste(params[which(types=='select')],collapse=', '),', which appear to be strings/numbers specifying parameters to extract out of a corateBM_fit, but no corateBM_fit is supplied: these strings/numbers were excluded')
-    params<-params[-which(types=='select')]
-    types<-types[-which(types=='select')]
-  }
-  params[types=='element']<-lapply(params[types=='element'],function(ii) .coerce.to.3D(.expand.element(ii)))
-  select.params<-NULL
-  if(sum(types=='select')>0){
-    select<-unlist(params[types=='select'])
-    if(is.null(element)){
-      if(sum(types=='element')>0){
-        element.types<-sapply(params[types=='element'],.get.element.type)
-        if(any(element.types%in%c('ambiguous','unrecognized'))|length(unique(element.types))>1){
-          stop('element is unspecified, but element type based on provided loose elements is ambiguous: try specifying which element you wish to extract and double-check all loose elements are of the same type (chains, quantiles, means, etc.)')
-        }else{
-          element<-unique(element.types)
-        }
-      }else{
-        element<-'chains'
-      }
-    }else{
-      try.element<-try(match.arg(element,c('chains','quantiles','means','MAPs','diagnostics','sampler')),silent=T)
-      if(inherits(try.element,'try-error')){
-        stop(element," is not an available element to extract from a correlated rates BM fit: please specify one of the following: 'chains', 'quantiles', 'means', 'MAPs', 'diagnostics', or 'sampler'")
-      }
-      element<-try.element
-    }
-    if(element=='quantiles'|element=='diagnostics'){
-      if(is.null(select.extra)&sum(types=='select')>0){
-        dim1.names<-lapply(params[types=='element'],function(ii) dimnames(ii)[[1]])
-        if(length(unique(dim1.names))>1){
-          stop('mismatching quantiles and/or parameter diagnostics in provided loose elements')
-        }else if(element=='quantiles'){
-          select.extra<-as.numeric(substr(dim1.names[[1]],0,nchar(dim1.names[[1]])-1))/100
-        }else{
-          select.extra<-dim1.names
-        }
-      }
-    }
-    if(!is.null(select.extra)){
-      select<-list(select,select.extra)
-    }
-    select.params<-do.call(paste0('.int.',element),list(fit=fit,select=select))
-  }
-  if(is.null(params[types=='element'])){
-    out<-select.params
-  }else{
-    if(!is.null(select.params)){
-      out<-c(list(select.params),params[types=='element'])
-    }else{
-      out<-params[types=='element']
-    }
-    out.dim<-vector(mode='list',length=3)
-    out.dimnames<-vector(mode='list',length=3)
-    for(i in 1:3){
-      if(i==2){
-        out.dim[[i]]<-sum(sapply(out,function(ii) dim(ii)[i]))
-        out.dimnames[[i]]<-unlist(lapply(out,function(ii) dimnames(ii)[[i]]))
-      }else{
-        out.dim[[i]]<-unique(sapply(out,function(ii) dim(ii)[i]))
-        out.dimnames[[i]]<-unique(lapply(out,function(ii) dimnames(ii)[[i]]))
-      }
-    }
-    if(all(lengths(c(out.dim[-2],out.dimnames[-2]))==1)){
-      for(i in c(1,3)){
-        out.dim[[i]]<-out.dim[[i]][[1]]
-        out.dimnames[i]<-out.dimnames[[i]][1]
-      }
-      out.dim<-unlist(out.dim)
-    }else{
-      stop('dimensional mismatch in elements specified by ',deparse(substitute(in.params)),': did these all come from the same corateBM_fit, and were they all extracted using the same parameters?')
-    }
-    names(out.dimnames)<-c(names(dimnames(out[[1]]))[1],'parameters','chains')
-    out.arr<-array(NA,out.dim,out.dimnames)
-    for(i in 1:length(out)){
-      tmp.param.names<-dimnames(out[[i]])[[2]]
-      out.arr[,tmp.param.names,]<-out[[i]]
-    }
-    out<-out.arr
-  }
-  if(simplify){
-    out<-.simplify.element(out)
-  }
-  out
-}
-#can get duplicates of the same parameter and probs not super efficient since it runs a separate call to %chains% each time it runs...
-#could cannabalize this function to add parameters to your corateBM_fit...
-#yeah, I did a minor update to begin generalizing this, but ultimately I'd like it to be a combine.elements function...
-#need to figure out what to do in cases where the element is ambiguous
-#also, should 4-D arrays be coerced to 3-D with .expand.element?
-#now generalized to simply combine all elements it's face with, including ones specified by select. Tries its best to match
-#element type, but doesn't do anything like coercing provided elements to other types on the fly (considering doing this in the
-#future...)
 
 ####OTHER####
 

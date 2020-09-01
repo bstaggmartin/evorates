@@ -15,9 +15,17 @@ data {
   vector[n] Y; //observed trait values
   matrix[e, e] eV; //edge variance-covariance matrix
   
+  
   //missing data handling
   int mis;
-  int which_mis[mis]; 
+  int which_mis[mis];
+  
+  
+  //tip priors
+  int n_tp; //number of tip priors
+  int which_tp[n_tp]; //indicates to which tip each prior belongs
+  vector[n_tp] tp_mu; //tip prior means
+  vector[n_tp] tp_sig; //tip prior sds
   
   
   //data for pruning algorithm: note tree is coerced to be bifurcating and 1st edge is zero-length stem
@@ -29,15 +37,22 @@ data {
 	
 	
 	//prior specification: see below for parameter definitions
-	real R0_prior;
-	real Rsig2_prior;
-	real X0_prior;
-	real Rmu_prior;
+  real R0_prior_mu;
+  real R0_prior_sig;
+  real Rsig2_prior;
+  real X0_prior_mu;
+  real X0_prior_sig;
+  real Rmu_prior_mu;
+  real Rmu_prior_sig;
 	
 	
 	//parameter constraints
 	int constr_Rsig2;
 	int constr_Rmu;
+	
+	
+	//sampling from prior/data cloning
+	real lik_power;
 }
 
 transformed data {
@@ -75,13 +90,13 @@ transformed parameters {
   
   
   //high level priors
-  R0 = R0_prior * tan(unif_R0); //R0 prior: cauchy(0, R0_prior)
-  X0 = X0_prior * tan(unif_X0); //X0 prior: cauchy(0, X0_prior)
+  R0 = R0_prior_mu + R0_prior_sig * tan(unif_R0); //R0 prior: cauchy(R0_prior_mu, R0_prior_sig)
+  X0 = X0_prior_mu + X0_prior_sig * tan(unif_X0); //X0 prior: cauchy(X0_prior_mu, X0_prior_sig)
 	if(!constr_Rsig2){
 	  Rsig2[1] = Rsig2_prior * tan(unif_Rsig2[1]); //Rsig2 prior: half-cauchy(0, Rsig2_prior)
 	}
 	if(!constr_Rmu){
-	  Rmu[1] = Rmu_prior * tan(unif_Rmu[1]); //Rmu prior: cauchy(0, Rmu_prior)
+	  Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * tan(unif_Rmu[1]); //Rmu prior: cauchy(Rmu_prior_mu, Rmu_prior_sig)
 	}
   
   
@@ -102,26 +117,38 @@ model {
 	}
 	
 	
+	//tip priors
+	if(lik_power != 0){
+	  if(n_tp != 0){
+	    (mis_Y[which_tp] - tp_mu) .* tp_sig ~ std_normal();
+	  }
+	}
+	
+	
 	//likelihood of X: pruning algorithm
-	{vector[2 * n - 1] SS; //edge lengths multiplied by respective average rate
-  vector[2 * n - 1] XX; //node-wise trait values, indexed by ancestral edge
-  vector[2 * n - 1] VV; //node-wise trait variances, indexed by ancestral edge
-  vector[n - 1] LL; //log-likelihoods of node-wise contrasts, indexed by postorder sequence
-  int counter; //position along LL
-  vector[2] des_X; //temporary: descendant node trait values for given iteration in loop
-  vector[2] des_V; //temporary: descendant node trait variances for given iteration in loop
-	SS = rep_vector(0, 2 * n - 1);
-	SS[real_e] = prune_T[real_e] .* exp(R);
-  XX[tip_e] = get_X(n, Y, mis_Y, which_mis);
-  VV[tip_e] = rep_vector(0, n);
-  counter = 0;
-  for(i in postorder){
-    des_X = XX[des_e[i, ]];
-    des_V = VV[des_e[i, ]] + SS[des_e[i, ]];
-    counter = counter + 1;
-    LL[counter] = - 0.5 * (log(sum(des_V)) + (des_X[1] - des_X[2])^2 / sum(des_V));
-    XX[i] = des_V[2] / sum(des_V) * des_X[1] + des_V[1] / sum(des_V) * des_X[2];
-    VV[i] = 1 / (1 / des_V[1] + 1 / des_V[2]);
-  }
-	target += sum(LL) - 0.5 * (n * log(2 * pi()) + log(VV[1]) + (X0 - XX[1])^2 / sum(VV[des_e[1, ]]));}
+	if(lik_power != 0){
+	  {vector[2 * n - 1] SS; //edge lengths multiplied by respective average rate
+    vector[2 * n - 1] XX; //node-wise trait values, indexed by ancestral edge
+    vector[2 * n - 1] VV; //node-wise trait variances, indexed by ancestral edge
+    vector[n - 1] LL; //log-likelihoods of node-wise contrasts, indexed by postorder sequence
+    int counter; //position along LL
+    vector[2] des_X; //temporary: descendant node trait values for given iteration in loop
+    vector[2] des_V; //temporary: descendant node trait variances for given iteration in loop
+	  SS = rep_vector(0, 2 * n - 1);
+	  SS[real_e] = prune_T[real_e] .* exp(R);
+    XX[tip_e] = get_X(n, Y, mis_Y, which_mis);
+    VV[tip_e] = rep_vector(0, n);
+    counter = 0;
+    for(i in postorder){
+      des_X = XX[des_e[i, ]];
+      des_V = VV[des_e[i, ]] + SS[des_e[i, ]];
+      counter = counter + 1;
+      LL[counter] = - 0.5 * (log(sum(des_V)) + (des_X[1] - des_X[2])^2 / sum(des_V));
+      XX[i] = des_V[2] / sum(des_V) * des_X[1] + des_V[1] / sum(des_V) * des_X[2];
+      VV[i] = 1 / (1 / des_V[1] + 1 / des_V[2]);
+    }
+	  target += lik_power * 
+	            (sum(LL) - 0.5 * (n * log(2 * pi()) + log(VV[1]) + (X0 - XX[1])^2 / sum(VV[des_e[1, ]])));}
+	}
+
 }

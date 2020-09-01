@@ -1,9 +1,8 @@
 #' @export
-get.trait.mat<-function(fit,traits=colnames(fit$call$trait.data),tips=fit$call$tree$tip.label,
+get.trait.mat<-function(fit,tips=fit$call$tree$tip.label,traits=colnames(fit$call$trait.data),
                       element=c('chains','quantiles','means','MAPs','diagnostics'),
                       include.dat=T,
-                      output.list=F,select.extra=NULL,
-                      simplify=T){
+                      select.extra=NULL,simplify=T){
   if(!inherits(fit,'corateBM_fit')){
     stop("fit must be a fitted correlated rates BM fit (class 'corateBM_fit')")
   }
@@ -69,14 +68,7 @@ get.trait.mat<-function(fit,traits=colnames(fit$call$trait.data),tips=fit$call$t
       }
     }
   }
-  if(output.list){
-    out<-asplit(out,4)
-    out<-lapply(out,function(ii) if(dim(ii)[3]==1) ii else asplit(ii,3))
-    if(length(out)==1){
-      attr(out[[1]],'chains')<-names(out)
-      out<-out[[1]]
-    }
-  }else if(simplify){
+  if(simplify){
     new.dims<-c(dim(out)[1:2],ifelse(dim(out)[3:4]==1,NA,dim(out)[3:4]))
     new.dimnames<-dimnames(out)[!is.na(new.dims)]
     new.out<-array(out,new.dims[!is.na(new.dims)],new.dimnames)
