@@ -103,6 +103,7 @@ transformed parameters {
   cholesky_factor_cov[k] chol_Xcov; //cholesky decomp of evolutionary covariance matrix
   cov_matrix[k] Xcov;
   vector[e] R; //edge-wise average (ln)rates
+  vector[n_tp] trans_tp; //tip means centered and scaled w/ respect to tip priors
   
   
   //high level priors
@@ -131,6 +132,12 @@ transformed parameters {
   if(!constr_Rsig2){
     R = R + sqrt(Rsig2[1]) * chol_eV * raw_R;
   }
+  
+  
+  //center tip means with priors based on tp_mu and scale based on tp_sig
+  if(n_tp != 0 && lik_power != 0){
+    trans_tp = (mis_Y[which_tp] - tp_mu) ./ tp_sig;
+  }
 }
 
 model {
@@ -145,9 +152,12 @@ model {
 	
 	
 	//tip priors
-	if(lik_power != 0){
-	  if(n_tp != 0){
-	    (mis_Y[which_tp] - tp_mu) .* tp_sig ~ std_normal();
+	//transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
+	if(n_tp != 0){
+	  if(lik_power == 1){
+	    trans_tp ~ std_normal();
+	  }else if(lik_power != 0){
+	    target += -0.5 * lik_power * (n_tp * log(2 * pi()) + dot_self(trans_tp));
 	  }
 	}
 	
@@ -182,5 +192,4 @@ model {
 	            (sum(LL) - 0.5 * (k * n * log(2 * pi()) + n * log_determinant(Xcov) + 
 	            k * log(VV[1]) + ((X0 - XX[, 1])' * Xprec * (X0 - XX[, 1])) / VV[1]));}
 	}
-
 }

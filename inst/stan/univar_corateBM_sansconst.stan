@@ -130,7 +130,7 @@ model {
 	  if(lik_power == 1){
 	    trans_tp ~ std_normal();
 	  }else if(lik_power != 0){
-	    target += -0.5 * lik_power * (n_tp * log(2 * pi()) + dot_self(trans_tp));
+	    target += -0.5 * lik_power * dot_self(trans_tp);
 	  }
 	}
 	
@@ -144,6 +144,7 @@ model {
     int counter; //position along LL
     vector[2] des_X; //temporary: descendant node trait values for given iteration in loop
     vector[2] des_V; //temporary: descendant node trait variances for given iteration in loop
+    real sum_des_V; //temporary: sum of descendant node trait variances for given iteration in loop
 	  SS = rep_vector(0, 2 * n - 1);
 	  SS[real_e] = prune_T[real_e] .* exp(R);
     XX[tip_e] = get_X(n, Y, mis_Y, which_mis);
@@ -152,12 +153,12 @@ model {
     for(i in postorder){
       des_X = XX[des_e[i, ]];
       des_V = VV[des_e[i, ]] + SS[des_e[i, ]];
+      sum_des_V = sum(des_V);
       counter = counter + 1;
-      LL[counter] = - 0.5 * (log(sum(des_V)) + (des_X[1] - des_X[2])^2 / sum(des_V));
-      XX[i] = des_V[2] / sum(des_V) * des_X[1] + des_V[1] / sum(des_V) * des_X[2];
+      LL[counter] = - 0.5 * (log(sum_des_V) + (des_X[1] - des_X[2])^2 / sum_des_V);
+      XX[i] = des_V[2] / sum_des_V * des_X[1] + des_V[1] / sum_des_V * des_X[2];
       VV[i] = 1 / (1 / des_V[1] + 1 / des_V[2]);
     }
-	  target += lik_power * 
-	            (sum(LL) - 0.5 * (n * log(2 * pi()) + log(VV[1]) + (X0 - XX[1])^2 / VV[1]));}
+	  target += lik_power * (sum(LL) - 0.5 * (log(VV[1]) + (X0 - XX[1])^2 / VV[1]));}
 	}
 }

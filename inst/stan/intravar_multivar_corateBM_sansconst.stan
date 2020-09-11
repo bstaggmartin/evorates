@@ -210,7 +210,7 @@ model {
 	if(lik_power == 1){
 	  trans_tp ~ std_normal();
 	}else if(lik_power != 0){
-	  target += -0.5 * lik_power * (sum(n_tp) * log(2 * pi()) + dot_self(trans_tp));
+	  target += -0.5 * lik_power * dot_self(trans_tp);
 	}
 
 	
@@ -231,8 +231,7 @@ model {
         tmp_Ycov = Ycov[k_inds, k_inds];
         tmp_cent_Y = cent_Y[k_inds, segment(obs_code, counter_sizes, code_sizes[i])];
         //centered obs.[!unobs. traits] ~ multinormal(0, Ycov[!unobs. traits, !unobs. traits])
-        target += -0.5 * lik_power * (code_sizes[i] * code_ks[i] * (log(2 * pi())) +
-                  code_sizes[i] * log_determinant(tmp_Ycov) +
+        target += -0.5 * lik_power * (code_sizes[i] * log_determinant(tmp_Ycov) +
                   sum(rows_dot_product(mdivide_right_spd(tmp_cent_Y', tmp_Ycov), tmp_cent_Y')));
         counter_sizes = counter_sizes + code_sizes[i];
         counter_ks = counter_ks + code_ks[i];}

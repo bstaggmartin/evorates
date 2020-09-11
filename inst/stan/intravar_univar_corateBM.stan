@@ -104,6 +104,7 @@ transformed parameters {
   vector[e] R; //edge-wise average (ln)rates
   vector[n] X; //tip means
   vector[obs] cent_Y; //centered data
+  vector[n_tp] trans_tp; //tip means centered and scaled w/ respect to tip priors
   
   
   //high level priors
@@ -133,8 +134,16 @@ transformed parameters {
   
   
   //center observations based on X
-  if(lik_power != 0){
-    cent_Y = Y - X[X_id];
+  if(obs != 0){
+    if(lik_power != 0){
+      cent_Y = Y - X[X_id];
+    }
+  }
+  
+  
+  //center tip means with priors based on tp_mu and scale based on tp_sig
+  if(n_tp != 0 && lik_power != 0){
+    trans_tp = (X[which_tp] - tp_mu) ./ tp_sig;
   }
 }
 
@@ -150,17 +159,22 @@ model {
 	
 	
 	//tip priors
-	if(lik_power != 0){
-	  if(n_tp != 0){
-	    (X[which_tp] - tp_mu) .* tp_sig ~ std_normal();
+	//transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
+	if(n_tp != 0){
+	  if(lik_power == 1){
+	     trans_tp ~ std_normal();
+	  }else if(lik_power != 0){
+	    target += -0.5 * lik_power * (n_tp * log(2 * pi()) + dot_self(trans_tp));
 	  }
 	}
   
   
   //likelihood of Y
-  if(lik_power == 1){
-    cent_Y ~ normal(0, sqrt(Ysig2));
-  }else if(lik_power != 0){
-    target += -0.5 * lik_power * (obs * log(2 * pi()) + obs * log(Ysig2) + sum(cent_Y^2) / (2 * Ysig2));
+  if(obs != 0){
+    if(lik_power == 1){
+      cent_Y ~ normal(0, sqrt(Ysig2));
+    }else if(lik_power != 0){
+      target += -0.5 * lik_power * (obs * log(2 * pi()) + obs * log(Ysig2) + dot_self(cent_Y) / Ysig2);
+    }
   }
 }

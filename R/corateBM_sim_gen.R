@@ -3,6 +3,7 @@
 gen.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,
                        intra.var=F,n_obs=rep(1,length(tree$tip.label)),intracov=0.2^2,
                        anc.states=F){
+  tree<-.format.tree(tree)$tree
   k<-max(sapply(list(X0,evocov,intracov),NROW))
   if(length(X0)<k){
     warning('X0 implies lower number of traits than evocov and/or intracov: recycling X0 to match other inputs')

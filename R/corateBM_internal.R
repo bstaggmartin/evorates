@@ -418,7 +418,7 @@
   }
 }
 
-.quick.recon<-function(X,tree){
+.quick.recon<-function(X,tree,just.root=F){
   if(!is.null(names(X))){
     X<-X[tree$tip.label]
   }
@@ -441,20 +441,34 @@
     }
     if(length(which(tree$edge[,1]==n))>0){
       d<-tree$edge[which(tree$edge[,1]==n),2]
-      sum.P<-sum(PP[d])
-      XX[n]<-sum(XX[d]*PP[d]/sum.P)
-      PP[n]<-sum.P/(1+tree$edge.length[e]*sum.P)
+      infs<-is.infinite(PP[d])
+      if(any(infs)){
+        XX[n]<-XX[d[infs]]
+        PP[n]<-1/tree$edge.length[e]
+      }else{
+        sum.P<-sum(PP[d])
+        XX[n]<-sum(XX[d]*PP[d]/sum.P)
+        PP[n]<-sum.P/(1+tree$edge.length[e]*sum.P)
+      }
     }
   }
-  for(e in 1:nrow(tree$edge)){
-    n<-tree$edge[e,2]
-    if(length(which(tree$edge[,1]==n))!=0){
-      a<-tree$edge[e,1]
-      XX[n]<-XX[n]*PP[n]*tree$edge.length[e]+XX[a]-XX[a]*PP[n]*tree$edge.length[e]
-      #no need for variance if only goal is ancestral states
+  if(just.root){
+    XX[length(tree$tip.label)+1]
+  }else{
+    for(e in 1:nrow(tree$edge)){
+      n<-tree$edge[e,2]
+      if(length(which(tree$edge[,1]==n))!=0){
+        a<-tree$edge[e,1]
+        if(is.infinite(PP[n])){
+          XX[n]<-XX[a]
+        }else{
+          XX[n]<-XX[n]*PP[n]*tree$edge.length[e]+XX[a]-XX[a]*PP[n]*tree$edge.length[e]
+        }
+        #no need for variance if only goal is ancestral states
+      }
     }
+    XX[-(1:length(tree$tip.label))]
   }
-  XX[-(1:length(tree$tip.label))]
 }
 
 .lin.interp<-function(x,length.out){

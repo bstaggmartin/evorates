@@ -502,7 +502,7 @@ fit.corateBM<-function(tree,trait.data,R0.prior=10,Rsig2.prior=20,X0.prior=100,
     }else{
       R<-R+log(o.Xsig2)
     }
-    wgts<-tree$edge.length/sum(tree$edge.length)
+    wgts<-untrans.tree$edge.length/sum(untrans.tree$edge.length)
     if(nchain==1){
       bg.rate<-apply(R,1,function(ii) sum(ii*wgts))
     }else{
