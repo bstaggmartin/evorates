@@ -420,3 +420,17 @@
 #still think %post.probs% would be pointless, but I'll consider it in the future...
 #7/27: %quantiles% for whole large_fit array is only longer than a simple apply implementation by
 #~200 milliseconds...
+
+#' @export
+`%select%`<-function(element,select){
+  is.char<-try(is.character(select),silent=T)
+  if(inherits(is.char,'try-error')){
+    select<-deparse(substitute(select))
+  }
+  element<-.coerce.to.3D(.expand.element(element))
+  if(is.numeric(select)){
+    select<-paste0('^',dimnames(element)[[2]][select],'$')
+  }
+  out<-.int.op(element,select)
+  .simplify.element(out)
+}

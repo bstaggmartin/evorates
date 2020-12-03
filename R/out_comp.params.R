@@ -28,7 +28,7 @@ compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c(
   if(is.null(fit)&element=='MAPs'){
     stop('desired element is set to MAPs, but no corateBM_fit is supplied--need posterior probability info to find MAPs')
   }
-  params1<-combine.elements(params1,fit,'chains',simplify=F)
+  params1<-.combine.elements(params1,fit,'chains',simplify=F)
   if(is.null(params2)&operation=='-'){
     tmp<-list(chains=params1)
     class(tmp)<-'corateBM_fit'
@@ -49,7 +49,7 @@ compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c(
       out
     }
   }else{
-    params2<-combine.elements(params2,fit,'chains',simplify=F)
+    params2<-.combine.elements(params2,fit,'chains',simplify=F)
     out.param.names<-paste(rep(dimnames(params1)[[2]],dim(params2)[2]),
                            '%',operation,'%',
                            rep(dimnames(params2)[[2]],each=dim(params1)[2]),

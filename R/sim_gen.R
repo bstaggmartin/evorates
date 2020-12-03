@@ -1,6 +1,6 @@
 #simulate trait and rate data under an autocorrelated Brownian motion model
 #' @export
-gen.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,Ralpha=0,Rtheta=0,WN=F,
+sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,Ralpha=0,Rtheta=0,WN=F,
                        n.obs=rep(1,length(tree$tip.label)),intra.var=F,intracov=0.2^2,
                        anc.states=F){
   tree<-.format.tree(tree)$tree

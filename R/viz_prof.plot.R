@@ -20,7 +20,7 @@ prof.plot<-function(in.x,p=0.05,col=palette(),exp=F,sqrt=F,
     fit<-NULL
   }
   if(is.list(in.x)|is.character(in.x)|length(in.x)==1){
-    x<-combine.elements(in.x,fit,element='chains',simplify=F)
+    x<-.combine.elements(in.x,fit,element='chains',simplify=F)
   }else if(is.numeric(in.x)){
     if(all(round(in.x)==in.x)){
       x<-.int.chains(fit,in.x)

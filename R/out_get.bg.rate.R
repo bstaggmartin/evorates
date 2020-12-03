@@ -127,7 +127,7 @@ get.bg.rate<-function(fit,node=NULL,element=c('chains','quantiles','means','MAPs
       }
     }
   }
-  combine.elements(out.list,simplify=simplify)
+  .combine.elements(out.list,simplify=simplify)
 }
 
 #' @export
@@ -258,5 +258,5 @@ get.bg.rate.old<-function(fit,node=NULL,element=c('chains','quantiles','means','
       }
     }
   }
-  combine.elements(out.list,simplify=simplify)
+  .combine.elements(out.list,simplify=simplify)
 }
