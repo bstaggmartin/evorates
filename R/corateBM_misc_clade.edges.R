@@ -40,14 +40,14 @@ exclude.clade<-function(tree,node1=NULL,node2=NULL,return.both=F,
                         edge.group1=NULL,edge.group2=NULL){
   if(is.null(edge.group1)){
     if(!is.null(node1)){
-      edge.group1<-get.edge.des(tree,node1)
+      edge.group1<-get.clade.edges(tree,node1)
     }else{
       stop('must specify first set of edges of interest by either setting node1 equal to a set of nodes defining a monophyletic clade OR setting edge.group1 equal to a vector of edge indices')
     }
   }
   if(is.null(edge.group2)){
     if(!is.null(node2)){
-      edge.group2<-get.edge.des(tree,node2)
+      edge.group2<-get.clade.edges(tree,node2)
     }else{
       stop('must specify second set of edges of interest by either setting node2 equal to a set of nodes defining a monophyletic clade OR setting edge.group2 equal to a vector of edge indices')
     }

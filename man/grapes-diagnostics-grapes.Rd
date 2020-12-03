@@ -53,9 +53,9 @@ a text element the select argument.
 Insert explanation of diagnostics here
 }
 \examples{
-#requires example fitted model object and tree
+#requires example fitted model object
 #get all rate posterior distribution diagnostics
-example.fit\%diagnostics\%1:nrow(example.tree$edge)
+example.fit\%diagnostics\%1:nrow(example.fit$call$tree$edge)
 #',' behavior
 example.fit\%diagnostics\%'X2,X1_evocov'
 #'dev' behavior

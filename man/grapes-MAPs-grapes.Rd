@@ -55,9 +55,9 @@ information about the posterior distribution surface and/or the model fit, parti
 they drastically differ from posterior distribution means.
 }
 \examples{
-#requires example fitted model object and tree
+#requires example fitted model object
 #get rate posterior distributions
-example.fit\%MAPs\%1:nrow(example.tree$edge)
+example.fit\%MAPs\%1:nrow(example.fit$call$tree$edge)
 #',' behavior
 example.fit\%MAPs\%'X2,X1_evocov'
 #'dev' behavior

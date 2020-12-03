@@ -7,19 +7,19 @@ get.cov.mat<-function(fit,traits=colnames(fit$call$trait.data),cor=F,
   if(!inherits(fit,'corateBM_fit')){
     stop("fit must be a fitted correlated rates BM fit (class 'corateBM_fit')")
   }
-  if(ncol(fit$call$trait.data)==1){
-    stop('fit appears to be for univariate trait dataset: there are no trait covariance parameters')
+  try.type<-try(match.arg(type,c('evocov','intracov')),silent=T)
+  if(inherits(try.type,'try-error')){
+    stop(type," is not an available option for covariance type: please specifiy either 'evocov' for evolutionary covariance or 'intracov' for intraspecific covariance")
+  }
+  type<-try.type
+  if(ncol(fit$call$trait.data)==1&type=='evocov'){
+    stop('fit appears to be for univariate trait dataset: there are no evolutionary (co)variance parameters')
   }
   try.element<-try(match.arg(element,c('chains','quantiles','means','MAPs','diagnostics')),silent=T)
   if(inherits(try.element,'try-error')){
     stop(element," is not an available element to extract from a correlated rates BM fit: please specify one of the following: 'chains', 'quantiles', 'means', 'MAPs', or 'diagnostics'")
   }
   element<-try.element
-  try.type<-try(match.arg(type,c('evocov','intracov')),silent=T)
-  if(inherits(try.type,'try-error')){
-    stop(type," is not an available option for covariance type: please specifiy either 'evocov' for evolutionary covariance or 'intracov' for intraspecific covariance")
-  }
-  type<-try.type
   if(type=='intracov'&sum(grepl('intracov',dimnames(fit$chains)[['parameters']]))==0){
     warning("covariance type 'intracov' selected, but no intraspecific variance modeled in corateBM_fit: defaulted to 'evocov'")
     type<-'evocov'

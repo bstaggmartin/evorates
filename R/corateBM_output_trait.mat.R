@@ -61,7 +61,7 @@ get.trait.mat<-function(fit,tips=fit$call$tree$tip.label,traits=colnames(fit$cal
   for(i in tips){
     for(j in traits){
       tmp.name<-paste(j,i,sep='_')
-      if(sum(grepl(tmp.name,dimnames(tmp)[[2]]))>0){
+      if(sum(grepl(paste(tmp.name,'$',sep=''),dimnames(tmp)[[2]]))>0){
         out[i,j,,]<-tmp[,tmp.name,]
       }else if(element%in%c('chains','quantiles','means','MAPs')&include.dat){
         out[i,j,,]<-fit$call$trait.data[i,j]

@@ -44,9 +44,9 @@ Since rate deviation parameters are oftentimes redundant with rate parameters, p
 text element the select argument.
 }
 \examples{
-#requires example fitted model object and tree
+#requires example fitted model object
 #get rate posterior distributions
-example.fit\%chains\%1:nrow(example.tree$edge)
+example.fit\%chains\%1:nrow(example.fit$call$tree$edge)
 #',' behavior
 example.fit\%chains\%'X2,X1_evocov'
 #'dev' behavior

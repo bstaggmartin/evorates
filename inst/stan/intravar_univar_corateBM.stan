@@ -61,6 +61,9 @@ transformed data {
   matrix[constr_Rsig2 ? 0:e, constr_Rsig2 ? 0:e] chol_eV; //cholesky decomp of edge variance-covariance matrix
   vector[constr_Rmu ? 0:e] T_midpts; //overall 'height' of edge mid-points
   int preorder[n - 1]; //'cladewise' sequence of nodes excluding tips, numbered by ancestral edge
+  int lik_pow_ind; //indicates if lik_power is 0
+  int has_tp; //any tip priors?
+  int has_obs; //any observations?
   
   
   //for sampling from R prior
@@ -82,15 +85,32 @@ transformed data {
     counter = counter + 1;
     preorder[counter] = i;
   }}
+  
+  
+  if(lik_power == 0){
+    lik_pow_ind = 0;
+  }else{
+    lik_pow_ind = 1;
+  }
+  if(n_tp == 0){
+    has_tp = 0;
+  }else{
+    has_tp = 1;
+  }
+  if(obs == 0){
+    has_obs = 0;
+  }else{
+    has_obs = 1;
+  }
 }
 
 parameters {
   //parameters on sampling scale: see below for parameter definitions
-  real<lower=-pi()/2, upper=pi()/2> unif_R0;
-  real<lower=-pi()/2, upper=pi()/2> unif_X0;
-  real<lower=0, upper=pi()/2> unif_Rsig2[constr_Rsig2 ? 0:1];
-  real<lower=-pi()/2, upper=pi()/2> unif_Rmu[constr_Rmu ? 0:1];
-  real<lower=0, upper=pi()/2> unif_Ysig2;
+  real std_R0;
+  real std_X0;
+  real<lower=0> std_Rsig2[constr_Rsig2 ? 0:1];
+  real std_Rmu[constr_Rmu ? 0:1];
+  real<lower=0> std_Ysig2;
   vector[constr_Rsig2 ? 0:e] raw_R;
   vector[e] raw_X;
 }
@@ -108,15 +128,15 @@ transformed parameters {
   
   
   //high level priors
-  R0 = R0_prior_mu + R0_prior_sig * tan(unif_R0); //R0 prior: cauchy(R0_prior_mu, R0_prior_sig)
-  X0 = X0_prior_mu + X0_prior_sig * tan(unif_X0); //X0 prior: cauchy(X0_prior_mu, X0_prior_sig)
+  R0 = R0_prior_mu + R0_prior_sig * std_R0; //R0 prior: normal(R0_prior_mu, R0_prior_sig)
+  X0 = X0_prior_mu + X0_prior_sig * std_X0; //X0 prior: normal(X0_prior_mu, X0_prior_sig)
 	if(!constr_Rsig2){
-	  Rsig2[1] = Rsig2_prior * tan(unif_Rsig2[1]); //Rsig2 prior: half-cauchy(0, Rsig2_prior)
+	  Rsig2[1] = Rsig2_prior * std_Rsig2[1]; //Rsig2 prior: half-normal(0, Rsig2_prior)
 	}
 	if(!constr_Rmu){
-	  Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * tan(unif_Rmu[1]); //Rmu prior: cauchy(Rmu_prior_mu, Rmu_prior_sig)
+	  Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * std_Rmu[1]; //Rmu prior: normal(Rmu_prior_mu, Rmu_prior_sig)
 	}
-	Ysig2 = Ysig2_prior * tan(unif_Ysig2); //Ysig2 prior: half-cauchy(0, Ysig2_prior)
+	Ysig2 = Ysig2_prior * std_Ysig2; //Ysig2 prior: half-normal(0, Ysig2_prior)
   
   
   //R prior: multinormal(R0 + Rmu * T_midpts, Rsig2 * eV); Rsig2/Rmu = 0 when constrained
@@ -133,21 +153,31 @@ transformed parameters {
   X = get_X(n, X0, prune_T, R, raw_X, preorder, real_e, des_e, tip_e);
   
   
-  //center observations based on X
-  if(obs != 0){
-    if(lik_power != 0){
+  if(lik_pow_ind){
+    //center tip means with priors based on tp_mu and scale based on tp_sig
+    if(has_tp){
+      trans_tp = (X[which_tp] - tp_mu) ./ tp_sig;
+    }
+    //center observations based on X
+    if(has_obs){
       cent_Y = Y - X[X_id];
     }
-  }
-  
-  
-  //center tip means with priors based on tp_mu and scale based on tp_sig
-  if(n_tp != 0 && lik_power != 0){
-    trans_tp = (X[which_tp] - tp_mu) ./ tp_sig;
   }
 }
 
 model {
+  //high level priors
+  std_R0 ~ std_normal();
+  std_X0 ~ std_normal();
+  if(!constr_Rsig2){
+    std_Rsig2[1] ~ std_normal();
+  }
+  if(!constr_Rmu){
+    std_Rmu[1] ~ std_normal();
+  }
+  std_Ysig2 ~ std_normal();
+  
+  
   //'seed' for sampling from R prior: see above
 	if(!constr_Rsig2){
 	  raw_R ~ std_normal();
@@ -158,23 +188,16 @@ model {
 	raw_X ~ std_normal();
 	
 	
-	//tip priors
-	//transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
-	if(n_tp != 0){
-	  if(lik_power == 1){
-	     trans_tp ~ std_normal();
-	  }else if(lik_power != 0){
-	    target += -0.5 * lik_power * (n_tp * log(2 * pi()) + dot_self(trans_tp));
+	//trait data
+	if(lik_pow_ind){
+	  //tip priors
+	  //transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
+	  if(has_tp){
+	    target += -0.5 * lik_power * dot_self(trans_tp);
+	  }
+	  //likelihood of Y
+	  if(has_obs){
+	    target += -0.5 * lik_power * (obs * log(Ysig2) + dot_self(cent_Y) / Ysig2);
 	  }
 	}
-  
-  
-  //likelihood of Y
-  if(obs != 0){
-    if(lik_power == 1){
-      cent_Y ~ normal(0, sqrt(Ysig2));
-    }else if(lik_power != 0){
-      target += -0.5 * lik_power * (obs * log(2 * pi()) + obs * log(Ysig2) + dot_self(cent_Y) / Ysig2);
-    }
-  }
 }

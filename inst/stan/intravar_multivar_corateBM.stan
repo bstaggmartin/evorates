@@ -9,12 +9,12 @@ functions {
     SS = rep_matrix(0, k, 2 * n - 1);
     for(i in 1:k){
       SS[i, real_e] = (sqrt(prune_T[real_e] .* exp(R)) .* to_vector(raw_X[i, ]))';
+    }
+    for(i in preorder){
+      XX[, des_e[i, ]] = rep_matrix(XX[, i], 2) + chol_Xcov * SS[, des_e[i, ]];
+    }
+    return(XX[, tip_e]);
   }
-  for(i in preorder){
-    XX[, des_e[i, ]] = rep_matrix(XX[, i], 2) + chol_Xcov * SS[, des_e[i, ]];
-  }
-  return(XX[, tip_e]);
-}
 }
 data {
   //basic data
@@ -76,6 +76,9 @@ transformed data {
   matrix[constr_Rsig2 ? 0:e, constr_Rsig2 ? 0:e] chol_eV; //cholesky decomp of edge variance-covariance matrix
   vector[constr_Rmu ? 0:e] T_midpts; //overall 'height' of edge mid-points
   int preorder[n - 1]; //'cladewise' sequence of nodes excluding tips, numbered by ancestral edge
+  int lik_pow_ind; //indicates if lik_power is 0
+  int has_tp; //any tip priors?
+  int has_obs; //any observations?
   
   
   //for sampling from R prior
@@ -97,16 +100,33 @@ transformed data {
     counter = counter + 1;
     preorder[counter] = i;
   }}
+  
+  
+  if(lik_power == 0){
+    lik_pow_ind = 0;
+  }else{
+    lik_pow_ind = 1;
+  }
+  if(sum(n_tp) == 0){
+    has_tp = 0;
+  }else{
+    has_tp = 1;
+  }
+  if(obs == 0){
+    has_obs = 0;
+  }else{
+    has_obs = 1;
+  }
 }
 
 parameters {
   //parameters on sampling scale: see below for parameter definitions
-  real<lower=-pi()/2, upper=pi()/2> unif_R0;
-  vector<lower=-pi()/2, upper=pi()/2>[k] unif_X0;
-  real<lower=0, upper=pi()/2> unif_Rsig2[constr_Rsig2 ? 0:1];
-  real<lower=-pi()/2, upper=pi()/2> unif_Rmu[constr_Rmu ? 0:1];
-  vector<lower=0, upper=pi()/2>[k] unif_Xsig2;
-  vector<lower=0, upper=pi()/2>[k] unif_Ysig2;
+  real std_R0;
+  vector[k] std_X0;
+  real<lower=0> std_Rsig2[constr_Rsig2 ? 0:1];
+  real std_Rmu[constr_Rmu ? 0:1];
+  vector<lower=0>[k] std_Xsig2;
+  vector<lower=0>[k] std_Ysig2;
   cholesky_factor_corr[k] chol_Xcor; //evolutionary correlation matrix
   cholesky_factor_corr[k] chol_Ycor; //tip correlation matrix
   vector[constr_Rsig2 ? 0:e] raw_R;
@@ -130,17 +150,17 @@ transformed parameters {
   
   
   //high level priors
-  R0 = R0_prior_mu + R0_prior_sig * tan(unif_R0); //R0 prior: cauchy(R0_prior_mu, R0_prior_sig)
-  X0 = X0_prior_mu + X0_prior_sig .* tan(unif_X0); //X0 prior: cauchy(X0_prior_mu, X0_prior_sig)
+  R0 = R0_prior_mu + R0_prior_sig * std_R0; //R0 prior: normal(R0_prior_mu, R0_prior_sig)
+  X0 = X0_prior_mu + X0_prior_sig .* std_X0; //X0 prior: normal(X0_prior_mu, X0_prior_sig)
   if(!constr_Rsig2){
-    Rsig2[1] = Rsig2_prior * tan(unif_Rsig2[1]); //Rsig2 prior: half-cauchy(0, Rsig2_prior)
+    Rsig2[1] = Rsig2_prior * std_Rsig2[1]; //Rsig2 prior: half-normal(0, Rsig2_prior)
   }
   if(!constr_Rmu){
-    Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * tan(unif_Rmu[1]); //Rmu prior: cauchy(Rmu_prior_mu, Rmu_prior_sig)
+    Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * std_Rmu[1]; //Rmu prior: normal(Rmu_prior_mu, Rmu_prior_sig)
   }
-  Xsig2 = Xsig2_prior .* tan(unif_Xsig2); //Xsig2 prior: half-cauchy(0, Xsig2_prior)
+  Xsig2 = Xsig2_prior .* std_Xsig2; //Xsig2 prior: half-normal(0, Xsig2_prior)
   Xsig2 = Xsig2 / mean(Xsig2); //standardize Xsig2 to be mean 1 (prevent rate unidentifiability)
-  Ysig2 = Ysig2_prior .* tan(unif_Ysig2); //Ysig2 prior: half-cauchy(0, Ysig2_prior)
+  Ysig2 = Ysig2_prior .* std_Ysig2; //Ysig2 prior: half-normal(0, Ysig2_prior)
   
   
   //Xcov | Ycov = sqrt(Xsig2' | Ysig2') * (Xcor | Ycor) * sqrt(Xsig2 | Ysig2)
@@ -163,31 +183,42 @@ transformed parameters {
   X = get_X(n, k, X0, prune_T, R, raw_X, chol_Xcov, preorder, real_e, des_e, tip_e);
   
   
-  //center observations based on X
-  if(obs != 0){
-    if(lik_power != 0){
+  if(lik_pow_ind){
+    //center tip means with priors based on tp_mu and scale based on tp_sig
+    if(has_tp){
+      {int counter;
+	    counter = 1;
+	    for(i in 1:k){
+		    if(!n_tp[i]){
+		      continue;
+		    }
+		    trans_tp[(counter):(counter + n_tp[i] - 1)] =
+		    (X[i, segment(which_tp, counter, n_tp[i])]' - segment(tp_mu, counter, n_tp[i])) ./
+		    segment(tp_sig, counter, n_tp[i]);
+	      counter = counter + n_tp[i];
+	    }}
+    }
+    //center observations based on X
+    if(has_obs){
       cent_Y = Y - X[, X_id];
     }
-  }
-  
-  
-  //center tip means with priors based on tp_mu and scale based on tp_sig
-  if(sum(n_tp) != 0 && lik_power != 0){
-    {int counter;
-	  counter = 1;
-	  for(i in 1:k){
-		  if(!n_tp[i]){
-		    continue;
-		  }
-		  trans_tp[1:n_tp[i] + (counter - 1)] =
-		  (X[i, segment(which_tp, counter, n_tp[i])]' - segment(tp_mu, counter, n_tp[i])) ./
-		  segment(tp_sig, counter, n_tp[i]);
-	    counter = counter + n_tp[i];
-	  }}
   }
 }
 
 model {
+  //high level priors
+  std_R0 ~ std_normal();
+  std_X0 ~ std_normal();
+  if(!constr_Rsig2){
+    std_Rsig2[1] ~ std_normal();
+  }
+  if(!constr_Rmu){
+    std_Rmu[1] ~ std_normal();
+  }
+  std_Xsig2 ~ std_normal();
+  std_Ysig2 ~ std_normal();
+  
+  
   //Xcor | Ycor prior: LKJcorr(Xcor_prior | Ycor_prior)
 	chol_Xcor ~ lkj_corr_cholesky(Xcor_prior);
 	chol_Ycor ~ lkj_corr_cholesky(Ycor_prior);
@@ -205,24 +236,20 @@ model {
 	}
 	
 	
-	//tip priors
-	//transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
-	if(lik_power == 1){
-	  trans_tp ~ std_normal();
-	}else if(lik_power != 0){
-	  target += -0.5 * lik_power * (sum(n_tp) * log(2 * pi()) + dot_self(trans_tp));
-	}
-
-	
-	
-	//likelihood of Y
-	if(obs != 0){
-	  if(lik_power != 0){
+	//trait data
+	if(lik_pow_ind){
+	  //tip priors
+	  //transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
+	  if(has_tp){
+	    target += -0.5 * lik_power * dot_self(trans_tp);
+	  }
+	  //likelihood of Y
+	  if(has_obs){
 	    {int counter_sizes;
       int counter_ks;
       counter_sizes = 1;
       counter_ks = 1;
-      for (i in 1:n_code) {
+      for (i in 1:n_code){
         //for each observation code, get corresponding observations and tip covariance matrix
         {int k_inds[code_ks[i]];
         matrix[code_ks[i], code_ks[i]] tmp_Ycov;
@@ -231,13 +258,11 @@ model {
         tmp_Ycov = Ycov[k_inds, k_inds];
         tmp_cent_Y = cent_Y[k_inds, segment(obs_code, counter_sizes, code_sizes[i])];
         //centered obs.[!unobs. traits] ~ multinormal(0, Ycov[!unobs. traits, !unobs. traits])
-        target += -0.5 * lik_power * (code_sizes[i] * code_ks[i] * (log(2 * pi())) +
-                  code_sizes[i] * log_determinant(tmp_Ycov) +
+        target += -0.5 * lik_power * (code_sizes[i] * log_determinant(tmp_Ycov) +
                   sum(rows_dot_product(mdivide_right_spd(tmp_cent_Y', tmp_Ycov), tmp_cent_Y')));
         counter_sizes = counter_sizes + code_sizes[i];
         counter_ks = counter_ks + code_ks[i];}
-        }
-      }
+      }}
 	  }
 	}
 }

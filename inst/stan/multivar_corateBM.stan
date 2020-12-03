@@ -69,6 +69,8 @@ data {
 transformed data {
   matrix[constr_Rsig2 ? 0:e, constr_Rsig2 ? 0:e] chol_eV; //cholesky decomp of edge variance-covariance matrix
   vector[constr_Rmu ? 0:e] T_midpts; //overall 'height' of edge mid-points
+  int lik_pow_ind; //indicates if lik_power is 0
+  int has_tp; //any tip priors?
   
   
   //for sampling from R prior
@@ -78,20 +80,32 @@ transformed data {
   if(!constr_Rmu){
     T_midpts = diagonal(eV) + prune_T[real_e] / 6;
   }
+  
+  
+  if(lik_power == 0){
+    lik_pow_ind = 0;
+  }else{
+    lik_pow_ind = 1;
+  }
+  if(n_tp == 0){
+    has_tp = 0;
+  }else{
+    has_tp = 1;
+  }
 }
 
 parameters {
   //parameters on sampling scale: see below for parameter definitions
-  real<lower=-pi()/2, upper=pi()/2> unif_R0;
-  vector<lower=-pi()/2, upper=pi()/2>[k] unif_X0;
-  real<lower=0, upper=pi()/2> unif_Rsig2[constr_Rsig2 ? 0:1];
-  real<lower=-pi()/2, upper=pi()/2> unif_Rmu[constr_Rmu ? 0:1];
-  vector<lower=0, upper=pi()/2>[k] unif_Xsig2;
+  real std_R0;
+  vector[k] std_X0;
+  real<lower=0> std_Rsig2[constr_Rsig2 ? 0:1];
+  real std_Rmu[constr_Rmu ? 0:1];
+  vector<lower=0>[k] std_Xsig2;
   cholesky_factor_corr[k] chol_Xcor; //evolutionary correlation matrix
   vector[constr_Rsig2 ? 0:e] raw_R;
   
   
-  vector[sum(k_mis)] mis_Y; //unobserved tip values
+  vector[lik_pow_ind ? sum(k_mis):0] mis_Y; //unobserved tip values
 }
 
 transformed parameters {
@@ -107,15 +121,15 @@ transformed parameters {
   
   
   //high level priors
-  R0 = R0_prior_mu + R0_prior_sig * tan(unif_R0); //R0 prior: cauchy(R0_prior_mu, R0_prior_sig)
-  X0 = X0_prior_mu + X0_prior_sig .* tan(unif_X0); //X0 prior: cauchy(X0_prior_mu, X0_prior_sig)
+  R0 = R0_prior_mu + R0_prior_sig * std_R0; //R0 prior: normal(R0_prior_mu, R0_prior_sig)
+  X0 = X0_prior_mu + X0_prior_sig .* std_X0; //X0 prior: normal(X0_prior_mu, X0_prior_sig)
   if(!constr_Rsig2){
-    Rsig2[1] = Rsig2_prior * tan(unif_Rsig2[1]); //Rsig2 prior: half-cauchy(0, Rsig2_prior)
+    Rsig2[1] = Rsig2_prior * std_Rsig2[1]; //Rsig2 prior: half-normal(0, Rsig2_prior)
   }
   if(!constr_Rmu){
-    Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * tan(unif_Rmu[1]); //Rmu prior: cauchy(Rmu_prior_mu, Rmu_prior_sig)
+    Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * std_Rmu[1]; //Rmu prior: normal(Rmu_prior_mu, Rmu_prior_sig)
   }
-	Xsig2 = Xsig2_prior .* tan(unif_Xsig2); //Xsig2 prior: half-cauchy(0, Xsig2_prior)
+	Xsig2 = Xsig2_prior .* std_Xsig2; //Xsig2 prior: half-normal(0, Xsig2_prior)
   Xsig2 = Xsig2 / mean(Xsig2); //standardize Xsig2 to be mean 1 (prevent rate unidentifiability)
   
   
@@ -135,12 +149,24 @@ transformed parameters {
   
   
   //center tip means with priors based on tp_mu and scale based on tp_sig
-  if(n_tp != 0 && lik_power != 0){
+  if(has_tp && lik_pow_ind){
     trans_tp = (mis_Y[which_tp] - tp_mu) ./ tp_sig;
   }
 }
 
 model {
+  //high level priors
+  std_R0 ~ std_normal();
+  std_X0 ~ std_normal();
+  if(!constr_Rsig2){
+    std_Rsig2[1] ~ std_normal();
+  }
+  if(!constr_Rmu){
+    std_Rmu[1] ~ std_normal();
+  }
+  std_Xsig2 ~ std_normal();
+  
+  
   //Xcor prior: LKJcorr(Xcor_prior)
 	chol_Xcor ~ lkj_corr_cholesky(Xcor_prior);
   
@@ -151,19 +177,14 @@ model {
 	}
 	
 	
-	//tip priors
-	//transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
-	if(n_tp != 0){
-	  if(lik_power == 1){
-	    trans_tp ~ std_normal();
-	  }else if(lik_power != 0){
-	    target += -0.5 * lik_power * (n_tp * log(2 * pi()) + dot_self(trans_tp));
+	//trait data
+	if(lik_pow_ind){
+	  //tip priors
+	  //transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
+	  if(has_tp){
+	    target += -0.5 * lik_power * dot_self(trans_tp);
 	  }
-	}
-	
-	
-	//likelihood of X: pruning algorithm
-	if(lik_power != 0){
+	  //likelihood of X: pruning algorithm
 	  {matrix[k, k] Xprec; //inverse of Xcov
 	  vector[2 * n - 1] SS; //edge lengths multiplied by respective average rate
     matrix[k, 2 * n - 1] XX; //node-wise trait values, indexed by ancestral edge
@@ -172,6 +193,7 @@ model {
     int counter; //position along LL
     matrix[k, 2] des_X; //temporary: descendant node trait values for given iteration in loop
     vector[2] des_V; //temporary: descendant node trait variances for given iteration in loop
+    real sum_des_V; //temporary: sum of descendant node trait variances for given iteration in loop
     vector[k] contr; //temporary: contrast between descendant node trait values
     Xprec = inverse_spd(Xcov);
 	  SS = rep_vector(0, 2 * n - 1);
@@ -182,14 +204,20 @@ model {
     for(i in postorder){
       des_X = XX[, des_e[i, ]];
       des_V = VV[des_e[i, ]] + SS[des_e[i, ]];
+      sum_des_V = sum(des_V);
       contr = des_X[, 2] - des_X[, 1];
       counter = counter + 1;
-      LL[counter] = -0.5 * (k * log(sum(des_V)) + (contr' * Xprec * contr) / sum(des_V));
-      XX[, i] = des_V[2] / sum(des_V) * des_X[, 1] + des_V[1] / sum(des_V) * des_X[, 2];
-      VV[i] = 1 / (1 / des_V[1] + 1 / des_V[2]);
+      LL[counter] = -0.5 * (k * log(sum_des_V) + (contr' * Xprec * contr) / sum_des_V);
+      //equivalent to eq'n A.4 in Caetano et al. 2019 when R matrices are the same b/t branches
+      XX[, i] = des_V[2] / sum_des_V * des_X[, 1] + des_V[1] / sum_des_V * des_X[, 2];
+      //make sure variance of an observed node stays 0!
+      if(des_V[1] == 0 || des_V[2] == 0){
+        VV[i] = 0;
+      }else{
+        VV[i] = 1 / (1 / des_V[1] + 1 / des_V[2]);
+      }
     }
-	  target += lik_power *
-	            (sum(LL) - 0.5 * (k * n * log(2 * pi()) + n * log_determinant(Xcov) + 
+	  target += lik_power * (sum(LL) - 0.5 * (n * log_determinant(Xcov) + 
 	            k * log(VV[1]) + ((X0 - XX[, 1])' * Xprec * (X0 - XX[, 1])) / VV[1]));}
 	}
 }
