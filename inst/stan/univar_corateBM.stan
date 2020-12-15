@@ -1,6 +1,6 @@
 functions {
-    //function to combine fixed, observed and sampled, unobserved tip means
-    vector get_X (int n, vector Y, vector mis_Y, int[] which_mis){
+  //function to combine fixed, observed and sampled, unobserved tip means
+  vector get_X (int n, vector Y, vector mis_Y, int[] which_mis){
     vector[n] X;           
     X = Y;
     X[which_mis] = mis_Y;
@@ -57,7 +57,9 @@ data {
 
 transformed data {
   matrix[constr_Rsig2 ? 0:e, constr_Rsig2 ? 0:e] chol_eV; //cholesky decomp of edge variance-covariance matrix
-  vector[constr_Rmu ? 0:e] T_midpts; //overall 'height' of edge mid-points
+  vector[constr_Rmu ? 0:e] T_l; //"real" edge lengths
+  vector[constr_Rmu ? 0:e] T_1; //overall 'height' of edge ancestors
+  vector[constr_Rmu ? 0:e] T_2; //overall 'height' of edge descendants
   int lik_pow_ind; //indicates if lik_power is 0
   int has_tp; //has tip priors?
   
@@ -67,7 +69,9 @@ transformed data {
     chol_eV = cholesky_decompose(eV);
   }
   if(!constr_Rmu){
-    T_midpts = diagonal(eV) + prune_T[real_e] / 6;
+    T_l = prune_T[real_e];
+    T_1 = diagonal(eV) - prune_T[real_e] / 3;
+    T_2 = diagonal(eV) + 2 * prune_T[real_e] / 3;
   }
   
   
@@ -92,7 +96,7 @@ parameters {
   vector[constr_Rsig2 ? 0:e] raw_R;
   
   
-  vector[lik_pow_ind ? k_mis:0] mis_Y; //unobserved tip means
+  vector[k_mis] mis_Y; //unobserved tip means
 }
 
 transformed parameters {
@@ -116,9 +120,10 @@ transformed parameters {
   
   
   //R prior: multinormal(R0 + Rmu * T_midpts, Rsig2 * eV); Rsig2/Rmu = 0 when constrained
+  //trend now calc'd differently to reflect AM, rather than GM; follows early burst model formula
   R = rep_vector(R0, e);
   if(!constr_Rmu){
-    R = R + Rmu[1] * T_midpts;
+    R = R - log(fabs(Rmu[1])) - log(T_l) + log(fabs(exp(Rmu[1] * T_2) - exp(Rmu[1] * T_1)));
   }
   if(!constr_Rsig2){
     R = R + sqrt(Rsig2[1]) * chol_eV * raw_R;
@@ -126,7 +131,7 @@ transformed parameters {
   
   
   //center tip means with priors based on tp_mu and scale based on tp_sig
-  if(has_tp && lik_pow_ind){
+  if(has_tp){
     trans_tp = (mis_Y[which_tp] - tp_mu) ./ tp_sig;
   }
 }
@@ -149,13 +154,15 @@ model {
 	}
 	
 	
+	//tip priors
+  //transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
+	if(has_tp != 0){
+	 target += -0.5 * dot_self(trans_tp);
+	}
+	
+	
 	//trait data
 	if(lik_pow_ind){
-	  //tip priors
-  	//transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
-	  if(has_tp != 0){
-	    target += -0.5 * lik_power * dot_self(trans_tp);
-	  }
 	  //likelihood of X: pruning algorithm
 	  {vector[2 * n - 1] SS; //edge lengths multiplied by respective average rate
     vector[2 * n - 1] XX; //node-wise trait values, indexed by ancestral edge

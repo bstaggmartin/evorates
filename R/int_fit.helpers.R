@@ -1,9 +1,12 @@
 #remove non-numeric/all NA rows, coerce to matrix with labelled rows/columns
 #allow naming of prior components, and make sure to coerce them to have same number of columns as Y and
 #such before exporting them from this function...
-.format.trait.data<-function(Y,X0.prior.mu=NULL,X0.prior.sig=NULL,Xsig2.prior=NULL,Ysig2.prior=NULL,tree){
+.format.trait.data<-function(Y,X0.prior.mu=NULL,X0.prior.sig=NULL,
+                             X.prior.mu=NULL,X.prior.sig=NULL,scale.X.prior=T,
+                             Xsig2.prior=NULL,
+                             Ysig2.prior=NULL,tree){
   #if any of the priors have names, attempt to reorder according to trait.data
-  for(i in c('X0.prior.mu','X0.prior.sig','Xsig2.prior','Ysig2.prior')){
+  for(i in c('X0.prior.mu','X0.prior.sig','X.prior.mu','X.prior.sig','scale.X.prior','Xsig2.prior','Ysig2.prior')){
     if(i=='Xsig2.prior'){
       j<-'evosig2.prior'
     }else if(i=='Ysig2.prior'){
@@ -62,7 +65,7 @@
         if(length(non.num.cols.inds)>0){
           tmp.non.num.cols.inds<-c(non.num.cols.inds[non.num.cols.inds<labels.col],
                                    non.num.cols.inds[non.num.cols.inds>labels.col]-1)
-          for(i in c('X0.prior.mu','X0.prior.sig','Xsig2.prior','Ysig2.prior')){
+          for(i in c('X0.prior.mu','X0.prior.sig','X.prior.mu','X.prior.sig','scale.X.prior','Xsig2.prior','Ysig2.prior')){
             tmp<-get(i)
             if(!is.null(tmp)){
               if(length(tmp)==ncol(Y)-1){
@@ -78,7 +81,7 @@
           Y<-Y[,-labels.col,drop=F]
         }
       }else{
-        for(i in c('X0.prior.mu','X0.prior.sig','Xsig2.prior','Ysig2.prior')){
+        for(i in c('X0.prior.mu','X0.prior.sig','X.prior.mu','X.prior.sig','scale.X.prior','Xsig2.prior','Ysig2.prior')){
           tmp<-get(i)
           if(!is.null(tmp)){
             if(length(tmp)==ncol(Y)){
@@ -110,7 +113,7 @@
   }else if(any(colname.lens==0)){
     colnames(Y)<-ifelse(colname.lens==0,paste('X',1:ncol(Y),sep=''),colnames(Y))
   }
-  for(i in c('X0.prior.mu','X0.prior.sig','Xsig2.prior','Ysig2.prior')){
+  for(i in c('X0.prior.mu','X0.prior.sig','X.prior.mu','X.prior.sig','scale.X.prior','Xsig2.prior','Ysig2.prior')){
     if(i=='Xsig2.prior'){
       j<-'evosig2.prior'
     }else if(i=='Ysig2.prior'){
@@ -143,7 +146,7 @@
   tree<-di2multi(tree,tol=0)
   hgts<-node.depth.edgelength(tree)[1:length(tree$tip.label)]
   if(any(hgts==0)){
-    warning("corateBM currently doesn't support tips at root of tree: these tips were removed; please specify information regarding trait valuies at the root using the X0 prior",
+    warning("corateBM currently doesn't support tips at root of tree: these tips were removed; please specify information regarding trait values at the root using the X0 prior",
             immediate.=T)
     tree<-drop.tip(tree,tree$tip.label[hgts==0])
     #alternatively, could just prevent specifying a *fixed* value at the root...technically, unfixed values
@@ -288,12 +291,22 @@
     if(length(missing.sig)>0){
       tp.sig<-do.call(rbind,c(list(tp.sig),rep(list(NA),length(missing.sig))))
       rownames(tp.sig)[-(length(missing.sig)-1):0+nrow(tp.sig)]<-missing.sig
-      tp.sig<-tp.sig[sort(rownames(tp.sig)),]
     }
+    tp.sig<-tp.sig[sort(rownames(tp.sig)),,drop=F]
     if(length(missing.mu)>0){
       tp.mu<-do.call(rbind,c(list(tp.mu),rep(list(NA),length(missing.mu))))
       rownames(tp.mu)[-(length(missing.mu)-1):0+nrow(tp.mu)]<-missing.mu
-      tp.mu<-tp.mu[sort(rownames(tp.mu)),]
+    }
+    tp.mu<-tp.mu[sort(rownames(tp.mu)),,drop=F]
+    problem.inds<-which(tp.sig<0,arr.ind=T)
+    if(length(problem.inds)>0){
+      warning('negative tip prior standard deviation(s) for the following:',
+              paste(paste(rownames(tp.sig)[problem.inds[,1]],
+                          colnames(tp.sig)[problem.inds[,2]],sep=','),
+                    collapse='; '),
+              ': these tip prior standard deviation(s) were removed',
+              immediate.=T)
+      tp.sig[problem.inds]<-NA
     }
     check.nas<-tp.mu+tp.sig
     check.nas[,]<-is.na(check.nas)
@@ -365,7 +378,9 @@
 #tree height of 1
 #sig2 under BM is 1
 .get.trans.const<-function(tree,Y,tp.mu,tp.sig,
-                           X0.prior.mu=NULL,X0.prior.sig=NULL,Xsig2.prior=NULL,
+                           X0.prior.mu=NULL,X0.prior.sig=NULL,
+                           X.prior.mu=NULL,X.prior.sig=NULL,scale.X.prior=T,
+                           Xsig2.prior=NULL,
                            R0.prior.mu=NULL,Rsig2.prior=NULL,
                            Ysig2.prior=NULL,
                            Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
@@ -400,6 +415,14 @@
   if(!is.null(X0.prior.mu)){
     X0.prior.mu<-ifelse(is.na(X0.prior.mu),NA,(X0.prior.mu-trans.const$X_0)/sqrt(trans.const$X_sig2))
   }
+  if(!is.null(X.prior.mu)){
+    X.prior.mu<-ifelse(is.na(X.prior.mu),NA,
+                       ifelse(scale.X.prior,(X.prior.mu-trans.const$X_0)/sqrt(trans.const$X_sig2),X.prior.mu))
+  }
+  if(!is.null(X.prior.sig)){
+    X.prior.sig<-ifelse(is.na(X.prior.sig),NA,
+                        ifelse(scale.X.prior,X.prior.sig/sqrt(trans.const$X_sig2),X.prior.sig))
+  }
   for(i in c('X0.prior.sig','Xsig2.prior','Ysig2.prior')){
     tmp<-get(i)
     if(!is.null(tmp)){
@@ -411,8 +434,155 @@
     R0.prior.mu<-R0.prior.mu+log(trans.const$hgt)-log(mean(trans.const$X_sig2))
   }
   list(tree=tree,Y=Y,tp.mu=tp.mu,tp.sig=tp.sig,trans.const=trans.const,
-       X0.prior.mu=X0.prior.mu,X0.prior.sig=X0.prior.sig,Xsig2.prior=Xsig2.prior,
+       X0.prior.mu=X0.prior.mu,X0.prior.sig=X0.prior.sig,
+       X.prior.mu=X.prior.mu,X.prior.sig=X.prior.sig,
+       Xsig2.prior=Xsig2.prior,
        R0.prior.mu=R0.prior.mu,Rsig2.prior=Rsig2.prior,
        Ysig2.prior=Ysig2.prior,
        Rmu.prior.mu=Rmu.prior.mu,Rmu.prior.sig=Rmu.prior.sig)
+}
+
+.prep.run<-function(corateBM.form.dat,return.as.obj=T,out.file=NULL,check.overwrite=T,nchain,
+                    constrain.Rsig2=NULL,trend=NULL,lik.power=NULL,
+                    X0.prior.mu=NULL,X0.prior.sig=NULL,
+                    evosig2.prior=NULL,evocor.prior=NULL,
+                    R0.prior.mu=NULL,R0.prior.sig=NULL,Rsig2.prior=NULL,
+                    intrasig2.prior=NULL,intracor.prior=NULL,
+                    Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
+  ##HANDLING FILE OUTPUTS##
+  if(!return.as.obj|!is.null(out.file)){
+    if(is.null(out.file)){
+      message("no file output name specified, but model results aren't set to be returned in R working environment:\n picked file output name automatically based off current date and time")
+      time<-Sys.time()
+      out.file<-paste0('corateBM_',gsub(' |-|:','_',time))
+    }
+    directory<-dirname(out.file)
+    if(!file.exists(directory)){
+      directory.check<-dir.create(directory)
+      if(!directory.check){
+        stop('the directory for the output file could not be created: make sure you have permission to write in the specified directory and that there are no illegal characters or trailing spaces/periods')
+      }
+    }
+    file.strings<-paste0(gsub('\\.csv$','',out.file),c(paste0('_',1:nchain,'.csv'),'_info'))
+    if(check.overwrite){
+      existing.files<-list.files(directory)
+      file.strings.check<-sapply(basename(file.strings),'%in%',existing.files)
+      if(any(file.strings.check)){
+        readline('WARNING: running this function will overwrite existing files! Press Enter to continue or Esc to cancel')
+      }
+    }
+    file.check<-file.create(file.strings)
+    if(any(!file.check)){
+      stop('could not create test output files: check for any illegal characters or trailing spaces/periods')
+    }else{
+      file.remove(file.strings)
+    }
+    if(nchain==1){
+      out.file<-paste0(gsub('\\.csv$','',out.file),'_1.csv')
+    }
+    if(!grepl('\\.csv$',out.file)){
+      out.file<-paste0(out.file,'.csv')
+    }
+  }
+  
+  ##FINAL PRIOR/CONSTRAINT SETTINGS##
+  dat<-corateBM.form.dat$dat
+  #recheck for any inappropriately negative priors
+  for(i in c('X0.prior.sig',
+             'evosig2.prior','evocor.prior',
+             'R0.prior.sig','Rsig2.prior',
+             'intrasig2.prior','intracor.prior',
+             'Rmu.prior.sig')){
+    tmp<-get(i)
+    if(any(tmp<0)){
+      warning(i,' must consist of postive numbers: entries that were negative or 0 set to defaults',
+              immediate.=T)
+      if(length(tmp)==1){
+        tmp<-NULL
+      }else{
+        tmp[tmp<=0]<-NA
+      }
+      assign(i,tmp)
+    }
+  }
+  for(i in c('X0.prior.mu','X0.prior.sig',
+             'evosig2.prior','evocor.prior',
+             'R0.prior.mu','R0.prior.sig','Rsig2.prior',
+             'intrasig2.prior','intracor.prior',
+             'Rmu.prior.mu','Rmu.prior.sig')){
+    tmp<-get(i)
+    if(!is.null(tmp)){
+      if(!all(is.na(tmp))){
+        dat[[gsub('\\.','_',gsub('Ysig2','intrasig2',gsub('Xsig2','evosig2',i)))]]<-tmp
+      }
+    }
+  }
+  def.priors<-setNames(list(rep(0,dat$k),rep(50,dat$k),rep(1,dat$k),1,0,15,15,rep(25,dat$k),1,0,15),
+                       c('X0_prior_mu','X0_prior_sig','Xsig2_prior','Xcor_prior',
+                         'R0_prior_mu','R0_prior_sig','Rsig2_prior',
+                         'Ysig2_prior','Ycor_prior',
+                         'Rmu_prior_mu','Rmu_prior_sig'))
+  for(i in grep('prior',names(dat),value=T)){
+    if(is.null(dat[[i]])){
+      dat[[i]]<-def.priors[[i]]
+    }else if(any(is.na(dat[[i]]))){
+      dat[[i]]<-ifelse(is.na(dat[[i]]),def.priors[[i]],dat[[i]])
+    }
+  }
+  if(!is.null(constrain.Rsig2)){
+    dat$constr_Rsig2<-as.numeric(constrain.Rsig2)
+  }
+  if(!is.null(trend)){
+    dat$constr_Rmu<-as.numeric(!trend)
+  }
+  if(!is.null(lik.power)){
+    if(lik.power<0){
+      warning('likelihood powers must be 0 or positive: likelihood power set to default of 1 (i.e., sampling from normal posterior)',
+              immediate.=T)
+      lik.power<-1
+    }
+    dat$lik_power<-lik.power
+  }
+  intra.var<-any(grepl('X_id',names(dat)))
+  corateBM.form.dat$dat<-dat
+  
+  ##RUN MODEL##
+  exclude.pars<-c('std_R0','std_X0','std_Rsig2','std_Rmu','raw_R','trans_tp')
+  if(dat$constr_Rsig2){
+    exclude.pars<-c(exclude.pars,'Rsig2')
+  }
+  if(dat$constr_Rmu){
+    exclude.pars<-c(exclude.pars,'Rmu')
+  }
+  if(dat$constr_Rsig2&dat$constr_Rmu){
+    exclude.pars<-c(exclude.pars,'R')
+  }
+  if(intra.var){
+    exclude.pars<-c(exclude.pars,'std_Ysig2','raw_X','cent_Y')
+    if(dat$k>1){
+      exclude.pars<-c(exclude.pars,'std_Xsig2','Xsig2','Ysig2','Ycov')
+      stanobj<-'intravar_multivar_corateBM'
+    }else{
+      dat<-dat[-which(names(dat)%in%c('Xsig2_prior','Xcor_prior','Ycor_prior'))]
+      dat$Y<-as.vector(dat$Y)
+      stanobj<-'intravar_univar_corateBM'
+    }
+  }else{
+    dat<-dat[-which(names(dat)%in%c('Ysig2_prior','Ycor_prior'))]
+    if(dat$k>1){
+      exclude.pars<-c(exclude.pars,'std_Xsig2','Xsig2','Xcov')
+      stanobj<-'multivar_corateBM'
+    }else{
+      dat<-dat[-which(names(dat)%in%c('Xsig2_prior','Xcor_prior'))]
+      dat$Y<-as.vector(dat$Y)
+      stanobj<-'univar_corateBM'
+    }
+  }
+  
+  out<-list(return.as.obj=return.as.obj,stanobj=stanobj,dat=dat,exclude.pars=exclude.pars,out.file=out.file,
+            corateBM.form.dat=corateBM.form.dat)
+  if(!is.null(out.file)){
+    out<-c(out,file.strings=list(file.strings),directory=directory)
+  }
+  out
 }

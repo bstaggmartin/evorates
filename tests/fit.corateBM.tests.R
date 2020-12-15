@@ -3,10 +3,11 @@
 #scenarios following updates to the fit.corateBM() function and/or any of the stan scripts it uses.
 
 library(testthat)
+library(contSimmap)
 set.seed(123)
 tree<-phytools::pbtree(n=25)
-uni.sim<-gen.corateBM(tree,intra.var=T,n_obs=5)
-multi.sim<-gen.corateBM(tree,intra.var=T,n_obs=5,X0=rep(0,3))
+uni.sim<-sim.corateBM(tree,n.obs=5)
+multi.sim<-sim.corateBM(tree,n.obs=5,X0=rep(0,3))
 
 #basic models
 dat.list<-rep(list(uni.sim,multi.sim),each=4)

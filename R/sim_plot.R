@@ -42,6 +42,11 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
     warning(paste(traits[which(!traits.exist)],collapse=', '),' not found')
     traits<-traits[which(traits.exist)]
   }
+  if(is.null(sim[[color.element]])){
+    sim[[color.element]]<-0
+    legend<-F
+    warning('set legend to FALSE since specified color element is NULL')
+  }
   if(length(traits)>2&type=='phenogram'){
     pairs(sim,traits=traits,col=col,val.range=val.range,res=res,alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
           color.element=color.element,...,
@@ -492,8 +497,12 @@ legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','t
     txt.args$col<-txt.col
   }
   if(is.null(breaks)){
-    labels<-pretty(seq(val.range[1],val.range[2],length.out=100))
-    labels<-labels[c(2,length(labels)-1)]
+    if(val.range[2]-val.range[1]==0){
+      labels<-val.range[1]
+    }else{
+      labels<-pretty(seq(val.range[1],val.range[2],length.out=100))
+      labels<-labels[c(2,length(labels)-1)]
+    }
     y.pos<-coords$y[2]+(labels-val.range[1])/
       (diff(val.range))*
       (coords$y[3]-coords$y[2])

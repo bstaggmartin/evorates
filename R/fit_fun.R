@@ -1,15 +1,21 @@
 #need to have some handlers to make sure lik_power greater than 0 and T/F values are T/F
+#need to add support for forcing proper priors, i.e., making sure any missing data has an associated prior, coded via an
+#X.prior.mu and X.prior.sig, handled in much the same way as X0.prior.mu and X0.prior.sig
 #' @export
-form.input<-function(tree,trait.data,intra.var=F,
+form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
                      constrain.Rsig2=F,trend=F,lik.power=1,
-                     X0.prior.mu=NULL,X0.prior.sig=NULL,evosig2.prior=NULL,evocor.prior=NULL,
+                     X0.prior.mu=NULL,X0.prior.sig=NULL,
+                     X.prior.mu=NULL,X.prior.sig=NULL,scale.X.prior=T,
+                     evosig2.prior=NULL,evocor.prior=NULL,
                      R0.prior.mu=NULL,R0.prior.sig=NULL,Rsig2.prior=NULL,
                      intrasig2.prior=NULL,intracor.prior=NULL,
                      Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
   
   ##INITIAL DATA/PRIOR CLEAN-UP##
   #make sure any prior scale parameters are positive
-  for(i in c('X0.prior.sig','evosig2.prior','evocor.prior',
+  for(i in c('X0.prior.sig',
+             'X.prior.sig',
+             'evosig2.prior','evocor.prior',
              'R0.prior.sig','Rsig2.prior',
              'intrasig2.prior','intracor.prior',
              'Rmu.prior.sig')){
@@ -31,7 +37,11 @@ form.input<-function(tree,trait.data,intra.var=F,
     lik.power<-1
   }
   #coerce trait.data into numeric matrix, make priors match it
-  tmp<-.format.trait.data(trait.data,X0.prior.mu,X0.prior.sig,evosig2.prior,intrasig2.prior,tree)
+  tmp<-.format.trait.data(trait.data,
+                          X0.prior.mu,X0.prior.sig,
+                          X.prior.mu,X.prior.sig,scale.X.prior,
+                          evosig2.prior,
+                          intrasig2.prior,tree)
   for(i in names(tmp)){
     assign(i,tmp[[i]])
   }
@@ -39,6 +49,9 @@ form.input<-function(tree,trait.data,intra.var=F,
   tmp<-.format.tree(tree,Y)
   for(i in names(tmp)){
     assign(i,tmp[[i]])
+  }
+  if(!is.null(scale.X.prior)){
+    scale.X.prior[is.na(scale.X.prior)]<-T
   }
   #split tip priors out from trait.data and clean everything up (tip prior mus must have sigs, if intra.var is
   #FALSE a tip cannot be assigned data and a tip prior)
@@ -53,7 +66,9 @@ form.input<-function(tree,trait.data,intra.var=F,
   
   ##DATA/PRIOR TRANSFORMATIONS##
   tmp<-.get.trans.const(tree,Y,tp.mu,tp.sig,
-                        X0.prior.mu,X0.prior.sig,Xsig2.prior,
+                        X0.prior.mu,X0.prior.sig,
+                        X.prior.mu,X.prior.sig,scale.X.prior,
+                        Xsig2.prior,
                         R0.prior.mu,Rsig2.prior,
                         Ysig2.prior,
                         Rmu.prior.mu,Rmu.prior.sig)
@@ -66,6 +81,34 @@ form.input<-function(tree,trait.data,intra.var=F,
   n<-length(tree$tip.label)
   e<-nrow(tree$edge)
   k<-ncol(Y)
+  if(!intra.var&ensure.prop.prior){
+    if(is.null(X.prior.mu)){
+      X.prior.mu<-rep(NA,k)
+    }
+    X.prior.mu<-ifelse(is.na(X.prior.mu),0,X.prior.mu)
+    if(is.null(X.prior.sig)){
+      X.prior.sig<-rep(NA,k)
+    }
+    X.prior.sig<-ifelse(is.na(X.prior.sig),100,X.prior.sig)
+    missing.tp<-tree$tip.label[!(tree$tip.label%in%rownames(Y))&!(tree$tip.label%in%rownames(tp.mu))]
+    if(length(missing.tp)>0){
+      tmp.mu<-matrix(rep(X.prior.mu,each=length(missing.tp)),length(missing.tp),k)
+      tmp.sig<-matrix(rep(X.prior.sig,each=length(missing.tp)),length(missing.tp),k)
+      rownames(tmp.mu)<-rownames(tmp.sig)<-missing.tp
+      tp.mu<-rbind(tp.mu,tmp.mu)
+      tp.sig<-rbind(tp.sig,tmp.sig)
+    }
+    call.tp.mu<-tp.mu
+    call.tp.sig<-tp.sig
+    for(i in 1:k){
+      tp.mu[is.na(tp.mu[,i]),i]<-X.prior.mu[i]
+      tp.mu[is.na(tp.sig[,i]),i]<-X.prior.sig[i]
+      call.tp.mu[,i]<-tp.mu[,i]*sqrt(trans.const$X_sig2[i])+trans.const$X_0[i]
+      call.tp.sig[,i]<-tp.sig[,i]*sqrt(trans.const$X_sig2[i])
+    }
+    call$tip.prior.means<-call.tp.mu
+    call$tip.prior.sd<-call.tp.sig
+  }
   # if(constrain.Rsig2){
   #   eV<-matrix(0,e,e)
   #   diag(eV)<-node.depth.edgelength(tree)[tree$edge[,2]]-2*tree$edge.length/3
@@ -217,7 +260,8 @@ form.input<-function(tree,trait.data,intra.var=F,
 #' @export
 run.corateBM<-function(corateBM.form.dat,return.as.obj=T,out.file=NULL,check.overwrite=T,...,
                        constrain.Rsig2=NULL,trend=NULL,lik.power=NULL,
-                       X0.prior.mu=NULL,X0.prior.sig=NULL,evosig2.prior=NULL,evocor.prior=NULL,
+                       X0.prior.mu=NULL,X0.prior.sig=NULL,
+                       evosig2.prior=NULL,evocor.prior=NULL,
                        R0.prior.mu=NULL,R0.prior.sig=NULL,Rsig2.prior=NULL,
                        intrasig2.prior=NULL,intracor.prior=NULL,
                        Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
@@ -228,7 +272,8 @@ run.corateBM<-function(corateBM.form.dat,return.as.obj=T,out.file=NULL,check.ove
   }
   prep<-.prep.run(corateBM.form.dat,return.as.obj,out.file,check.overwrite,nchain=nchain,
                   constrain.Rsig2,trend,lik.power,
-                  X0.prior.mu,X0.prior.sig,evosig2.prior,evocor.prior,
+                  X0.prior.mu,X0.prior.sig,
+                  evosig2.prior,evocor.prior,
                   R0.prior.mu,R0.prior.sig,Rsig2.prior,
                   intrasig2.prior,intracor.prior,
                   Rmu.prior.mu,Rmu.prior.sig)
@@ -252,148 +297,6 @@ run.corateBM<-function(corateBM.form.dat,return.as.obj=T,out.file=NULL,check.ove
   if(return.as.obj){
     c(stanfit=ret,prep$corateBM.form.dat)
   }
-}
-
-.prep.run<-function(corateBM.form.dat,return.as.obj=T,out.file=NULL,check.overwrite=T,nchain,
-                    constrain.Rsig2=NULL,trend=NULL,lik.power=NULL,
-                    X0.prior.mu=NULL,X0.prior.sig=NULL,evosig2.prior=NULL,evocor.prior=NULL,
-                    R0.prior.mu=NULL,R0.prior.sig=NULL,Rsig2.prior=NULL,
-                    intrasig2.prior=NULL,intracor.prior=NULL,
-                    Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
-  ##HANDLING FILE OUTPUTS##
-  if(!return.as.obj|!is.null(out.file)){
-    if(is.null(out.file)){
-      message("no file output name specified, but model results aren't set to be returned in R working environment:\n picked file output name automatically based off current date and time")
-      time<-Sys.time()
-      out.file<-paste0('corateBM_',gsub(' |-|:','_',time))
-    }
-    directory<-dirname(out.file)
-    if(!file.exists(directory)){
-      directory.check<-dir.create(directory)
-      if(!directory.check){
-        stop('the directory for the output file could not be created: make sure you have permission to write in the specified directory and that there are no illegal characters or trailing spaces/periods')
-      }
-    }
-    file.strings<-paste0(gsub('\\.csv$','',out.file),c(paste0('_',1:nchain,'.csv'),'_info'))
-    if(check.overwrite){
-      existing.files<-list.files(directory)
-      file.strings.check<-sapply(basename(file.strings),'%in%',existing.files)
-      if(any(file.strings.check)){
-        readline('WARNING: running this function will overwrite existing files! Press Enter to continue or Esc to cancel')
-      }
-    }
-    file.check<-file.create(file.strings)
-    if(any(!file.check)){
-      stop('could not create test output files: check for any illegal characters or trailing spaces/periods')
-    }else{
-      file.remove(file.strings)
-    }
-    if(nchain==1){
-      out.file<-paste0(gsub('\\.csv$','',out.file),'_1.csv')
-    }
-    if(!grepl('\\.csv$',out.file)){
-      out.file<-paste0(out.file,'.csv')
-    }
-  }
-  
-  ##FINAL PRIOR/CONSTRAINT SETTINGS##
-  dat<-corateBM.form.dat$dat
-  #recheck for any inappropriately negative priors
-  for(i in c('X0.prior.sig','evosig2.prior','evocor.prior',
-             'R0.prior.sig','Rsig2.prior',
-             'intrasig2.prior','intracor.prior',
-             'Rmu.prior.sig')){
-    tmp<-get(i)
-    if(any(tmp<0)){
-      warning(i,' must consist of postive numbers: entries that were negative or 0 set to defaults',
-              immediate.=T)
-      if(length(tmp)==1){
-        tmp<-NULL
-      }else{
-        tmp[tmp<=0]<-NA
-      }
-      assign(i,tmp)
-    }
-  }
-  for(i in c('X0.prior.mu','X0.prior.sig','evosig2.prior','evocor.prior',
-             'R0.prior.mu','R0.prior.sig','Rsig2.prior',
-             'intrasig2.prior','intracor.prior',
-             'Rmu.prior.mu','Rmu.prior.sig')){
-    tmp<-get(i)
-    if(!is.null(tmp)){
-      if(!all(is.na(tmp))){
-        dat[[gsub('\\.','_',gsub('Ysig2','intrasig2',gsub('Xsig2','evosig2',i)))]]<-tmp
-      }
-    }
-  }
-  def.priors<-setNames(list(rep(0,dat$k),rep(50,dat$k),rep(1,dat$k),1,0,15,15,rep(25,dat$k),1,0,15),
-                       c('X0_prior_mu','X0_prior_sig','Xsig2_prior','Xcor_prior',
-                         'R0_prior_mu','R0_prior_sig','Rsig2_prior',
-                         'Ysig2_prior','Ycor_prior',
-                         'Rmu_prior_mu','Rmu_prior_sig'))
-  for(i in grep('prior',names(dat),value=T)){
-    if(is.null(dat[[i]])){
-      dat[[i]]<-def.priors[[i]]
-    }else if(any(is.na(dat[[i]]))){
-      dat[[i]]<-ifelse(is.na(dat[[i]]),def.priors[[i]],dat[[i]])
-    }
-  }
-  if(!is.null(constrain.Rsig2)){
-    dat$constr_Rsig2<-as.numeric(constrain.Rsig2)
-  }
-  if(!is.null(trend)){
-    dat$constr_Rmu<-as.numeric(!trend)
-  }
-  if(!is.null(lik.power)){
-    if(lik.power<0){
-      warning('likelihood powers must be 0 or positive: likelihood power set to default of 1 (i.e., sampling from normal posterior)',
-              immediate.=T)
-      lik.power<-1
-    }
-    dat$lik_power<-lik.power
-  }
-  intra.var<-any(grepl('X_id',names(dat)))
-  corateBM.form.dat$dat<-dat
-  
-  ##RUN MODEL##
-  exclude.pars<-c('std_R0','std_X0','std_Rsig2','std_Rmu','raw_R','trans_tp')
-  if(dat$constr_Rsig2){
-    exclude.pars<-c(exclude.pars,'Rsig2')
-  }
-  if(dat$constr_Rmu){
-    exclude.pars<-c(exclude.pars,'Rmu')
-  }
-  if(dat$constr_Rsig2&dat$constr_Rmu){
-    exclude.pars<-c(exclude.pars,'R')
-  }
-  if(intra.var){
-    exclude.pars<-c(exclude.pars,'std_Ysig2','raw_X','cent_Y')
-    if(dat$k>1){
-      exclude.pars<-c(exclude.pars,'std_Xsig2','Xsig2','Ysig2','Ycov')
-      stanobj<-'intravar_multivar_corateBM'
-    }else{
-      dat<-dat[-which(names(dat)%in%c('Xsig2_prior','Xcor_prior','Ycor_prior'))]
-      dat$Y<-as.vector(dat$Y)
-      stanobj<-'intravar_univar_corateBM'
-    }
-  }else{
-    dat<-dat[-which(names(dat)%in%c('Ysig2_prior','Ycor_prior'))]
-    if(dat$k>1){
-      exclude.pars<-c(exclude.pars,'std_Xsig2','Xsig2','Xcov')
-      stanobj<-'multivar_corateBM'
-    }else{
-      dat<-dat[-which(names(dat)%in%c('Xsig2_prior','Xcor_prior'))]
-      dat$Y<-as.vector(dat$Y)
-      stanobj<-'univar_corateBM'
-    }
-  }
-  
-  out<-list(return.as.obj=return.as.obj,stanobj=stanobj,dat=dat,exclude.pars=exclude.pars,out.file=out.file,
-            corateBM.form.dat=corateBM.form.dat)
-  if(!is.null(out.file)){
-    out<-c(out,file.strings=list(file.strings),directory=directory)
-  }
-  out
 }
 
 #corateBM.run can either be a character specifying the name of sampling files or an object (the output from corateBM.run)
@@ -486,6 +389,12 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
             immediate.=T)
   }
   
+  #consider missing Y (other than ones with tip priors) a form a data imputation--they are ignored when
+  #lik_power is 0... (BUT, if this is a hierarchical model, shouldn't the multinormal still be influential as
+  #a prior??? Ugh...)
+  #alright, no--unfortunately, missing data needs a proper prior to be valid. In practice, this means that each missing
+  #observation has to be initialized with a prior--might better hardcode this into the model later, but for now I'll just
+  #modify the  form.input function
   if(!checks[1]){
     if(is.null(dat)){
       missing.Y<-names(which(sapply(tip.names,function(ii) sum(rownames(call$trait.data)==ii))==0))
@@ -545,6 +454,7 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
   out$call$trait.data<-call$trait.data
   out$call$tip.prior.means<-call$tip.prior.means
   out$call$tip.prior.sd<-call$tip.prior.sd
+  #hmmmm...this relies on dat--it may be best just to prevent doing this when lacking dat altogether
   out$call$lik_power<-dat$lik_power
   
   #process/format output
@@ -760,22 +670,27 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
 #I think I fixed this by making sure a .csv is tacked onto the end of out.file if it doesn't already have it
 
 #' @export
-fit.corateBM<-function(tree,trait.data,intra.var=F,
+fit.corateBM<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
                        constrain.Rsig2=F,trend=F,lik.power=1,
                        return.as.obj=T,out.file=NULL,check.overwrite=T,...,
                        include.warmup=F,report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.MAPs=TRUE,report.devs=TRUE,
                        sampling.scale=F,
-                       X0.prior.mu=NULL,X0.prior.sig=NULL,evosig2.prior=NULL,evocor.prior=NULL,
+                       X0.prior.mu=NULL,X0.prior.sig=NULL,
+                       X.prior.mu=NULL,X.prior.sig=NULL,scale.X.prior=T,
+                       evosig2.prior=NULL,evocor.prior=NULL,
                        R0.prior.mu=NULL,R0.prior.sig=NULL,Rsig2.prior=NULL,
                        intrasig2.prior=NULL,intracor.prior=NULL,
                        Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
   if(sampling.scale){
-    input<-form.input(tree,trait.data,intra.var,
-                      constrain.Rsig2,trend,lik.power)
-  }else{
-    input<-form.input(tree,trait.data,intra.var,
+    input<-form.input(tree,trait.data,intra.var,ensure.prop.prior,
                       constrain.Rsig2,trend,lik.power,
-                      X0.prior.mu,X0.prior.sig,evosig2.prior,evocor.prior,
+                      X.prior.mu=X.prior.mu,X.prior.sig=X.prior.sig,scale.X.prior=rep(F,NCOL(trait.data)))
+  }else{
+    input<-form.input(tree,trait.data,intra.var,ensure.prop.prior,
+                      constrain.Rsig2,trend,lik.power,
+                      X0.prior.mu,X0.prior.sig,
+                      X.prior.mu,X.prior.sig,scale.X.prior,
+                      evosig2.prior,evocor.prior,
                       R0.prior.mu,R0.prior.sig,Rsig2.prior,
                       intrasig2.prior,intracor.prior,
                       Rmu.prior.mu,Rmu.prior.sig)
@@ -787,7 +702,8 @@ fit.corateBM<-function(tree,trait.data,intra.var=F,
   }
   prep<-.prep.run(input,return.as.obj,out.file,check.overwrite,nchain,
                   constrain.Rsig2,trend,lik.power,
-                  X0.prior.mu,X0.prior.sig,evosig2.prior,evocor.prior,
+                  X0.prior.mu,X0.prior.sig,
+                  evosig2.prior,evocor.prior,
                   R0.prior.mu,R0.prior.sig,Rsig2.prior,
                   intrasig2.prior,intracor.prior,
                   Rmu.prior.mu,Rmu.prior.sig)

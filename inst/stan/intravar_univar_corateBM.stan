@@ -59,7 +59,9 @@ data {
 
 transformed data {
   matrix[constr_Rsig2 ? 0:e, constr_Rsig2 ? 0:e] chol_eV; //cholesky decomp of edge variance-covariance matrix
-  vector[constr_Rmu ? 0:e] T_midpts; //overall 'height' of edge mid-points
+  vector[constr_Rmu ? 0:e] T_l; //"real" edge lengths
+  vector[constr_Rmu ? 0:e] T_1; //overall 'height' of edge ancestors
+  vector[constr_Rmu ? 0:e] T_2; //overall 'height' of edge descendants
   int preorder[n - 1]; //'cladewise' sequence of nodes excluding tips, numbered by ancestral edge
   int lik_pow_ind; //indicates if lik_power is 0
   int has_tp; //any tip priors?
@@ -71,7 +73,9 @@ transformed data {
     chol_eV = cholesky_decompose(eV);
   }
   if(!constr_Rmu){
-    T_midpts = diagonal(eV) + prune_T[real_e] / 6;
+    T_l = prune_T[real_e];
+    T_1 = diagonal(eV) - prune_T[real_e] / 3;
+    T_2 = diagonal(eV) + 2 * prune_T[real_e] / 3;
   }
   
   
@@ -140,9 +144,10 @@ transformed parameters {
   
   
   //R prior: multinormal(R0 + Rmu * T_midpts, Rsig2 * eV); Rsig2/Rmu = 0 when constrained
+  //trend now calc'd differently to reflect AM, rather than GM; follows early burst model formula
   R = rep_vector(R0, e);
   if(!constr_Rmu){
-    R = R + Rmu[1] * T_midpts;
+    R = R - log(fabs(Rmu[1])) - log(T_l) + log(fabs(exp(Rmu[1] * T_2) - exp(Rmu[1] * T_1)));
   }
   if(!constr_Rsig2){
     R = R + sqrt(Rsig2[1]) * chol_eV * raw_R;
@@ -153,15 +158,15 @@ transformed parameters {
   X = get_X(n, X0, prune_T, R, raw_X, preorder, real_e, des_e, tip_e);
   
   
-  if(lik_pow_ind){
-    //center tip means with priors based on tp_mu and scale based on tp_sig
-    if(has_tp){
-      trans_tp = (X[which_tp] - tp_mu) ./ tp_sig;
-    }
-    //center observations based on X
-    if(has_obs){
-      cent_Y = Y - X[X_id];
-    }
+  //center tip means with priors based on tp_mu and scale based on tp_sig
+  if(has_tp){
+    trans_tp = (X[which_tp] - tp_mu) ./ tp_sig;
+  }
+  
+  
+  //center observations based on X
+  if(has_obs && lik_pow_ind){
+    cent_Y = Y - X[X_id];
   }
 }
 
@@ -188,13 +193,15 @@ model {
 	raw_X ~ std_normal();
 	
 	
+	//tip priors
+	//transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
+	if(has_tp){
+	  target += -0.5 * dot_self(trans_tp);
+	}
+	
+	
 	//trait data
 	if(lik_pow_ind){
-	  //tip priors
-	  //transform adjust unneeded since tp_sig is fixed and therefore constant with respect to params
-	  if(has_tp){
-	    target += -0.5 * lik_power * dot_self(trans_tp);
-	  }
 	  //likelihood of Y
 	  if(has_obs){
 	    target += -0.5 * lik_power * (obs * log(Ysig2) + dot_self(cent_Y) / Ysig2);
