@@ -100,11 +100,11 @@ transformed data {
 
 parameters {
   //parameters on sampling scale: see below for parameter definitions
-  real std_R0;
-  vector[k] std_X0;
-  real<lower=0> std_Rsig2[constr_Rsig2 ? 0:1];
-  real std_Rmu[constr_Rmu ? 0:1];
-  vector<lower=0>[k] std_Xsig2;
+  real<lower=-pi()/2, upper=pi()/2> std_R0;
+  vector<lower=-pi()/2, upper=pi()/2>[k] std_X0;
+  real<lower=0, upper=pi()/2> std_Rsig2[constr_Rsig2 ? 0:1];
+  real<lower=-pi()/2, upper=pi()/2> std_Rmu[constr_Rmu ? 0:1];
+  simplex[k] std_Xsig2;
   cholesky_factor_corr[k] chol_Xcor; //evolutionary correlation matrix
   vector[constr_Rsig2 ? 0:e] raw_R;
   
@@ -125,16 +125,15 @@ transformed parameters {
   
   
   //high level priors
-  R0 = R0_prior_mu + R0_prior_sig * std_R0; //R0 prior: normal(R0_prior_mu, R0_prior_sig)
-  X0 = X0_prior_mu + X0_prior_sig .* std_X0; //X0 prior: normal(X0_prior_mu, X0_prior_sig)
+  R0 = R0_prior_mu + R0_prior_sig * tan(std_R0); //R0 prior: cauchy(R0_prior_mu, R0_prior_sig)
+  X0 = X0_prior_mu + X0_prior_sig .* tan(std_X0); //X0 prior: cauchy(X0_prior_mu, X0_prior_sig)
   if(!constr_Rsig2){
-    Rsig2[1] = Rsig2_prior * std_Rsig2[1]; //Rsig2 prior: half-normal(0, Rsig2_prior)
+    Rsig2[1] = Rsig2_prior * tan(std_Rsig2[1]); //Rsig2 prior: half-cauchy(0, Rsig2_prior)
   }
   if(!constr_Rmu){
-    Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * std_Rmu[1]; //Rmu prior: normal(Rmu_prior_mu, Rmu_prior_sig)
+    Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * tan(std_Rmu[1]); //Rmu prior: cauchy(Rmu_prior_mu, Rmu_prior_sig)
   }
-	Xsig2 = Xsig2_prior .* std_Xsig2; //Xsig2 prior: half-normal(0, Xsig2_prior)
-  Xsig2 = Xsig2 / mean(Xsig2); //standardize Xsig2 to be mean 1 (prevent rate unidentifiability)
+	Xsig2 = std_Xsig2 * k; //standardize Xsig2 to be mean 1
   
   
   //Xcov = sqrt(Xsig2') * Xcor * sqrt(Xsig2)
@@ -160,16 +159,8 @@ transformed parameters {
 }
 
 model {
-  //high level priors
-  std_R0 ~ std_normal();
-  std_X0 ~ std_normal();
-  if(!constr_Rsig2){
-    std_Rsig2[1] ~ std_normal();
-  }
-  if(!constr_Rmu){
-    std_Rmu[1] ~ std_normal();
-  }
-  std_Xsig2 ~ std_normal();
+  //Xsig2 prior: dirichlet(Xsig2_prior)
+  std_Xsig2 ~ dirichlet(Xsig2_prior);
   
   
   //Xcor prior: LKJcorr(Xcor_prior)

@@ -19,7 +19,7 @@ sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
   if(is.null(trait.names)){
     trait.names<-rep(NA,length.out=k)
   }
-  def.trait.names<-paste('X',1:k,sep='_')
+  def.trait.names<-paste('X',1:k,sep='')
   trait.names<-ifelse(is.na(trait.names),def.trait.names,trait.names)
   
   n<-length(tree$tip.label)

@@ -110,11 +110,11 @@ transformed data {
 
 parameters {
   //parameters on sampling scale: see below for parameter definitions
-  real std_R0;
-  real std_X0;
-  real<lower=0> std_Rsig2[constr_Rsig2 ? 0:1];
-  real std_Rmu[constr_Rmu ? 0:1];
-  real<lower=0> std_Ysig2;
+  real<lower=-pi()/2, upper=pi()/2> std_R0;
+  real<lower=-pi()/2, upper=pi()/2> std_X0;
+  real<lower=0, upper=pi()/2> std_Rsig2[constr_Rsig2 ? 0:1];
+  real<lower=-pi()/2, upper=pi()/2> std_Rmu[constr_Rmu ? 0:1];
+  real<lower=0, upper=pi()/2> std_Ysig2;
   vector[constr_Rsig2 ? 0:e] raw_R;
   vector[e] raw_X;
 }
@@ -132,15 +132,15 @@ transformed parameters {
   
   
   //high level priors
-  R0 = R0_prior_mu + R0_prior_sig * std_R0; //R0 prior: normal(R0_prior_mu, R0_prior_sig)
-  X0 = X0_prior_mu + X0_prior_sig * std_X0; //X0 prior: normal(X0_prior_mu, X0_prior_sig)
+  R0 = R0_prior_mu + R0_prior_sig * tan(std_R0); //R0 prior: cauchy(R0_prior_mu, R0_prior_sig)
+  X0 = X0_prior_mu + X0_prior_sig * tan(std_X0); //X0 prior: cauchy(X0_prior_mu, X0_prior_sig)
 	if(!constr_Rsig2){
-	  Rsig2[1] = Rsig2_prior * std_Rsig2[1]; //Rsig2 prior: half-normal(0, Rsig2_prior)
+	  Rsig2[1] = Rsig2_prior * tan(std_Rsig2[1]); //Rsig2 prior: half-cauchy(0, Rsig2_prior)
 	}
 	if(!constr_Rmu){
-	  Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * std_Rmu[1]; //Rmu prior: normal(Rmu_prior_mu, Rmu_prior_sig)
+	  Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * tan(std_Rmu[1]); //Rmu prior: cauchy(Rmu_prior_mu, Rmu_prior_sig)
 	}
-	Ysig2 = Ysig2_prior * std_Ysig2; //Ysig2 prior: half-normal(0, Ysig2_prior)
+	Ysig2 = Ysig2_prior * tan(std_Ysig2); //Ysig2 prior: half-cauchy(0, Ysig2_prior)
   
   
   //R prior: multinormal(R0 + Rmu * T_midpts, Rsig2 * eV); Rsig2/Rmu = 0 when constrained
@@ -171,18 +171,6 @@ transformed parameters {
 }
 
 model {
-  //high level priors
-  std_R0 ~ std_normal();
-  std_X0 ~ std_normal();
-  if(!constr_Rsig2){
-    std_Rsig2[1] ~ std_normal();
-  }
-  if(!constr_Rmu){
-    std_Rmu[1] ~ std_normal();
-  }
-  std_Ysig2 ~ std_normal();
-  
-  
   //'seed' for sampling from R prior: see above
 	if(!constr_Rsig2){
 	  raw_R ~ std_normal();

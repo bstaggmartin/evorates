@@ -52,12 +52,11 @@ get.trait.mat<-function(fit,tips=fit$call$tree$tip.label,traits=colnames(fit$cal
     }else if(element=='diagnostics'){
       stop('no tip mean parameters available: no associated parameter diagnostics to extract')
     }else{
-      warning('no tip mean parameters available: returning trait data')
-      out<-array(NA,c(n,k,1,1),list(parameters=tips,parameters=traits,iterations=NULL,chains=NULL))
+      warning('no tip mean parameters available: returning trait data in appropriately-sized array')
+      tmp<-do.call(paste('.int.',element,sep=''),list(fit=fit,select='R_0'))
     }
-  }else{
-    out<-array(NA,c(n,k,dim(tmp)[1],dim(tmp)[3]),c(parameters=list(tips),parameters=list(traits),dimnames(tmp)[c(1,3)]))
   }
+  out<-array(NA,c(n,k,dim(tmp)[1],dim(tmp)[3]),c(parameters=list(tips),parameters=list(traits),dimnames(tmp)[c(1,3)]))
   for(i in tips){
     for(j in traits){
       tmp.name<-paste(j,i,sep='_')

@@ -51,12 +51,12 @@
     tmp<-.int.chains(fit,select)
     chains.len<-dim(tmp)[1]
     nchain<-dim(tmp)[3]
-    lp<-.int.sampler(fit,'lp')
-    diags.len<-dim(lp)[1]
+    post<-.int.sampler(fit,'post')
+    diags.len<-dim(post)[1]
     if(diags.len-chains.len>0){
-      lp<-.index.element(lp,1:(diags.len-chains.len),1,T)
+      post<-.index.element(post,1:(diags.len-chains.len),1,T)
     }
-    MAP.inds<-sapply(1:nchain, function(ii) which.max(lp[,,ii]))
+    MAP.inds<-sapply(1:nchain, function(ii) which.max(post[,,ii]))
     out<-array(sapply(1:nchain,function(ii) tmp[MAP.inds[ii],,ii]),
                c(1,dim(tmp)[-1]),dimnames(tmp))
   }else{
@@ -69,8 +69,8 @@
 .int.sampler<-function(fit,select){
   fit[['sampler.params']]<-.expand.element(fit[['sampler.params']])
   if(is.numeric(select)){
-    select<-paste(c('accept_stat','stepsize','treedepth','n_leapfrog','diverget','energy','lp'),
-                  '__',sep='')[select]
+    select<-c(paste(c('accept_stat','stepsize','treedepth','n_leapfrog','diverget','energy'),
+                  '__',sep=''),c('prior','lik','post'))[select]
   }
   out<-.int.op(fit[['sampler.params']],select)
   out

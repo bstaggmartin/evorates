@@ -380,7 +380,6 @@
 .get.trans.const<-function(tree,Y,tp.mu,tp.sig,
                            X0.prior.mu=NULL,X0.prior.sig=NULL,
                            X.prior.mu=NULL,X.prior.sig=NULL,scale.X.prior=T,
-                           Xsig2.prior=NULL,
                            R0.prior.mu=NULL,Rsig2.prior=NULL,
                            Ysig2.prior=NULL,
                            Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
@@ -423,7 +422,7 @@
     X.prior.sig<-ifelse(is.na(X.prior.sig),NA,
                         ifelse(scale.X.prior,X.prior.sig/sqrt(trans.const$X_sig2),X.prior.sig))
   }
-  for(i in c('X0.prior.sig','Xsig2.prior','Ysig2.prior')){
+  for(i in c('X0.prior.sig','Ysig2.prior')){
     tmp<-get(i)
     if(!is.null(tmp)){
       tmp<-ifelse(is.na(tmp),NA,tmp/sqrt(trans.const$X_sig2))
@@ -436,7 +435,6 @@
   list(tree=tree,Y=Y,tp.mu=tp.mu,tp.sig=tp.sig,trans.const=trans.const,
        X0.prior.mu=X0.prior.mu,X0.prior.sig=X0.prior.sig,
        X.prior.mu=X.prior.mu,X.prior.sig=X.prior.sig,
-       Xsig2.prior=Xsig2.prior,
        R0.prior.mu=R0.prior.mu,Rsig2.prior=Rsig2.prior,
        Ysig2.prior=Ysig2.prior,
        Rmu.prior.mu=Rmu.prior.mu,Rmu.prior.sig=Rmu.prior.sig)
@@ -517,7 +515,7 @@
       }
     }
   }
-  def.priors<-setNames(list(rep(0,dat$k),rep(50,dat$k),rep(1,dat$k),1,0,15,15,rep(25,dat$k),1,0,15),
+  def.priors<-setNames(list(rep(0,dat$k),rep(100,dat$k),rep(1,dat$k),1,0,10,20,rep(50,dat$k),1,0,20),
                        c('X0_prior_mu','X0_prior_sig','Xsig2_prior','Xcor_prior',
                          'R0_prior_mu','R0_prior_sig','Rsig2_prior',
                          'Ysig2_prior','Ycor_prior',
@@ -527,6 +525,9 @@
       dat[[i]]<-def.priors[[i]]
     }else if(any(is.na(dat[[i]]))){
       dat[[i]]<-ifelse(is.na(dat[[i]]),def.priors[[i]],dat[[i]])
+    }
+    if(dat$k>1&i%in%c('X0_prior_mu','X0_prior_sig','Xsig2_prior','Ysig2_prior')){
+      dat[[i]]<-array(dat[[i]])
     }
   }
   if(!is.null(constrain.Rsig2)){
@@ -586,3 +587,285 @@
   }
   out
 }
+
+#shit, I would need a way to get the trait matrix...ugh!
+#I think...just run it at the end of the function. Stanfit should still be in memory, can just re-extract
+#less efficient but clean way to do it
+#I think the below should work
+.get.lik<-function(fit,stanfit,trans.const,dat){
+  trait.mat<-get.trait.mat(.coerce.fit(fit,stanfit,trans.const,dat),simplify=F)
+  dims<-dim(trait.mat)
+  n<-dims[1];k<-dims[2];iter<-dims[3];chains<-dims[4]
+  for(i in 1:k){
+    trait.mat[,i,,]<-(trait.mat[,i,,]-trans.const$X_0[i])/sqrt(trans.const$X_sig2)[i]
+  }
+  out<-matrix(NA,iter,chains)
+  #if intra.var, just a bunch multivariate normal liks
+  if(fit$call$intra.var){
+    foo<-function(iter,chain,cent.trait.data,inv.chol.intracov,obs,codes,n_code,log.dets){
+      trans.trait.data<-cent.trait.data[,,iter,chain]
+      for(i in 1:dat$n_code){
+        tmp<-as.matrix(cent.trait.data[obs[[i]],codes[[i]],iter,chain])
+        if(length(obs[[i]])==1){
+          tmp<-t(tmp)
+        }
+        trans.trait.data[obs[[i]],codes[[i]]]<-
+          tmp%*%
+          inv.chol.intracov[[i]][,,iter,chain]
+      }
+      sum(dnorm(trans.trait.data,log=T),na.rm=T)+sum(lengths(obs)*unlist(sapply(log.dets,'[[',iter,chain)))
+    }
+    chol.intracov<-extract(stanfit,"chol_Ycov",permute=F,inc_warmup=T)
+    #this is all  wrong, unfortunately--need to rework array management
+    #I think the below should work
+    inv.chol.intracov<-array(0,c(k,k,iter,chains))
+    for(i in 1:k){
+      for(j in 1:i){
+        inv.chol.intracov[j,i,,]<-as.vector(chol.intracov[,,paste('chol_Ycov[',j,',',i,']',sep='')])
+      }
+    }
+    inv.chol.intracov<-rep(list(inv.chol.intracov),dat$n_code)
+    log.dets<-vector('list',dat$n_code)
+    codes<-split(dat$code_key,rep(1:dat$n_code,dat$code_ks))
+    obs<-split(dat$obs_code,rep(1:dat$n_code,dat$code_sizes))
+    for(i in 1:dat$n_code){
+      inv.chol.intracov[[i]]<-inv.chol.intracov[[i]][codes[[i]],codes[[i]],,,drop=F]
+      inv.chol.intracov[[i]][,,,]<-unlist(lapply(asplit(inv.chol.intracov[[i]],c(3,4)),solve))
+      log.dets[[i]]<-apply(inv.chol.intracov[[i]],c(3,4),function(ii) log(prod(diag(ii))))
+    }
+    trait.data<-dat$Y
+    if(k>1){
+      trait.dat<-t(trait.data)
+    }
+    exp.trait.mat<-trait.mat[rownames(trait.data),,,,drop=F]
+    cent.trait.data<-exp.trait.mat
+    cent.trait.data[,,,]<-trait.data
+    cent.trait.data<-cent.trait.data-exp.trait.mat
+    for(i in 1:chains){
+      out[,i]<-unlist(lapply(1:iter,foo,i,cent.trait.data,inv.chol.intracov,obs,codes,dat$n_code,log.dets))
+    }
+  #if no intra.var, use pruning algorithm
+  }else{
+    out[,]<-.pruning.alg(trait.mat,fit,stanfit,dat,n,k,iter,chains)
+  }
+  out
+}
+
+#or, you could integrate the prior into the get.lik function, and return them both as a list?
+.get.prior<-function(fit,stanfit,trans.const,dat){
+  trait.mat<-get.trait.mat(.coerce.fit(fit,stanfit,trans.const,dat),simplify=F)
+  dims<-dim(trait.mat)
+  n<-dims[1];k<-dims[2];iter<-dims[3];chains<-dims[4]
+  for(i in 1:k){
+    trait.mat[,i,,]<-(trait.mat[,i,,]-trans.const$X_0[i])/sqrt(trans.const$X_sig2)[i]
+  }
+  out<-matrix(0,iter,chains)
+  #high level
+  R0<-extract(stanfit,"R0",permute=F,inc_warmup=T)
+  out[,]<-out+as.vector(dcauchy(R0,dat$R0_prior_mu,dat$R0_prior_sig,log=T))
+  X0<-extract(stanfit,"X0",permute=F,inc_warmup=T)
+  X0<-aperm(X0,c(1,3,2))
+  tmp<-X0
+  tmp[,,]<-dcauchy(X0,rep(dat$X0_prior_mu,each=iter),rep(dat$X0_prior_sig,each=iter),log=T)
+  out[,]<-out+as.vector(apply(tmp,c(1,3),sum))
+  if(fit$call$trend){
+    Rmu<-extract(stanfit,"Rmu",permute=F,inc_warmup=T)
+    out[,]<-out+as.vector(dcauchy(Rsig2,dat$Rmu_prior_mu,dat$Rmu_prior_sig,log=T))
+  }
+  if(!fit$call$constrain.Rsig2){
+    Rsig2<-extract(stanfit,"Rsig2",permute=F,inc_warmup=T)
+    out[,]<-out+as.vector(dcauchy(Rsig2,0,dat$Rsig2_prior,log=T))+log(2)
+    #R prior
+    invchol.eV<-solve(chol(dat$eV))
+    log.det<-sum(log(diag(invchol.eV)))
+    R<-extract(stanfit,"R",permute=F,inc_warmup=T)
+    mus<-sigs<-R
+    mus[,,]<-R0
+    sigs[,,]<-Rsig2
+    if(fit$call$trend){
+      Tl<-dat$prune_T[dat$real_e]
+      Tpts<-diag(dat$eV)
+      T1<-rep(Tpts-Tl/3,each=iter)
+      T2<-rep(Tpts+2*Tl/3,each=iter)
+      Tl<-rep(Tl,each=iter)
+      mus[,,]<- -log(abs(Rmu))-log(Tl)+log(abs(exp(Rmu*T2)-exp(Rmu*T1)))
+    }
+    mus<-aperm(mus,c(1,3,2))
+    sigs<-aperm(sigs,c(1,3,2))
+    R<-aperm(R,c(1,3,2))
+    tmp<-R
+    tmp[,,]<-unlist(lapply(1:chains,function(ii) ((R[,,ii]-mus[,,ii])/sqrt(sigs[,,ii]))%*%invchol.eV))
+    out[,]<-out+as.vector(apply(dnorm(tmp,log=T)-0.5*log(sigs),c(1,3),sum))+log.det
+  }
+  if(fit$call$intra.var){
+    #pruning alg if intravar
+    dat$postorder<-((2*n-2):1)[-((2*n-2)-dat$tip_e)]
+    out[,]<-out+as.vector(.pruning.alg(trait.mat,fit,stanfit,dat,n,k,iter,chains))
+    #intraspecific variance(s) prior
+    Ysig2<-extract(stanfit,"Ysig2",permute=F,inc_warmup=T)
+    Ysig2<-aperm(Ysig2,c(1,3,2))
+    tmp<-Ysig2
+    tmp[,,]<-dcauchy(X0,0,rep(dat$Ysig2_prior,each=iter),log=T)+log(2)
+    out[,]<-out+as.vector(apply(tmp,c(1,3),sum))
+    #intraspecific correlation prior
+    if(k>1){
+      chol.Ycor<-extract(stanfit,"chol_Ycor",permute=F,inc_warmup=T)
+      Ycor<-array(0,c(k,k,iter,chains))
+      for(i in 1:k){
+        for(j in 1:i){
+          Ycor[i,j,,]<-as.vector(chol.Ycor[,,paste('chol_Ycor[',i,',',j,']',sep='')])
+        }
+      }
+      Ycor[,,,]<-unlist(lapply(asplit(Ycor,c(3,4)),function(ii) ii%*%t(ii)))
+      out[,]<-out+unlist(lapply(1:chains,function(ii) dlkj(Ycor[,,,ii],dat$Ycor_prior,log=T)))
+    }
+  }
+  #if multivariate, evolutionary variances and correlation prior
+  if(k>1){
+    Xsig2<-extract(stanfit,"Xsig2",permute=F,inc_warmup=T)
+    Xsig2<-aperm(Xsig2,c(1,3,2))
+    Xsig2<-Xsig2/k
+    out[,]<-out+unlist(lapply(1:chains,function(ii) ddiri(Xsig2[,,ii],dat$Xsig2_prior,log=T)))
+    chol.Xcor<-extract(stanfit,"chol_Xcor",permute=F,inc_warmup=T)
+    Xcor<-array(0,c(k,k,iter,chains))
+    for(i in 1:k){
+      for(j in 1:i){
+        Xcor[i,j,,]<-as.vector(chol.Xcor[,,paste('chol_Xcor[',i,',',j,']',sep='')])
+      }
+    }
+    Xcor[,,,]<-unlist(lapply(asplit(Xcor,c(3,4)),function(ii) ii%*%t(ii)))
+    out[,]<-out+unlist(lapply(1:chains,function(ii) dlkj(Xcor[,,,ii],dat$Xcor_prior,log=T)))
+  }
+  #tip priors
+  if(length(fit$call$tip.prior.means)>0){
+    if(fit$call$intra.var){
+      #technically inefficient, but just to make sure all indices line up...
+      if(k>1){
+        X<-extract(stanfit,"X",permute=F,inc_warmup=T)
+        new.X<-array(0,c(n,k,iter,chains))
+        for(i in 1:n){
+          for(j in 1:k){
+            new.X[i,j,,]<-as.vector(X[,,paste('X[',j,',',i,']',sep='')])
+          }
+        }
+        fac<-rep(1:k,n_tp)
+        which_tps<-split(dat$which_tp,fac)
+        tp_mus<-split(dat$tp_mu,fac)
+        tp_sigs<-split(dat$tp_sig,fac)
+        tmp<-array(0,c(iter,n,chains))
+        for(i in 1:k){
+          ind<-as.character(i)
+          if(length(which_tps[[ind]])>0){
+            tmp[,,]<-aperm(X[,i,,],c(2,1,3))
+            tmp[,,]<-dnorm(tmp[,which_tps[[ind]],],rep(tp_mus[[ind]],each=iter),rep(tp_sigs[[ind]],each=iter),log=T)
+            out[,]<-out+as.vector(apply(tmp,c(1,3),sum))
+          }
+        }
+      }else{
+        X<-extract(stanfit,"X",permute=F,inc_warmup=T)
+        X<-aperm(X,c(1,3,2))
+        tmp<-X
+        tmp[,,]<-dnorm(X[,dat$which_tp,],rep(dat$tp_mu,each=iter),rep(dat$tp_sig,each=iter),log=T)
+        out[,]<-out+as.vector(apply(tmp,c(1,3),sum))
+      }
+    }else{
+      misY<-extract(stanfit,"mis_Y",permute=F,inc_warmup=T)
+      misY<-aperm(misY,c(1,3,2))
+      tmp<-misY
+      tmp[,,]<-dnorm(misY[,dat$which_tp,],rep(dat$tp_mu,each=iter),rep(dat$tp_sig,each=iter),log=T)
+      out[,]<-out+as.vector(apply(tmp,c(1,3),sum))
+    }
+  }
+  out
+}
+
+.pruning.alg<-function(trait.mat,fit,stanfit,dat,n,k,iter,chains){
+  foo<-function(iter,chain,contra,inv.evocov){
+    tmp.contra<-contra[,iter,chain]
+    tmp.evocov<-inv.evocov[,,iter,chain]
+    t(tmp.contra)%*%tmp.evocov%*%tmp.contra
+  }
+  if(k>1){
+    chol.evocov<-extract(stanfit,"chol_Xcov",permute=F,inc_warmup=T)
+    inv.evocov<-array(0,c(k,k,iter,chains))
+    for(i in 1:k){
+      for(j in 1:i){
+        inv.evocov[j,i,,]<-as.vector(chol.evocov[,,paste('chol_Ycov[',j,',',i,']',sep='')])
+      }
+    }
+    log.dets<-apply(evocov,c(3,4),function(ii) log(det(ii)))
+    inv.evocov[,,,]<-unlist(lapply(asplit(inv.evocov,c(3,4)),function(ii) solve(t(ii)%*%ii)))
+  }else{
+    log.dets<-0
+  }
+  if(!fit$call$constrain.Rsig2|fit$call$trend){
+    R<-extract(stanfit,"R",permute=F,inc_warmup=T)
+    R<-aperm(R,c(1,3,2))
+  }else{
+    R<-extact(stanfit,"R_0",permute=F,inc_warmup=T)
+    R<-aperm(array(R,dim=c(iter,chains,length(dat$real_e))),c(1,3,2))
+  }
+  X0<-extract(stanfit,"X0",permute=F,inc_warmup=T)
+  X0<-aperm(X0,c(3,1,2))
+  TT<-dat$prune_T
+  SS<-array(0,dim=c(2*n-1,iter,chains))
+  VV<-SS
+  SS[dat$real_e,,]<-exp(aperm(R,c(2,1,3)))*TT[dat$real_e]
+  XX<-array(NA,dim=c(k,2*n-1,iter,chains))
+  XX[,dat$tip_e,,]<-aperm(trait.mat,c(2,1,3,4))
+  tmp.contra<-array(NA,dim=c(iter,chains))
+  LL<-array(NA,dim=c(length(dat$postorder),iter,chains))
+  counter<-0
+  contra<-array(NA,dim=c(k,iter,chains))
+  sum.Vs<-array(NA,dim=c(iter,chains))
+  for(i in dat$postorder){
+    des.X<-XX[,dat$des_e[i,],,,drop=F]
+    des.V<-VV[dat$des_e[i,],,,drop=F]+SS[dat$des_e[i,],,,drop=F]
+    contra[,,]<-des.X[,2,,]-des.X[,1,,]
+    if(k>1){
+      for(j in 1:chains){
+        tmp.contra[,j]<-unlist(lapply(1:iter,foo,chain=j,contra=contra,inv.evocov=inv.evocov))
+      }
+    }else{
+      tmp.contra[,]<-contra^2
+    }
+    sum.Vs[,]<-des.V[1,,]+des.V[2,,]
+    counter<-counter+1
+    LL[counter,,]<- -0.5*(k*log(sum.Vs)+tmp.contra/sum.Vs)
+    XX[,i,,]<-rep(des.V[2,,]/sum.Vs,each=k)*des.X[,1,,]+rep(des.V[1,,]/sum.Vs,each=k)*des.X[,2,,]
+    VV[i,,]<-1/(1/des.V[1,,]+1/des.V[2,,])
+  }
+  contra[,,]<-as.vector(XX[,1,,])-X0
+  if(k>1){
+    for(j in 1:chains){
+      tmp.contra[,j]<-unlist(lapply(1:iter,foo,chain=j,contra=contra,inv.evocov=inv.evocov))
+    }
+  }else{
+    tmp.contra[,]<-contra^2
+  }
+  apply(LL,c(2,3),sum)-0.5*(n*log.dets+k*log(VV[1,,])+tmp.contra/VV[1,,])
+}
+
+.coerce.fit<-function(fit,stanfit,trans.const,dat){
+  tip.names<-fit$call$tree$tip.label
+  trait.names<-colnames(fit$call$trait.data)
+  n<-length(tip.names);k<-length(trait.names);iter<-fit$sampler.control$iter;chains<-fit$sampler.control$chains
+  X.param.names<-paste(rep(trait.names,n),'_',rep(tip.names,each=k),sep='')
+  new.chains<-array(NA,c(iter,n*k+1,chains),
+                    list(iterations=NULL,parameters=c(X.param.names,'R_0'),chains=paste('chains',1:chains)))
+  if(fit$call$intra.var){
+    out.X<-extract(stanfit,"X",permute=F,inc_warmup=T)*
+      rep(sqrt(trans.const$X_sig2),each=iter*chains)+rep(trans.const$X_0,each=iter*chains)
+    new.chains[,X.param.names,]<-aperm(out.X,c(1,3,2))
+  }else if(length(dat$which_mis)>0){
+    mis.Y<-extract(stanfit,"mis_Y",permute=F,inc_warmup=T)*
+      rep(sqrt(trans.const$X_sig2),iter*chains*dat$k_mis)+rep(trans.const$X_0,iter*chains*dat$k_mis)
+    tmp<-(dat$which_mis-1)*k+rep(1:k,dat$k_mis)
+    new.chains[,X.param.names[tmp],]<-aperm(mis.Y,c(1,3,2))
+  }
+  new.chains[,'R_0',]<-extract(stanfit,"R0",permute=F,inc_warmup=T)
+  incl.inds<-which(apply(new.chains[,,1],2,function(ii) !all(is.na(ii))))
+  fit$chains<-.index.element(new.chains,incl.inds,2)
+  fit
+}
+#need to have someway to specify graphing of sampler.params with trace.plot/prof.plot?

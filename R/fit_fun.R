@@ -68,7 +68,6 @@ form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
   tmp<-.get.trans.const(tree,Y,tp.mu,tp.sig,
                         X0.prior.mu,X0.prior.sig,
                         X.prior.mu,X.prior.sig,scale.X.prior,
-                        Xsig2.prior,
                         R0.prior.mu,Rsig2.prior,
                         Ysig2.prior,
                         Rmu.prior.mu,Rmu.prior.sig)
@@ -89,7 +88,7 @@ form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
     if(is.null(X.prior.sig)){
       X.prior.sig<-rep(NA,k)
     }
-    X.prior.sig<-ifelse(is.na(X.prior.sig),100,X.prior.sig)
+    X.prior.sig<-ifelse(is.na(X.prior.sig),200,X.prior.sig)
     missing.tp<-tree$tip.label[!(tree$tip.label%in%rownames(Y))&!(tree$tip.label%in%rownames(tp.mu))]
     if(length(missing.tp)>0){
       tmp.mu<-matrix(rep(X.prior.mu,each=length(missing.tp)),length(missing.tp),k)
@@ -109,12 +108,7 @@ form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
     call$tip.prior.means<-call.tp.mu
     call$tip.prior.sd<-call.tp.sig
   }
-  # if(constrain.Rsig2){
-  #   eV<-matrix(0,e,e)
-  #   diag(eV)<-node.depth.edgelength(tree)[tree$edge[,2]]-2*tree$edge.length/3
-  # }else{
   eV<-edge.vcv(tree)
-  # }
   #missing data
   if(intra.var){
     if(length(Y)==0){
@@ -364,7 +358,7 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
     trans.const<-.get.trans.const(call$tree,call$trait.data,call$tip.prior.means,call$tip.prior.sd)$trans.const
   }
   if(is.null(dat)){
-    warning('no information on the inputted stan data were provided: as a result, the model output does not report priors (I would REALLY try to get this information if I were you!)')
+    stop('no information on the inputted stan data were provided: please recheck provided filenames and/or R objects')
   }
   
   n<-length(call$tree$tip.label)
@@ -437,14 +431,13 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
     niter<-sampler.args$iter-sampler.args$warmup+1
     excl.iter<-2:sampler.args$warmup
   }
-  lp<-extract(stanfit,"lp__",permute=F,inc_warmup=T)
-  sampler.params<-array(NA,c(sampler.args$iter,7,nchain))
+  sampler.params<-array(NA,c(sampler.args$iter,9,nchain))
   dimnames(sampler.params)<-list(iterations=NULL,
-                                 parameters=c(names(attr(stanfit@sim$samples[[1]],'sampler_params')),'lp__'),
+                                 parameters=c(names(attr(stanfit@sim$samples[[1]],'sampler_params')),
+                                              'prior','lik','post'),
                                  chains=paste('chain',1:nchain))
   for(i in 1:nchain){
-    sampler.params[,,i]<-as.matrix(do.call(cbind,
-                                           c(attr(stanfit@sim$samples[[i]],'sampler_params'),list(lp[,i,]))))
+    sampler.params[,1:6,i]<-unlist(attr(stanfit@sim$samples[[i]],'sampler_params'))
   }
   out<-list(sampler.control=sampler.args[-2],sampler.params=sampler.params)
   out$call$intra.var<-unname(checks[1])
@@ -610,6 +603,11 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
   out$param.diags[2,,]<-apply(out$chains,c(2,3),rstan::ess_bulk)
   out$param.diags[3,,]<-apply(out$chains,c(2,3),rstan::ess_tail)
   out$param.diags[4,,]<-apply(out$chains,c(2,3),rstan::Rhat)
+  
+  #get prior, likelihood, and posterior
+  out$sampler.params[,7,]<-.get.prior(out,stanfit,trans.const,dat)
+  out$sampler.params[,8,]<-.get.lik(out,stanfit,trans.const,dat)
+  out$sampler.params[,9,]<-out$sampler.params[,7,]+out$sampler.params[,8,]
   
   #add quantiles
   if(!is.null(report.quantiles)){
