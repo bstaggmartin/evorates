@@ -80,7 +80,7 @@ form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
   n<-length(tree$tip.label)
   e<-nrow(tree$edge)
   k<-ncol(Y)
-  if(!intra.var&ensure.prop.prior){
+  if(ensure.prop.prior){
     if(is.null(X.prior.mu)){
       X.prior.mu<-rep(NA,k)
     }
@@ -88,12 +88,20 @@ form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
     if(is.null(X.prior.sig)){
       X.prior.sig<-rep(NA,k)
     }
-    X.prior.sig<-ifelse(is.na(X.prior.sig),200,X.prior.sig)
-    missing.tp<-tree$tip.label[!(tree$tip.label%in%rownames(Y))&!(tree$tip.label%in%rownames(tp.mu))]
-    if(length(missing.tp)>0){
-      tmp.mu<-matrix(rep(X.prior.mu,each=length(missing.tp)),length(missing.tp),k)
-      tmp.sig<-matrix(rep(X.prior.sig,each=length(missing.tp)),length(missing.tp),k)
-      rownames(tmp.mu)<-rownames(tmp.sig)<-missing.tp
+    X.prior.sig<-ifelse(is.na(X.prior.sig),100,X.prior.sig)
+    if(!intra.var){
+      missing.tp<-tree$tip.label[!(tree$tip.label%in%rownames(Y))&!(tree$tip.label%in%rownames(tp.mu))]
+      if(length(missing.tp)>0){
+        tmp.mu<-matrix(rep(X.prior.mu,each=length(missing.tp)),length(missing.tp),k)
+        tmp.sig<-matrix(rep(X.prior.sig,each=length(missing.tp)),length(missing.tp),k)
+        rownames(tmp.mu)<-rownames(tmp.sig)<-missing.tp
+        tp.mu<-rbind(tp.mu,tmp.mu)
+        tp.sig<-rbind(tp.sig,tmp.sig)
+      }
+    }else{
+      tmp.mu<-matrix(rep(X.prior.mu,each=n),n,k)
+      tmp.sig<-matrix(rep(X.prior.sig,each=n),n,k)
+      rownames(tmp.mu)<-rownames(tmp.sig)<-tree$tip.label
       tp.mu<-rbind(tp.mu,tmp.mu)
       tp.sig<-rbind(tp.sig,tmp.sig)
     }
@@ -219,7 +227,7 @@ form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
   #final data list
   dat<-list(n=n,e=e,k=k,Y=t(Y),eV=eV,
             n_tp=n_tp,which_tp=which_tp,tp_mu=tp_mu,tp_sig=tp_sig,
-            prune_T=prune_T,des_e=des_e,tip_e=tip_e,real_e=real_e,
+            prune_T=prune_T,des_e=des_e,tip_e=tip_e,real_e=real_e,postorder=postorder,
             X0_prior_mu=X0.prior.mu,X0_prior_sig=X0.prior.sig,Xsig2_prior=Xsig2.prior,Xcor_prior=evocor.prior,
             R0_prior_mu=R0.prior.mu,R0_prior_sig=R0.prior.sig,Rsig2_prior=Rsig2.prior,
             Ysig2_prior=Ysig2.prior,Ycor_prior=intracor.prior,
@@ -233,7 +241,7 @@ form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
                    list(n_code=n_code,code_sizes=code_sizes,obs_code=obs_code,code_ks=array(code_ks),code_key=code_key))
     }
   }else{
-    extra.dat<-list(k_mis=k_mis,which_mis=which_mis,postorder=postorder)
+    extra.dat<-list(k_mis=k_mis,which_mis=which_mis)
   }
   dat<-c(dat,extra.dat)
   
@@ -258,7 +266,8 @@ run.corateBM<-function(corateBM.form.dat,return.as.obj=T,out.file=NULL,check.ove
                        evosig2.prior=NULL,evocor.prior=NULL,
                        R0.prior.mu=NULL,R0.prior.sig=NULL,Rsig2.prior=NULL,
                        intrasig2.prior=NULL,intracor.prior=NULL,
-                       Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
+                       Rmu.prior.mu=NULL,Rmu.prior.sig=NULL,
+                       centered=F){
   if(hasArg(chains)){
     nchain<-list(...)$chains
   }else{
@@ -271,6 +280,11 @@ run.corateBM<-function(corateBM.form.dat,return.as.obj=T,out.file=NULL,check.ove
                   R0.prior.mu,R0.prior.sig,Rsig2.prior,
                   intrasig2.prior,intracor.prior,
                   Rmu.prior.mu,Rmu.prior.sig)
+  if(centered&grepl('intravar',prep$stanobj)){
+    prep$stanobj<-paste(prep$stanobj,'_centered',sep='')
+  }else{
+    warning('centered parameterizations not allowed for models without intraspecific variation')
+  }
   if(return.as.obj){
     ret<-sampling(object=stanmodels[[prep$stanobj]],data=prep$dat,
                   pars=prep$exclude.pars,include=F,sample_file=prep$out.file,...)
@@ -439,6 +453,9 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
   for(i in 1:nchain){
     sampler.params[,1:6,i]<-unlist(attr(stanfit@sim$samples[[i]],'sampler_params'))
   }
+  sampler.params[,7,]<-extract(stanfit,"prior",permute=F,inc_warmup=T)
+  sampler.params[,8,]<-extract(stanfit,"lik",permute=F,inc_warmup=T)
+  sampler.params[,9,]<-sampler.params[,7,]+dat$lik_power*sampler.params[,8,]
   out<-list(sampler.control=sampler.args[-2],sampler.params=sampler.params)
   out$call$intra.var<-unname(checks[1])
   out$call$constrain.Rsig2<-unname(checks[2])
@@ -603,11 +620,6 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
   out$param.diags[2,,]<-apply(out$chains,c(2,3),rstan::ess_bulk)
   out$param.diags[3,,]<-apply(out$chains,c(2,3),rstan::ess_tail)
   out$param.diags[4,,]<-apply(out$chains,c(2,3),rstan::Rhat)
-  
-  #get prior, likelihood, and posterior
-  out$sampler.params[,7,]<-.get.prior(out,stanfit,trans.const,dat)
-  out$sampler.params[,8,]<-.get.lik(out,stanfit,trans.const,dat)
-  out$sampler.params[,9,]<-out$sampler.params[,7,]+out$sampler.params[,8,]
   
   #add quantiles
   if(!is.null(report.quantiles)){

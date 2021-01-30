@@ -226,7 +226,19 @@
 #' collapsing any dimensions of length 1 and storing associated name information in attributes.
 #' 
 #' 
-#' @details These operators become really useful with some knowledge on how to use regular expressions.
+#' @details Note that finding MAP estimates is not the goal of Bayesian inference per se. This is especially
+#' true of evolving rates models, in which the posterior probability may be inflated towards infinity by
+#' sampling edgewise rates from multivariate normal distributions with small covariance matrices (to see why,
+#' think about what the probability density of 0 is for a normal distribution with mean and standard deviation
+#' 0). The reason this region of parameter space doesn't dominate the posterior is that it's incredibly narrow,
+#' and therefore doesn't meaningfully contribute to the overall posterior probability \emph{integrating over
+#' parameter space}. However, because of this, MAPs will always be associated with tiny \code{R_sig2} values.
+#' This is a feature of just about any hierarchical Bayesian model. Nonetheless, this function is provided for
+#' convenience--it may be useful in situation where \code{R_sig2} is constrained to be 0, as in Brownian Motion
+#' and Early Burst models.
+#' 
+#' 
+#' These operators become really useful with some knowledge on how to use regular expressions.
 #' Please consult Rstudio's
 #' \href{https://rstudio.com/wp-content/uploads/2016/09/RegExCheatsheet.pdf}{Regular Expressions Cheat Sheet}
 #' to learn more about regular expressions.
@@ -244,17 +256,6 @@
 #' Since rate deviation parameters are oftentimes redundant with rate parameters, parameter names ending in
 #' "\code{_dev}" are by default excluded unless text with "\code{dev}" is explicitly included at the end of a
 #' text element the select argument.
-#' 
-#' Note that finding the maximum a posteriori (MAP) parameter estimates is not the goal of Bayesian inference
-#' per se, and that there is no guaruntee that MAP parameter estimates for a given chain will even be close to
-#' the "true" MAP, even if the chain otherwise seems "healthy". In the package author's experience, passing a
-#' correlated rate Brownian Motion model to the \code{rstan} function \code{optimizing} indeed appears to
-#' frequently find narrow posterior probability 'peaks' that substantially exceed the highest posterior
-#' probabilities found via \code{fit.corateBM}. These peaks conincide with similar parameter estimates to the
-#' output of \code{fit.corateBM} but with inflated \code{R_sig2} estimates (often substantially exceeding
-#' simulated values). Nonetheless, some users may find that MAP parameter estimates provide interesting
-#' information about the posterior distribution surface and/or the model fit, particularly in cases where
-#' they drastically differ from posterior distribution means.
 #' 
 #' 
 #' @family corateBM_fit operators
@@ -287,9 +288,10 @@
 #' Extract MCMC sampler parameters from a fitted correlated rates Brownian Motion model
 #'
 #'
-#' This is an operator for efficiently extracting parameters used to tune the behavior of the stan-based
-#' Markov chain Monte Carlo (MCMC) sampler from output of the function \code{fit.corateBM}. Helpful for
-#' assessing problematic MCMC behavior.
+#' This is an operator for efficiently extracting parameters used to tune the behavior of the Stan-based
+#' Markov chain Monte Carlo (MCMC) sampler from \code{corateBM_fit} object, as well as prior probabilities
+#' and likelihoods associated with samples. Helpful for assessing MCMC behavior and potentially calculating
+#' marginal likelihoods, among other things.
 #'
 #'
 #' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
@@ -306,8 +308,14 @@
 #' 
 #' 
 #' @details The names of the available parameters are "\code{accept_stat__}", "\code{stepsize__}",
-#' "\code{treedepth__}", "\code{n_leapfrog__}", "\code{divergent__}", "\code{energy__}", and "\code{lp__}",
-#' in that order. See Stan documentation for more information on what these parameters mean.
+#' "\code{treedepth__}", "\code{n_leapfrog__}", "\code{divergent__}", "\code{energy__}", "\code{prior}",
+#' "\code{lik}", and "\code{ost}", in that order. See Stan documentation for more information on what the
+#' first 6 parameters mean. \code{prior} is the (ln) prior probability of all parameter estimates, while
+#' \code{lik} is the (ln) likelihood of the data given the parameter estimates. Both of these are on the
+#' scale of the transformed data, and therefore differ from the "true" (ln) prior probability and
+#' likelihood by a constant. \code{post} is simply calculated by summing \code{prior} and
+#' \code{lik.power * lik}. \code{post} is distinct from Stan's "\code{lp__}", which is calculated with
+#' respect to a reparameterized sampling scale used by Stan internally.
 #' 
 #' 
 #' @family corateBM_fit operators

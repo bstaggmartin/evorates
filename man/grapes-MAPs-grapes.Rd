@@ -24,6 +24,18 @@ highest posterior probability for each chain in the output of the function \code
 require a pre-stored \code{MAPs} element.
 }
 \details{
+Note that finding MAP estimates is not the goal of Bayesian inference per se. This is especially
+true of evolving rates models, in which the posterior probability may be inflated towards infinity by
+sampling edgewise rates from multivariate normal distributions with small covariance matrices (to see why,
+think about what the probability density of 0 is for a normal distribution with mean and standard deviation
+0). The reason this region of parameter space doesn't dominate the posterior is that it's incredibly narrow,
+and therefore doesn't meaningfully contribute to the overall posterior probability \emph{integrating over
+parameter space}. However, because of this, MAPs will always be associated with tiny \code{R_sig2} values.
+This is a feature of just about any hierarchical Bayesian model. Nonetheless, this function is provided for
+convenience--it may be useful in situation where \code{R_sig2} is constrained to be 0, as in Brownian Motion
+and Early Burst models.
+
+
 These operators become really useful with some knowledge on how to use regular expressions.
 Please consult Rstudio's
 \href{https://rstudio.com/wp-content/uploads/2016/09/RegExCheatsheet.pdf}{Regular Expressions Cheat Sheet}
@@ -42,17 +54,6 @@ also use "\code{\\\\,}" to do encode regular expression searches of the form "\c
 Since rate deviation parameters are oftentimes redundant with rate parameters, parameter names ending in
 "\code{_dev}" are by default excluded unless text with "\code{dev}" is explicitly included at the end of a
 text element the select argument.
-
-Note that finding the maximum a posteriori (MAP) parameter estimates is not the goal of Bayesian inference
-per se, and that there is no guaruntee that MAP parameter estimates for a given chain will even be close to
-the "true" MAP, even if the chain otherwise seems "healthy". In the package author's experience, passing a
-correlated rate Brownian Motion model to the \code{rstan} function \code{optimizing} indeed appears to
-frequently find narrow posterior probability 'peaks' that substantially exceed the highest posterior
-probabilities found via \code{fit.corateBM}. These peaks conincide with similar parameter estimates to the
-output of \code{fit.corateBM} but with inflated \code{R_sig2} estimates (often substantially exceeding
-simulated values). Nonetheless, some users may find that MAP parameter estimates provide interesting
-information about the posterior distribution surface and/or the model fit, particularly in cases where
-they drastically differ from posterior distribution means.
 }
 \examples{
 #requires example fitted model object

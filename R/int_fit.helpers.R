@@ -515,7 +515,7 @@
       }
     }
   }
-  def.priors<-setNames(list(rep(0,dat$k),rep(100,dat$k),rep(1,dat$k),1,0,10,20,rep(50,dat$k),1,0,20),
+  def.priors<-setNames(list(rep(0,dat$k),rep(20,dat$k),rep(1,dat$k),1,0,10,10,rep(10,dat$k),1,0,10),
                        c('X0_prior_mu','X0_prior_sig','Xsig2_prior','Xcor_prior',
                          'R0_prior_mu','R0_prior_sig','Rsig2_prior',
                          'Ysig2_prior','Ycor_prior',

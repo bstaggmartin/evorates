@@ -21,14 +21,21 @@ information in attributes. Note that sampler parameters include warmup iteration
 iterations included in output from the \code{\%sampler\%} operator.
 }
 \description{
-This is an operator for efficiently extracting parameters used to tune the behavior of the stan-based
-Markov chain Monte Carlo (MCMC) sampler from output of the function \code{fit.corateBM}. Helpful for
-assessing problematic MCMC behavior.
+This is an operator for efficiently extracting parameters used to tune the behavior of the Stan-based
+Markov chain Monte Carlo (MCMC) sampler from \code{corateBM_fit} object, as well as prior probabilities
+and likelihoods associated with samples. Helpful for assessing MCMC behavior and potentially calculating
+marginal likelihoods, among other things.
 }
 \details{
 The names of the available parameters are "\code{accept_stat__}", "\code{stepsize__}",
-"\code{treedepth__}", "\code{n_leapfrog__}", "\code{divergent__}", "\code{energy__}", and "\code{lp__}",
-in that order. See Stan documentation for more information on what these parameters mean.
+"\code{treedepth__}", "\code{n_leapfrog__}", "\code{divergent__}", "\code{energy__}", "\code{prior}",
+"\code{lik}", and "\code{ost}", in that order. See Stan documentation for more information on what the
+first 6 parameters mean. \code{prior} is the (ln) prior probability of all parameter estimates, while
+\code{lik} is the (ln) likelihood of the data given the parameter estimates. Both of these are on the
+scale of the transformed data, and therefore differ from the "true" (ln) prior probability and
+likelihood by a constant. \code{post} is simply calculated by summing \code{prior} and
+\code{lik.power * lik}. \code{post} is distinct from Stan's "\code{lp__}", which is calculated with
+respect to a reparameterized sampling scale used by Stan internally.
 }
 \examples{
 #requires example fitted model object
