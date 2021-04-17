@@ -1,5 +1,6 @@
 #make an argument for where to cap off legend/plot title for a given number of parameters
 #extra argument to combine chains, if desired?
+#col and border applies to parameters, angle and density apply to chains
 #' @export
 prof.plot<-function(in.x,p=0.05,col=palette(),exp=F,sqrt=F,
                          lower.quant=NULL,upper.quant=NULL,lower.cut=NULL,upper.cut=NULL,smooth=F,add=F,
@@ -22,20 +23,23 @@ prof.plot<-function(in.x,p=0.05,col=palette(),exp=F,sqrt=F,
   if(is.list(in.x)|is.character(in.x)|length(in.x)==1){
     x<-.combine.elements(in.x,fit,element='chains',simplify=F)
   }else if(is.numeric(in.x)){
-    if(all(round(in.x)==in.x)){
+    #this will break if provided vector is named, but that should be relatively rare, I think
+    if(is.vector(in.x)&is.null(attributes(in.x))){
       x<-.int.chains(fit,in.x)
     }else{
       x<-.expand.element(in.x)
     }
-  }
-  if(exp){
-    x<-exp(x)
+  }else{
+    stop('Input not recognized.')
   }
   if(sqrt){
     if(any(x<0)){
       warning()
     }
     x<-sqrt(x)
+  }
+  if(exp){
+    x<-exp(x)
   }
   param.names<-dimnames(x)[which(names(dimnames(x))=='parameters')]
   if(length(param.names)>1){
@@ -47,6 +51,7 @@ prof.plot<-function(in.x,p=0.05,col=palette(),exp=F,sqrt=F,
   }else{
     param.names<-param.names[[1]]
   }
+  param.names<-gsub('%(-|/|\\+|\\*)%',' \\1 ',param.names)
   if(smooth){
     bw<-do.call(density.default,c(x=list(x),
                                   list(...)[!(names(list(...))%in%c('x'))&
@@ -109,10 +114,11 @@ prof.plot<-function(in.x,p=0.05,col=palette(),exp=F,sqrt=F,
               list(...)[!(names(list(...))%in%c('x','col','xlim','ylim','xlab','ylab'))&
                           names(list(...))%in%c(plot.args,gen.args)]))
   }
-  p<-rep(p,length.out=length(param.names))
   if(is.null(p)){
     probs<-rep(NA,length.out=length(param.names))
+    probs<-cbind(probs,probs)
   }else{
+    p<-rep(p,length.out=length(param.names))
     probs<-matrix(c(0,1)+c(1,-1)*rep(p,each=2)/2,length(param.names),2,byrow=T)
   }
   if(!is.null(lower.quant)){
@@ -123,7 +129,7 @@ prof.plot<-function(in.x,p=0.05,col=palette(),exp=F,sqrt=F,
     upper.quant<-rep(upper.quant,length.out=length(param.names))
     probs[!is.na(upper.quant),2]<-upper.quant[!is.na(upper.quant)]
   }
-  cuts<-t(mapply(quantile,x=asplit(x,(1:length(dim(x)))[-1]),probs=asplit(probs,1)))
+  cuts<-t(mapply(quantile,x=asplit(x,(1:length(dim(x)))[-1]),probs=asplit(probs,1),na.rm=T))
   if(!is.null(lower.cut)){
     lower.cut<-rep(lower.cut,length.out=length(param.names))
     cuts[!is.na(lower.cut),1]<-lower.cut[!is.na(lower.cut)]
@@ -256,14 +262,13 @@ prof.plot<-function(in.x,p=0.05,col=palette(),exp=F,sqrt=F,
     legend.args$density<-NULL
     legend.args$angle<-NULL
     if(length(param.names)>1){
-      legend.args$legend<-gsub('%(-|/|\\+|\\*)%',' \\1 ',param.names)
+      legend.args$legend<-param.names
       legend.args$fill<-col[1:length(param.names)]
       legend.args$border<-border[1:length(param.names)]
       legend.args$density<-rep(density[1],length(param.names))
       legend.args$angle<-rep(angle[1],length(param.names))
     }
     if(length(tmp)/length(param.names)>1){
-      chain.names<-dimnames(x)[[which(names(dimnames(x))=='chains')]]
       legend.args$legend<-c(legend.args$legend,chain.names)
       legend.args$fill<-c(legend.args$fill,rep(col[1],length(chain.names)))
       legend.args$border<-c(legend.args$border,rep(border[1],length(chain.names)))

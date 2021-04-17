@@ -2,12 +2,12 @@
 
 #include <Rcpp.h>
 using namespace Rcpp ;
-#include "stanExports_intravar_univar_corateBM_centered.h"
+#include "stanExports_univar_evorates.h"
 
-RCPP_MODULE(stan_fit4intravar_univar_corateBM_centered_mod) {
+RCPP_MODULE(stan_fit4univar_evorates_mod) {
 
 
-    class_<rstan::stan_fit<stan_model, boost::random::ecuyer1988> >("model_intravar_univar_corateBM_centered")
+    class_<rstan::stan_fit<stan_model, boost::random::ecuyer1988> >("model_univar_evorates")
 
     .constructor<SEXP,SEXP,SEXP>()
 

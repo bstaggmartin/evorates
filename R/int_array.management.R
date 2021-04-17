@@ -93,7 +93,7 @@
 .simplify.element<-function(arr){
   old.dimnames<-dimnames(arr)
   old.dims<-dim(arr)
-  out<-do.call('[',c(list(arr),lapply(old.dims,function(ii) 1:ii)))
+  out<-do.call('[',c(list(arr),lapply(old.dims,function(ii) -(ii+1))))
   for(i in 1:length(old.dims)){
     if(old.dims[i]==1){
       if(!is.null(old.dimnames[[i]])){
@@ -115,6 +115,7 @@
 
 #newest, generalized version of reduce.array--selects indices from arbitrary arrays without
 #simplification or destroying names
+#tehcnically, this can be done with [,,...,drop=F], but I didn't know that at the time...
 .index.element<-function(arr,inds,dims,invert=F,allow.reorder=F){
   inds.list<-vector('list',length(dim(arr)))
   if(is.numeric(inds)){
@@ -159,7 +160,10 @@
   dim1<-setNames(dim(arr)[1],names(dimnames(arr))[1])
   if(names(dim1)=='iterations'){
     if(dim1>1){
-      if(grepl(paste(paste0(c('^accept_stat','stepsize','treedepth','n_leapfrog','divergent','energy','lp'),'__$'),collapse='|^'),dimnames(arr)[[2]])){
+      sampler.names<-paste(c(paste0(c('^accept_stat','stepsize','treedepth','n_leapfrog','divergent','energy'),'__$'),
+                             'prior$','lik$','post$')
+                           ,collapse='|^')
+      if(grepl(sampler.names,dimnames(arr)[[2]])){
         out<-'sampler'
       }else{
         out<-'chains'
@@ -215,10 +219,13 @@
     params<-params[-which(types=='select')]
     types<-types[-which(types=='select')]
   }
+  #getting provided parameters
   params[types=='element']<-lapply(params[types=='element'],function(ii) .coerce.to.3D(.expand.element(ii)))
   select.params<-NULL
+  #getting parameters selected by characters/numbers
   if(sum(types=='select')>0){
     select<-unlist(params[types=='select'])
+    #trying to find right element to use if none provided
     if(is.null(element)){
       if(sum(types=='element')>0){
         element.types<-sapply(params[types=='element'],.get.element.type)
@@ -284,9 +291,11 @@
     }
     names(out.dimnames)<-c(names(dimnames(out[[1]]))[1],'parameters','chains')
     out.arr<-array(NA,out.dim,out.dimnames)
+    counter<-0
     for(i in 1:length(out)){
-      tmp.param.names<-dimnames(out[[i]])[[2]]
-      out.arr[,tmp.param.names,]<-out[[i]]
+      tmp.dim<-dim(out[[i]])[2]
+      out.arr[,counter+1:tmp.dim,]<-out[[i]]
+      counter<-counter+tmp.dim
     }
     out<-out.arr
   }

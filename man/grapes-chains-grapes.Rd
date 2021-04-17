@@ -9,10 +9,13 @@ fit \%chains\% select
 \arguments{
 \item{fit}{An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.}
 
-\item{select}{A character or numeric vector. If of class character, the given text is matched to parameter
+\item{select}{A list with two elements: 1) A character or numeric vector. If of class character, the given
+text is matched to parameter
 names using regular expressions. If of class numeric, the numbers are matched to indices of rate parameters
 ("\code{R_i}"), including the root ("\code{R_0}"). Exhibits special behavior with regards to rate deviation
-parameters ("\code{R_i_dev}") and commas ("\code{,}"); see details below.}
+parameters ("\code{R_i_dev}") and commas ("\code{,}"); see details below. 2) A numeric vector of positive
+integers less than the total amount of iterations in the chain specifying particular iterations to extract
+from the chain. If unsupplied, all iterations will be extracted.}
 }
 \value{
 A numeric vector, matrix, or 3D array. The dimensions will always go in the order of iterations,
@@ -52,6 +55,8 @@ example.fit\%chains\%'X2,X1_evocov'
 #'dev' behavior
 example.fit\%chains\%'.' #all parameters EXCEPT for rate deviation parameters
 example.fit\%chains\%c('.','dev') #all parameters
+#non-default iteration extraction
+example.fit\%xchains\%list('R_0',c(23,45,52))
 
 
 }

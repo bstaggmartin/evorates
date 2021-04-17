@@ -1,4 +1,4 @@
-#allow for simultaneously getting multiple clades via passing a list to node?
+#allow for simultaneously getting multiple clades via passing a list to node? --> done
 #' @export
 get.bg.rate<-function(fit,node=NULL,element=c('chains','quantiles','means','MAPs'),edge.group=NULL,
                       name=NULL,select.extra=NULL,simplify=T){

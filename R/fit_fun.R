@@ -1,212 +1,169 @@
-#need to have some handlers to make sure lik_power greater than 0 and T/F values are T/F
-#need to add support for forcing proper priors, i.e., making sure any missing data has an associated prior, coded via an
-#X.prior.mu and X.prior.sig, handled in much the same way as X0.prior.mu and X0.prior.sig
+#new plan (only thinking univariate-ly for now):
+##trait.data and trait.se are separate objects
+##Still must be labelled
+##Can be named vectors, rownamed column matrices, or data.frames with a "tip.label" column
+##NAs in trait.data are taken to be missing data (coded internally as 0)
+##NAs in SE are taken to indicate unfixed SEs to be estimated during model fitting (coded internally as -1)
+##Infs in SE are taken to indicate missing data (coded internally as -2)
+##After coercing trait.data and trait.se to rownamed matrices...
+####First make sure tree and trait.data is alright--lump together tips separated by 0 distance, remove trait.data with no
+######corresponding tip
+####Priority of conflicts for SE handling:
+########tips with intra-tip observations (>1 observations) and non-unfixed SEs return warnings and set SEs to unfixed
+########tips with any observations (>0 observations) and infinite SEs return warnings and set SEs to unfixed
+########tips with no observations (0 observations) and a non-infinite SE return warnings and set SEs to infinite
+####After making these corrections, check for any double SE specification in which there are two valid SEs specified for
+######the same tip, and return error if found
+##Additionally, might be good to make T/F "switch" that instead estimates fixed SE for each tip using intra-tip observations and
+###using these as fixed SEs, rather than estimating them during model fitting
+####Will need to have an additional argument specifying how to handle tips with single observations in this case
+########Probably just something you can set to NA (for unfixing these) or some number (for default SE)
+########Maybe NULL will use max SD found when calculating SEs for other tips?
+##Handle priors with ...?
+##Technically, standard errors in this context are standard variance --> should probably square given SEs to make this less
+###confusing.
 #' @export
-form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
-                     constrain.Rsig2=F,trend=F,lik.power=1,
-                     X0.prior.mu=NULL,X0.prior.sig=NULL,
-                     X.prior.mu=NULL,X.prior.sig=NULL,scale.X.prior=T,
-                     evosig2.prior=NULL,evocor.prior=NULL,
-                     R0.prior.mu=NULL,R0.prior.sig=NULL,Rsig2.prior=NULL,
-                     intrasig2.prior=NULL,intracor.prior=NULL,
-                     Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
-  
+input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend=FALSE,lik.power=1,sampling.scale=FALSE,
+                         ...){
   ##INITIAL DATA/PRIOR CLEAN-UP##
   #make sure any prior scale parameters are positive
-  for(i in c('X0.prior.sig',
-             'X.prior.sig',
-             'evosig2.prior','evocor.prior',
-             'R0.prior.sig','Rsig2.prior',
-             'intrasig2.prior','intracor.prior',
-             'Rmu.prior.sig')){
-    tmp<-get(i)
-    if(any(tmp<0)){
-      warning(i,' must consist of postive numbers: entries that were negative or 0 set to defaults',
-              immediate.=T)
-      if(length(tmp)==1){
-        tmp<-NULL
-      }else{
-        tmp[tmp<=0]<-NA
-      }
-      assign(i,tmp)
-    }
-  }
-  if(lik.power<0){
-    warning('likelihood powers must be 0 or positive: likelihood power set to default of 1 (i.e., sampling from normal posterior)',
-            immediate.=T)
-    lik.power<-1
-  }
-  #coerce trait.data into numeric matrix, make priors match it
-  tmp<-.format.trait.data(trait.data,
-                          X0.prior.mu,X0.prior.sig,
-                          X.prior.mu,X.prior.sig,scale.X.prior,
-                          evosig2.prior,
-                          intrasig2.prior,tree)
-  for(i in names(tmp)){
-    assign(i,tmp[[i]])
+  prior.list<-do.call(.make.prior.list,list(...))
+  #coerce trait.data and trait.se to rownamed matrices
+  trait.data<-.coerce.trait.mat(trait.data)
+  if(!is.null(trait.se)){
+    trait.se<-.coerce.trait.mat(trait.se)
   }
   #coerce tree to be compatible (collapse internal 0-length edges to polytomies, identical tips to single tips)
-  tmp<-.format.tree(tree,Y)
-  for(i in names(tmp)){
-    assign(i,tmp[[i]])
+  tmp<-.coerce.tree(tree,trait.data,trait.se)
+  tree<-tmp$tree
+  trait.data<-tmp$trait.data
+  trait.se<-tmp$trait.se
+  #check for "nits" (labels in trait info found to be NNNot IIIn TTTree)
+  tmp<-sapply(rownames(trait.data),function(ii) ii%in%tree$tip.label)
+  conflicts_nits<-rownames(trait.data)[!tmp]
+  if(length(conflicts_nits)>0){
+    trait.data<-trait.data[tmp,,drop=FALSE]
+    warning('No tip in tree matched with label(s) ',
+            paste(conflicts_nits,collapse=', '),
+            ' in trait.data: values with aforementioned label(s) removed.',
+            immediate.=TRUE)
   }
-  if(!is.null(scale.X.prior)){
-    scale.X.prior[is.na(scale.X.prior)]<-T
-  }
-  #split tip priors out from trait.data and clean everything up (tip prior mus must have sigs, if intra.var is
-  #FALSE a tip cannot be assigned data and a tip prior)
-  tmp<-.split.tp(Y,tree,intra.var)
-  for(i in names(tmp)){
-    assign(i,tmp[[i]])
-  }
-  if(length(Y)==0&length(tp.mu)==0){
-    stop('no valid trait data was provided')
-  }
-  call<-list(tree=tree,trait.data=Y,tip.prior.means=tp.mu,tip.prior.sd=tp.sig)
-  
-  ##DATA/PRIOR TRANSFORMATIONS##
-  tmp<-.get.trans.const(tree,Y,tp.mu,tp.sig,
-                        X0.prior.mu,X0.prior.sig,
-                        X.prior.mu,X.prior.sig,scale.X.prior,
-                        R0.prior.mu,Rsig2.prior,
-                        Ysig2.prior,
-                        Rmu.prior.mu,Rmu.prior.sig)
-  for(i in names(tmp)){
-    assign(i,tmp[[i]])
+  tmp<-sapply(rownames(trait.se),function(ii) ii%in%tree$tip.label)
+  conflicts_nits<-rownames(trait.se)[!tmp]
+  if(length(conflicts_nits)>0){
+    trait.se<-trait.se[tmp,,drop=FALSE]
+    warning('No tip in tree matched with label(s) ',
+            paste(conflicts_nits,collapse=', '),
+            ' in trait.se: standard errors with aforementioned label(s) removed.',
+            immediate.=TRUE)
   }
   
-  ##FORMAT DATA FOR STAN##
-  #basics
+  
+  ##TRAIT INFO##
   n<-length(tree$tip.label)
   e<-nrow(tree$edge)
-  k<-ncol(Y)
-  if(ensure.prop.prior){
-    if(is.null(X.prior.mu)){
-      X.prior.mu<-rep(NA,k)
-    }
-    X.prior.mu<-ifelse(is.na(X.prior.mu),0,X.prior.mu)
-    if(is.null(X.prior.sig)){
-      X.prior.sig<-rep(NA,k)
-    }
-    X.prior.sig<-ifelse(is.na(X.prior.sig),100,X.prior.sig)
-    if(!intra.var){
-      missing.tp<-tree$tip.label[!(tree$tip.label%in%rownames(Y))&!(tree$tip.label%in%rownames(tp.mu))]
-      if(length(missing.tp)>0){
-        tmp.mu<-matrix(rep(X.prior.mu,each=length(missing.tp)),length(missing.tp),k)
-        tmp.sig<-matrix(rep(X.prior.sig,each=length(missing.tp)),length(missing.tp),k)
-        rownames(tmp.mu)<-rownames(tmp.sig)<-missing.tp
-        tp.mu<-rbind(tp.mu,tmp.mu)
-        tp.sig<-rbind(tp.sig,tmp.sig)
-      }
+  parsed.trait.data<-split(trait.data,rownames(trait.data))
+  #return NA is every trait val is NA, otherwise ignore NA entries
+  foo<-function(x){
+    if(all(is.na(x))){
+      NA
     }else{
-      tmp.mu<-matrix(rep(X.prior.mu,each=n),n,k)
-      tmp.sig<-matrix(rep(X.prior.sig,each=n),n,k)
-      rownames(tmp.mu)<-rownames(tmp.sig)<-tree$tip.label
-      tp.mu<-rbind(tp.mu,tmp.mu)
-      tp.sig<-rbind(tp.sig,tmp.sig)
+      mean(x,na.rm=TRUE)
     }
-    call.tp.mu<-tp.mu
-    call.tp.sig<-tp.sig
-    for(i in 1:k){
-      tp.mu[is.na(tp.mu[,i]),i]<-X.prior.mu[i]
-      tp.mu[is.na(tp.sig[,i]),i]<-X.prior.sig[i]
-      call.tp.mu[,i]<-tp.mu[,i]*sqrt(trans.const$X_sig2[i])+trans.const$X_0[i]
-      call.tp.sig[,i]<-tp.sig[,i]*sqrt(trans.const$X_sig2[i])
-    }
-    call$tip.prior.means<-call.tp.mu
-    call$tip.prior.sd<-call.tp.sig
   }
+  X<-as.matrix(sapply(parsed.trait.data,foo)[tree$tip.label])
+  n_obs<-lengths(parsed.trait.data)[tree$tip.label]
+  X[is.na(X)]<-n_obs[is.na(X)]<-0
+  perc_mis<-sum(n_obs==0)/n
+  if(perc_mis==1){
+    stop('No trait information provided: please double-check input and labelling.')
+  }
+  #will have to change this a bit for the multivariate case
+  if(perc_mis>0.25){
+    warning('You are about to run a model with greater than ',
+            floor(perc_mis*100),
+            '% of the tips missing trait information: this can be done, but it could indicate some problems with input/labelling.',
+            immediate.=TRUE)
+  }
+  has_intra<-n_obs>1
+  mis<-n_obs==0
+  p_SE<-rep(-1,n)
+  p_SE[mis]<- -2
+  names(X)<-names(n_obs)<-names(p_SE)<-tree$tip.label
+  if(length(trait.se)>0){
+    #make sure SE info doesn't have any conflicts with trait info
+    p_SE<-.coerce.trait.se(trait.se,p_SE,has_intra,mis)
+  }
+  p_SE[p_SE>0]<-p_SE[p_SE>0]^2
+  inv_n_obs<-1/n_obs
+  n_contra<-sum(lengths(parsed.trait.data)-1)
+  foo<-function(x){
+    l<-length(x)
+    if(l==1){
+      NULL
+    }else{
+      tmp.seq<-seq_along(x)
+      rbind(x[-1]-cumsum(x[-l])/tmp.seq[-l],tmp.seq[-1]/tmp.seq[-l])
+    }
+  }
+  tmp<-do.call(cbind,lapply(parsed.trait.data,foo))
+  if(length(tmp)==0){
+    contra<-contra_var<-vector('numeric',0)
+  }else{
+    contra<-tmp[1,]
+    contra_var<-tmp[2,]
+  }
+  which_mis_SE<-which(p_SE==-1)
+  n_mis_SE<-length(which_mis_SE)
+  
+  
+  ##FORM CALL##
+  out.trait.se<-as.matrix(p_SE)
+  out.trait.se[out.trait.se==-1]<-NA
+  out.trait.se[out.trait.se==-2]<-Inf
+  call<-list(trait.data=trait.data,trait.se=out.trait.se,tree=tree)
+  
+  
+  ##TRANSFORMATION CONSTANTS##
+  if(hasArg(phy.sd)){
+    phy.sd<-list(...)$phy.sd
+  }else{
+    phy.sd<-TRUE
+  }
+  trans.const<-.get.trans.const(tree,X,mis,phy.sd=phy.sd)
+  tree$edge.length<-tree$edge.length/trans.const$hgt
+  for(i in 1:ncol(X)){
+    X[,i]<-X[,i]/sqrt(trans.const$X_sig2[i])
+  }
+  #not prepped for multivariate data
+  p_SE[p_SE>0]<-p_SE[p_SE>0]/trans.const$X_sig2[1]
+  if(length(contra)>1){
+    contra<-contra/sqrt(trans.const$X_sig2[1])
+  }
+  if(!sampling.scale){
+    if(!is.null(prior.list$Ysig2_prior_sig)){
+      prior.list$Ysig2_prior_sig<-prior.list$Ysig2_prior_sig/trans.const$X_sig2
+    }
+    if(!is.null(prior.list$R0_prior_mu)){
+      prior.list$R0_prior_mu<-prior.list$R0_prior_mu+log(trans.const$hgt)-log(mean(trans.const$X_sig2))
+    }
+    for(i in c('Rsig2_prior_sig','Rmu_prior_mu','Rmu_prior_sig')){
+      if(!is.null(prior.list[[i]])){
+        prior.list[[i]]<-prior.list[[i]]*trans.const$hgt
+      }
+    }
+  }
+  
+  
+  ##TREE INFO##
   eV<-edge.vcv(tree)
-  #missing data
-  if(intra.var){
-    if(length(Y)==0){
-      obs<-n_code<-0
-      X_id<-code_sizes<-obs_code<-code_ks<-code_key<-integer(0)
-    }else{
-      obs<-nrow(Y)
-      is.obs<-!as.matrix(apply(Y,1,is.na))
-      if(k>1){
-        is.obs<-t(is.obs)
-      }
-      if(obs==1){
-        rownames(is.obs)<-rownames(Y)
-      }
-      codes<-apply(is.obs,1,function(ii) sum(ii*10^((length(ii)-1):0)))
-      X_id<-match(rownames(Y),tree$tip.label)
-      code_sizes<-tapply(codes,codes,length)
-      obs_code<-unlist(lapply(names(code_sizes),function(ii) which(codes==as.numeric(ii))))
-      names(code_sizes)<-paste(lapply(k-nchar(names(code_sizes)),function(ii) paste(rep(0,ii),collapse='')),
-                               names(code_sizes),sep='')
-      n_code<-length(code_sizes)
-      parsed.codes<-gregexpr('1',names(code_sizes))
-      code_ks<-lengths(parsed.codes)
-      code_key<-unlist(parsed.codes)
-      Y[!is.obs]<-0
-    }
-  }else{
-    missing.Y<-names(which(sapply(tree$tip.label,function(ii) sum(rownames(Y)==ii))==0))
-    Y<-do.call(rbind,c(list(Y),setNames(rep(list(NA),length(missing.Y)),missing.Y)))
-    Y<-Y[tree$tip.label,,drop=F]
-    is.obs<-!as.matrix(apply(Y,1,is.na))
-    if(k>1){
-      is.obs<-t(is.obs)
-    }
-    if(nrow(Y)==1){
-      rownames(is.obs)<-rownames(Y)
-    }
-    which_mis<-lapply(asplit(Y,2),function(ii) which(is.na(ii)))
-    if(length(which_mis)==0){
-      k_mis<-rep(0,k)
-    }else{
-      k_mis<-lengths(which_mis)
-      which_mis<-unlist(which_mis)
-    }
-    Y[!is.obs]<-0
-  }
-  #tip priors
-  if(length(tp.mu)>0){
-    if(intra.var){
-      n_tp<-rep(NA,k)
-      which_tp<-vector('list',k)
-      for(i in 1:k){
-        tmp<-!is.na(tp.mu[,i])
-        n_tp[i]<-sum(tmp)
-        which_tp[[i]]<-match(rownames(tp.mu)[tmp],tree$tip.label)
-      }
-      which_tp<-unlist(which_tp)
-      tp_mu<-as.vector(tp.mu[!is.na(tp.mu)])
-      tp_sig<-as.vector(tp.sig[!is.na(tp.mu)])
-    }else{
-      inds<-which(!is.na(tp.mu),arr.ind=T)
-      inds<-paste(colnames(tp.mu)[inds[,2]],rownames(tp.mu)[inds[,1]],sep='.')
-      n_tp<-length(inds)
-      which_tp<-match(inds,names(which_mis))
-      tp_mu<-as.vector(tp.mu[!is.na(tp.mu)])
-      tp_sig<-as.vector(tp.sig[!is.na(tp.mu)])
-    }
-  }else{
-    if(intra.var){
-      n_tp<-rep(0,k)
-    }else{
-      n_tp<-0
-    }
-    which_tp<-integer(0)
-    tp_mu<-numeric(0)
-    tp_sig<-numeric(0)
-  }
-  #tree
-  #ah, figured out the source of the issue, the below function does not work when some of the polytomies
-  #lead to tips...
-  #this actually seems to work, not sure what was going on earlier?
-  #figured it out! Needs better way to handle the root edge if it's a polytomy...
-  #is.binary is FALSE for a tree with three edges coming off root? Should work now...
   poly.nodes<-which(sapply(1:max(tree$edge),function(ii) length(which(ii==tree$edge[,1])))>2)
   if(length(poly.nodes)>0){
     d_poly<-lapply(poly.nodes,function(ii) which(ii==tree$edge[,1]))
     tmp<-sort(unlist(lapply(d_poly,function(ii) ii[seq(2,length(ii)-1)])))
     tmp<-tmp+0:(length(tmp)-1)
     real_e<-(1:(2*n-2))[-tmp]+1
-    tree<-multi2di(tree,random=F)
+    tree<-multi2di(tree,random=FALSE)
   }else{
     real_e<-1:e+1
   }
@@ -214,44 +171,65 @@ form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
   tip_e<-which(lengths(des_e)==0)
   tip_e<-tip_e[order(tree$edge[tip_e,2])]
   des_e[tip_e]<-list(rep(-1,2))
-  des_e<-matrix(unlist(des_e),ncol=2,byrow=T)
+  des_e<-matrix(unlist(des_e),ncol=2,byrow=TRUE)
   root.edges<-which(tree$edge[,1]==n+1)+1
   des_e<-rbind(root.edges,des_e)
   prune_T<-c(0,tree$edge.length)
+  which_0tip<-which(prune_T[real_e]==0)
+  n_0tip<-length(which_0tip)
   postorder<-((2*n-2):1)[-((2*n-2)-tip_e)]
   tip_e<-tip_e+1
-  #misc
-  constr_Rsig2<-as.numeric(constrain.Rsig2)
-  constr_Rmu<-as.numeric(!trend)
-  lik_power<-lik.power
-  #final data list
-  dat<-list(n=n,e=e,k=k,Y=t(Y),eV=eV,
-            n_tp=n_tp,which_tp=which_tp,tp_mu=tp_mu,tp_sig=tp_sig,
-            prune_T=prune_T,des_e=des_e,tip_e=tip_e,real_e=real_e,postorder=postorder,
-            X0_prior_mu=X0.prior.mu,X0_prior_sig=X0.prior.sig,Xsig2_prior=Xsig2.prior,Xcor_prior=evocor.prior,
-            R0_prior_mu=R0.prior.mu,R0_prior_sig=R0.prior.sig,Rsig2_prior=Rsig2.prior,
-            Ysig2_prior=Ysig2.prior,Ycor_prior=intracor.prior,
-            Rmu_prior_mu=Rmu.prior.mu,Rmu_prior_sig=Rmu.prior.sig,
-            constr_Rsig2=constr_Rsig2,constr_Rmu=constr_Rmu,
-            lik_power=lik_power)
-  if(intra.var){
-    extra.dat<-list(obs=obs,X_id=X_id)
-    if(k>1){
-      extra.dat<-c(extra.dat,
-                   list(n_code=n_code,code_sizes=code_sizes,obs_code=obs_code,code_ks=array(code_ks),code_key=code_key))
+  XX<-vector('logical',2*n-1)
+  XX[tip_e]<-ifelse(p_SE==-2,FALSE,TRUE)
+  mis_code<-vector('numeric',n-1)
+  which_non_mis<-vector('list',n-1)
+  counter<-0
+  for(i in postorder){
+    des_X<-XX[des_e[i,]]
+    counter<-counter+1
+    mis_code[counter]<-sum(des_X)
+    if(mis_code[counter]==0){
+      XX[i]<-FALSE
+      which_non_mis[[counter]]<-numeric(0)
+    }else if(mis_code[counter]==1){
+      XX[i]<-TRUE
+      which_non_mis[[counter]]<-which(des_X)
+    }else if(mis_code[counter]==2){
+      XX[i]<-TRUE
+      which_non_mis[[counter]]<-c(1,2)
     }
-  }else{
-    extra.dat<-list(k_mis=k_mis,which_mis=which_mis)
   }
-  dat<-c(dat,extra.dat)
+  n_mis_2<-sum(mis_code==2)
+  which_non_mis<-unlist(which_non_mis[mis_code==1])
+  if(is.null(which_non_mis)){
+    which_non_mis<-vector('integer',0)
+  }
+  n_mis_1<-length(which_non_mis)
   
-  ##OUTPUT##
+  
+  ##PUTTING IT ALL TOGETHER##
+  dat<-list('n'=n,'e'=e,'eV'=eV,'prune_T'=prune_T,'des_e'=des_e,'tip_e'=tip_e,'real_e'=real_e,'postorder'=postorder,
+            'n_0tip'=n_0tip,'which_0tip'=which_0tip,
+            'mis_code'=mis_code,'n_mis_2'=n_mis_2,'n_mis_1'=n_mis_1,'which_non_mis'=array(which_non_mis),
+            'X'=as.vector(X),'p_SE'=p_SE,'inv_n_obs'=inv_n_obs,'n_contra'=n_contra,'contra'=contra,'contra_var'=contra_var,
+            'n_mis_SE'=n_mis_SE,'which_mis_SE'=which_mis_SE)
+  dat<-c(dat,prior.list)
+  dat$constr_Rsig2<-as.numeric(constrain.Rsig2)
+  dat$constr_Rmu<-as.numeric(!trend)
+  if(lik.power<0){
+    warning('lik.power must be 0 or positive: set to default of 1.',
+            immediate.=TRUE)
+    lik.power<-1
+  }
+  dat$lik_power<-lik.power
   list(call=call,trans.const=trans.const,dat=dat)
 }
 
 #kinda a shitty output when sampling prior --> maybe change some priors to normal dists or tighten them?
 #Ysig2 --> 5/10, X0 --> 10/20, R0 --> 7, Rsig2 --> Rmu --> 10
 #maybe keep things as they are but drop the cauchy...
+#2/12/21 update: tightening priors isn't a bad idea, but changing from cauchy to normal priors made things
+##substantially slower and worse--need the flexibility in priors with such a limited data scenario
 #might want to add better handling of extra stan arguments (don't allow exclude_pars, include, or chain_id 
 #[I think this will break later functions?])
 #So new behavior: if return.as.obj is FALSE, results are always saved as files. If out.file isn't NULL,
@@ -260,40 +238,46 @@ form.input<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
 #better way to explain it: files will not be saved unless out.file isn't NULL; however, if return.as.obj is
 #FALSE, a name for out.file will automatically be picked based on time/date
 #' @export
-run.corateBM<-function(corateBM.form.dat,return.as.obj=T,out.file=NULL,check.overwrite=T,...,
-                       constrain.Rsig2=NULL,trend=NULL,lik.power=NULL,
-                       X0.prior.mu=NULL,X0.prior.sig=NULL,
-                       evosig2.prior=NULL,evocor.prior=NULL,
-                       R0.prior.mu=NULL,R0.prior.sig=NULL,Rsig2.prior=NULL,
-                       intrasig2.prior=NULL,intracor.prior=NULL,
-                       Rmu.prior.mu=NULL,Rmu.prior.sig=NULL,
-                       centered=F){
-  if(hasArg(chains)){
-    nchain<-list(...)$chains
+run.evorates<-function(input.evorates.obj,return.as.obj=TRUE,out.file=NULL,check.overwrite=TRUE,
+                       constrain.Rsig2=FALSE,trend=FALSE,lik.power=1,...){
+  stan.args.list<-list(...)
+  if(length(stan.args.list)>0){
+    prior.args.names<-c('^(R[\\._]?0).*((mu)|(mean))','(R[\\._]?0).*((sig)|(sd))',
+                        '^((intra)|(Y))[\\._]?((sig2)|(var))',
+                        '^R[\\._]?((sig2)|(var))',
+                        '^((R[\\._]?mu)|(trend)).*((mu)|(mean))','^((R[\\._]?mu)|(trend)).*((sig)|(sd))')
+    which.prior.args<-apply(do.call(cbind,lapply(prior.args.names,grepl,x=names(stan.args.list))),1,any)
+    stan.args.list<-stan.args.list[!which.prior.args]
+    stan.args.list<-stan.args.list[!(names(stan.args.list)%in%
+                                       c('object','data','pars','include','sample_file','chain_id','save_warmup'))]
+  }
+  if(!is.null(stan.args.list$chains)){
+    nchain<-stan.args.list$chains
   }else{
     nchain<-4
   }
-  prep<-.prep.run(corateBM.form.dat,return.as.obj,out.file,check.overwrite,nchain=nchain,
-                  constrain.Rsig2,trend,lik.power,
-                  X0.prior.mu,X0.prior.sig,
-                  evosig2.prior,evocor.prior,
-                  R0.prior.mu,R0.prior.sig,Rsig2.prior,
-                  intrasig2.prior,intracor.prior,
-                  Rmu.prior.mu,Rmu.prior.sig)
-  if(centered&grepl('intravar',prep$stanobj)){
-    prep$stanobj<-paste(prep$stanobj,'_centered',sep='')
-  }else{
-    warning('centered parameterizations not allowed for models without intraspecific variation')
-  }
+  prior.list<-do.call(.make.prior.list,list(...))
+  prep<-.prep.run(input.evorates.obj,return.as.obj,out.file,check.overwrite,
+                  constrain.Rsig2,trend,lik.power,prior.list,nchain)
   if(return.as.obj){
-    ret<-sampling(object=stanmodels[[prep$stanobj]],data=prep$dat,
-                  pars=prep$exclude.pars,include=F,sample_file=prep$out.file,...)
+    ret<-do.call(sampling,
+                 c(object=list(stanmodels[[prep$stanobj]]),
+                   data=list(prep$input.evorates.obj$dat),
+                   pars=list(prep$exclude.pars),
+                   include=list(FALSE),
+                   sample_file=list(prep$out.file),
+                   stan.args.list))
   }else{
-    sampling(object=stanmodels[[prep$stanobj]],data=prep$dat,
-             pars=prep$exclude.pars,include=F,sample_file=prep$out.file,...)
+    do.call(sampling,
+            c(object=list(stanmodels[[prep$stanobj]]),
+              data=list(prep$input.evorates.obj$dat),
+              pars=list(prep$exclude.pars),
+              include=list(FALSE),
+              sample_file=list(prep$out.file),
+              stan.args.list))
   }
   if(!is.null(prep$out.file)){
-    saveRDS(prep$corateBM.form.dat,prep$file.strings[length(prep$file.strings)])
+    saveRDS(prep$input.evorates.obj,prep$file.strings[length(prep$file.strings)])
     message('MCMC samples were saved as:\n\t',
             paste(basename(prep$file.strings[-length(prep$file.strings)]),'\n',collapse='\t'),
             'and input data/transformation constants were saved as:\n\t',
@@ -303,23 +287,26 @@ run.corateBM<-function(corateBM.form.dat,return.as.obj=T,out.file=NULL,check.ove
     gsub('_\\d+\\.csv$','',prep$file.strings[1])
   }
   if(return.as.obj){
-    c(stanfit=ret,prep$corateBM.form.dat)
+    c(stanfit=ret,prep$input.evorates.obj)
   }
 }
 
 #corateBM.run can either be a character specifying the name of sampling files or an object (the output from corateBM.run)
 #filenames ending in _i.csv, .csv, or _ifno will be truncated
-#specifying any of the specific components will overwrite those found in corateBM.run
+#specifying any of the specific components will overwrite those found in run.evorates
 #check to see if read_stan_csv checks for compatibility between chains...
 #' @export
-form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL,include.warmup=F,
-                      report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.MAPs=TRUE,report.devs=TRUE){
+output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL,include.warmup=FALSE,
+                          report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.MAPs=TRUE,report.devs=TRUE){
   ##GATHER UP COMPONENTS##
-  if(is.character(corateBM.run)){
-    simple.name<-gsub('_\\d+\\.csv$|\\.csv$|_info$','',corateBM.run)
+  list.from.input<-list(stanfit=stanfit,call=call,trans.const=trans.const,dat=dat)
+  list.from.run<-list(stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL)
+  #get any components specified by run.evorates object
+  if(is.character(run.evorates.obj)){
+    simple.name<-gsub('_\\d+\\.csv$|\\.csv$|_info$','',run.evorates.obj)
     directory<-dirname(simple.name)
     file.list<-list.files(directory)
-    file.strings<-grep(paste0(basename(simple.name),'_\\d+\\.csv'),file.list,value=T)
+    file.strings<-grep(paste0(basename(simple.name),'_\\d+\\.csv'),file.list,value=TRUE)
     if(length(file.strings)>0){
       file.strings<-paste0(simple.name,
                            substr(file.strings,regexpr('_\\d+\\.csv',file.strings),nchar(file.strings)))
@@ -328,107 +315,76 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
     }
     file.strings<-c(file.strings,paste0(simple.name,'_info'))
     if(length(file.strings>1)){
-      tmp.stanfit<-rstan::read_stan_csv(file.strings[-length(file.strings)])
-    }else{
-      tmp.stanfit<-NULL
+      list.from.run$stanfit<-rstan::read_stan_csv(file.strings[-length(file.strings)])
     }
     info<-try(readRDS(file.strings[length(file.strings)]))
-    if(inherits(info,'try-error')){
-      tmp.call<-tmp.trans.const<-tmp.dat<-NULL
-    }else{
-      for(i in c('call','trans.const','dat')){
-        tmp<-info[[i]]
-        if(!is.null(tmp)){
-          assign(paste0('tmp.',i),tmp)
-        }else{
-          assign(paste0('tmp.',i),NULL)
+    if(!inherits(info,'try-error')){
+      for(i in names(info)){
+        if(!is.null(info[[i]])){
+          list.from.run[[i]]<-info[[i]]
         }
       }
     }
-  }else if(is.list(corateBM.run)){
-    for(i in c('stanfit','call','trans.const','dat')){
-      tmp<-corateBM.run[[i]]
-      if(!is.null(tmp)){
-        assign(paste0('tmp.',i),tmp)
-      }else{
-        assign(paste0('tmp.',i),NULL)
+  }else if(is.list(run.evorates.obj)){
+    for(i in names(run.evorates.obj)){
+      if(!is.null(run.evorates.obj[[i]])){
+        list.from.run[[i]]<-run.evorates.obj[[i]]
       }
     }
   }
-  for(i in c('stanfit','call','trans.const','dat')){
-    cur.tmp<-get(i)
-    pot.tmp<-get(paste0('tmp.',i))
-    if(is.null(cur.tmp)){
-      assign(i,pot.tmp)
+  #merge list from function input with list from evorates run object
+  #function input overwrites evorates run object if it isn't NULL
+  for(i in names(list.from.input)){
+    if(!is.null(list.from.input[[i]])){
+      list.from.run[[i]]<-list.from.input[[i]]
     }
   }
+  stanfit<-list.from.run$stanfit
+  call<-list.from.run$call
+  trans.const<-list.from.run$trans.const
+  dat<-list.from.run$dat
   if(is.null(stanfit)){
     stop('no MCMC samples were provided: please recheck provided filenames and/or R objects')
   }
   if(is.null(call)){
-    stop('no information on the call (i.e., trait data, tip priors, and tree) were provided: please recheck provided filenames and/or R objects')
+    stop('no information on the call (i.e., trait data/standard errors and tree) were provided: please recheck provided filenames and/or R objects')
   }
   if(is.null(trans.const)){
-    trans.const<-.get.trans.const(call$tree,call$trait.data,call$tip.prior.means,call$tip.prior.sd)$trans.const
+    trans.const<-.get.trans.const(call$tree,call$trait.data,call$trait.se)$trans.const
   }
   if(is.null(dat)){
-    stop('no information on the inputted stan data were provided: please recheck provided filenames and/or R objects')
+    stop('no information on the inputted stan data were provided: please recheck provided filenames and/or R objects. This can be re-obtained by running input.evorates() with the SAME trait data, tree, and prior/lik.power settings!')
   }
   
-  n<-length(call$tree$tip.label)
-  e<-nrow(call$tree$edge)
-  k<-ncol(call$trait.data)
-  trait.names<-colnames(call$trait.data)
-  tip.names<-call$tree$tip.label
-  checks<-setNames(vector('logical',3),c(if(k>1) 'chol_Ycov' else 'Ysig2','Rsig2','Rmu'))
-  for(i in 1:length(checks)){
-    tmp.check<-try(extract(stanfit,names(checks)[i]),silent=T)
+  
+  ##FORM CALL##
+  checks<-setNames(vector('logical',3),c('Ysig2','Rsig2','Rmu'))
+  for(i in names(checks)){
+    tmp.check<-try(extract(stanfit,i),silent=TRUE)
     if(inherits(tmp.check,'try-error')){
-      checks[i]<-F
+      checks[i]<-FALSE
     }else{
-      checks[i]<-T
+      checks[i]<-TRUE
     }
   }
-  checks[2]<-!checks[2]
-  #checks --> is there intraspecific variation?, is Rsig2 constrained?, is there a trend?
-  if(checks[2]&!checks[3]&report.devs){
-    report.devs<-F
+  has.intra<-checks[1]
+  constrain.Rsig2<-!checks[2]
+  trend<-checks[3]
+  lik.power<-dat$lik_power
+  if(constrain.Rsig2&!trend&report.devs){
+    report.devs<-FALSE
     warning('report.devs was set to FALSE: rate deviations are meaningless with no rate heterogeneity',
-            immediate.=T)
+            immediate.=TRUE)
   }
+  out<-list()
+  class(out)<-'corateBM_fit'
+  out$call<-c(call,
+              'constrain.Rsig2'=list(constrain.Rsig2),
+              'trend'=list(trend),
+              'lik.power'=lik.power)
   
-  #consider missing Y (other than ones with tip priors) a form a data imputation--they are ignored when
-  #lik_power is 0... (BUT, if this is a hierarchical model, shouldn't the multinormal still be influential as
-  #a prior??? Ugh...)
-  #alright, no--unfortunately, missing data needs a proper prior to be valid. In practice, this means that each missing
-  #observation has to be initialized with a prior--might better hardcode this into the model later, but for now I'll just
-  #modify the  form.input function
-  if(!checks[1]){
-    if(is.null(dat)){
-      missing.Y<-names(which(sapply(tip.names,function(ii) sum(rownames(call$trait.data)==ii))==0))
-      Y<-do.call(rbind,c(list(call$trait.data),setNames(rep(list(NA),length(missing.Y)),missing.Y)))
-      Y<-Y[tip.names,,drop=F]
-      is.obs<-!as.matrix(apply(Y,1,is.na))
-      if(k>1){
-        is.obs<-t(is.obs)
-      }
-      if(nrow(Y)==1){
-        rownames(is.obs)<-rownames(Y)
-      }
-      which_mis<-lapply(asplit(Y,2),function(ii) which(is.na(ii)))
-      if(length(which_mis)==0){
-        k_mis<-rep(0,k)
-      }else{
-        k_mis<-lengths(which_mis)
-        which_mis<-unlist(which_mis)
-      }
-    }else{
-      k_mis<-dat$k_mis
-      which_mis<-dat$which_mis
-    }
-  }
   
-  #get sampler arguments/parameters for diagnostics
+  ##SAMPLER ARGUMENTS/PARAMETERS##
   sampler.args<-stanfit@stan_args[[1]]
   sampler.args<-sampler.args[-which(names(sampler.args)=='chain_id')]
   sampler.args$chains<-length(stanfit@sim[[1]])
@@ -453,132 +409,50 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
   for(i in 1:nchain){
     sampler.params[,1:6,i]<-unlist(attr(stanfit@sim$samples[[i]],'sampler_params'))
   }
-  sampler.params[,7,]<-extract(stanfit,"prior",permute=F,inc_warmup=T)
-  sampler.params[,8,]<-extract(stanfit,"lik",permute=F,inc_warmup=T)
+  sampler.params[,7,]<-extract(stanfit,"prior",permute=FALSE,inc_warmup=TRUE)
+  sampler.params[,8,]<-extract(stanfit,"lik",permute=FALSE,inc_warmup=TRUE)
   sampler.params[,9,]<-sampler.params[,7,]+dat$lik_power*sampler.params[,8,]
-  out<-list(sampler.control=sampler.args[-2],sampler.params=sampler.params)
-  out$call$intra.var<-unname(checks[1])
-  out$call$constrain.Rsig2<-unname(checks[2])
-  out$call$trend<-unname(checks[3])
-  out$call$tree<-call$tree
-  out$call$trait.data<-call$trait.data
-  out$call$tip.prior.means<-call$tip.prior.means
-  out$call$tip.prior.sd<-call$tip.prior.sd
-  #hmmmm...this relies on dat--it may be best just to prevent doing this when lacking dat altogether
-  out$call$lik_power<-dat$lik_power
+  out$sampler.control<-sampler.args[-2]
+  out$sampler.params<-sampler.params
   
-  #process/format output
-  out$chains<-array(dim=c(niter,4+e+k*(n+3+(k-1)),nchain))
-  X.param.names<-paste(rep(trait.names,n),'_',rep(tip.names,each=k),sep='')
-  Xcov.param.names<-paste(rep(trait.names,each=k),',',
-                          rep(trait.names,k),'_evocov',
-                          sep='')[lower.tri(matrix(NA,k,k),diag=T)]
-  Ycov.param.names<-paste(rep(trait.names,each=k),',',
-                          rep(trait.names,k),'_intracov',
-                          sep='')[lower.tri(matrix(NA,k,k),diag=T)]
-  param.names<-c('R_0','R_sig2','R_mu','bg_rate',
-                 paste('R_',1:e,sep=''),
-                 paste(trait.names,'_0',sep=''),Xcov.param.names,Ycov.param.names,X.param.names)
+  
+  ##FORM CHAINS##
+  e<-nrow(call$tree$edge)
+  #will have to change back to some previous stuff for multivar extension
+  out$chains<-array(dim=c(niter,5+e,nchain))
+  #might consider changing param names for better intepretability...
+  param.names<-c('R_0','Y_sig2','R_sig2','R_mu','bg_rate',paste('R_',1:e,sep=''))
   dimnames(out$chains)<-list(iterations=NULL,
                              parameters=param.names,
                              chains=paste('chain',1:nchain))
-  X0<-.index.element(extract(stanfit,"X0",permute=F,inc_warmup=T),excl.iter,1,T)*
-    rep(sqrt(trans.const$X_sig2),each=niter*nchain)+rep(trans.const$X_0,each=niter*nchain)
-  out$chains[,paste(trait.names,'_0',sep=''),]<-aperm(X0,c(1,3,2))
-  out$call$X0_prior_mu<-dat$X0_prior_mu*sqrt(trans.const$X_sig2)+trans.const$X_0
-  out$call$X0_prior_sig<-dat$X0_prior_sig*sqrt(trans.const$X_sig2)
-  if(!is.null(out$call$X0_prior_mu)){
-    names(out$call$X0_prior_mu)<-names(out$call$X0_prior_sig)<-trait.names
-  }
-  R0<-.index.element(extract(stanfit,"R0",permute=F,inc_warmup=T),excl.iter,1,T)-
-    log(trans.const$hgt)
-  if(k>1){
-    chol_Xcov<-.index.element(extract(stanfit,"chol_Xcov",permute=F,inc_warmup=T),excl.iter,1,T)
-    Xcov<-array(0,c(k,k,niter*nchain))
-    for(i in 1:k){
-      for(j in 1:i){
-        Xcov[i,j,]<-as.vector(chol_Xcov[,,paste('chol_Xcov[',i,',',j,']',sep='')])
-      }
-    }
-    Xcov<-lapply(asplit(Xcov,3),function(ii) ii%*%t(ii))
-    Xcov<-lapply(Xcov,function(ii) diag(sqrt(trans.const$X_sig2))%*%ii%*%diag(sqrt(trans.const$X_sig2)))
-    new.fac<-sapply(1:length(Xcov),function(ii) 1/mean(diag(Xcov[[ii]])))
-    Xcov<-lapply(1:length(Xcov),function(ii) Xcov[[ii]]*new.fac[ii])
-    Xcov<-array(unlist(Xcov),dim=c(k,k,length(Xcov)))
-    tmp<-which(lower.tri(matrix(NA,k,k),diag=T),arr.ind=T)
-    for(i in 1:length(Xcov.param.names)){
-      out$chains[,Xcov.param.names[i],]<-Xcov[tmp[i,1],tmp[i,2],]
-    }
-    out$call$evosig2_prior<-dat$Xsig2_prior*sqrt(trans.const$X_sig2)
-    if(!is.null(out$call$evosig2_prior)){
-      names(out$call$evosig2_prior)<-trait.names
-    }
-    out$call$evocor_prior<-dat$Xcor_prior
-    R0<-R0-log(new.fac)
-    if(checks[1]){
-      chol_Ycov<-.index.element(extract(stanfit,"chol_Ycov",permute=F,inc_warmup=T),excl.iter,1,T)
-      Ycov<-array(0,c(k,k,niter*nchain))
-      for(i in 1:k){
-        for(j in 1:i){
-          Ycov[i,j,]<-as.vector(chol_Ycov[,,paste('chol_Ycov[',i,',',j,']',sep='')])
-        }
-      }
-      Ycov<-lapply(asplit(Ycov,3),function(ii) ii%*%t(ii))
-      Ycov<-lapply(Ycov,function(ii) diag(sqrt(trans.const$X_sig2))%*%ii%*%diag(sqrt(trans.const$X_sig2)))
-      Ycov<-array(unlist(Ycov),dim=c(k,k,length(Ycov)))
-      for(i in 1:length(Ycov.param.names)){
-        out$chains[,Ycov.param.names[i],]<-Ycov[tmp[i,1],tmp[i,2],]
-      }
-      out$call$intrasig2_prior<-dat$Ysig2_prior*sqrt(trans.const$X_sig2)
-      if(!is.null(out$call$intrasig2_prior)){
-        names(out$call$intrasig2_prior)<-trait.names
-      }
-      out$call$intracor_prior<-dat$Ycor_prior
-    }
-  }else{
-    if(checks[1]){
-      Ysig2<-.index.element(extract(stanfit,"Ysig2",permute=F,inc_warmup=T),excl.iter,1,T)*
-        sqrt(trans.const$X_sig2)
-      out$chains[,Ycov.param.names,]<-Ysig2
-      out$call$intrasig2_prior<-dat$Ysig2_prior*sqrt(trans.const$X_sig2)
-      names(out$call$intrasig2_prior)<-trait.names
-    }
-    R0<-R0+log(trans.const$X_sig2)
-  }
+  R0<-.index.element(extract(stanfit,"R0",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)-
+    log(trans.const$hgt)+log(mean(trans.const$X_sig2))
   out$chains[,'R_0',]<-R0
   out$call$R0_prior_mu<-dat$R0_prior_mu-log(trans.const$hgt)+log(mean(trans.const$X_sig2))
   out$call$R0_prior_sig<-dat$R0_prior_sig
-  if(checks[1]){
-    out.X<-.index.element(extract(stanfit,"X",permute=F,inc_warmup=T),excl.iter,1,T)*
-      rep(sqrt(trans.const$X_sig2),each=niter*nchain)+rep(trans.const$X_0,each=niter*nchain)
-    out$chains[,X.param.names,]<-aperm(out.X,c(1,3,2))
-  }else if(length(which_mis)>0){
-    mis.Y<-.index.element(extract(stanfit,"mis_Y",permute=F,inc_warmup=T),excl.iter,1,T)*
-      rep(sqrt(trans.const$X_sig2),niter*nchain*k_mis)+rep(trans.const$X_0,niter*nchain*k_mis)
-    tmp<-(which_mis-1)*k+rep(1:k,k_mis)
-    out$chains[,X.param.names[tmp],]<-aperm(mis.Y,c(1,3,2))
+  if(has.intra){
+    #will need to change for multivar
+    Ysig2<-.index.element(extract(stanfit,"Ysig2",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)*
+      trans.const$X_sig2
+    out$chains[,'Y_sig2',]<-Ysig2
+    out$call$Ysig2_prior_sig<-dat$Ysig2_prior_sig*trans.const$X_sig2
   }
-  if(!checks[2]){
-    Rsig2<-.index.element(extract(stanfit,"Rsig2",permute=F,inc_warmup=T),excl.iter,1,T)/
+  if(!constrain.Rsig2){
+    Rsig2<-.index.element(extract(stanfit,"Rsig2",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)/
       trans.const$hgt
     out$chains[,'R_sig2',]<-Rsig2
-    out$call$Rsig2_prior<-dat$Rsig2_prior/trans.const$hgt
+    out$call$Rsig2_prior_sig<-dat$Rsig2_prior_sig/trans.const$hgt
   }
-  if(checks[3]){
-    Rmu<-.index.element(extract(stanfit,"Rmu",permute=F,inc_warmup=T),excl.iter,1,T)/
+  if(trend){
+    Rmu<-.index.element(extract(stanfit,"Rmu",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)/
       trans.const$hgt
     out$chains[,'R_mu',]<-Rmu
     out$call$Rmu_prior_mu<-dat$Rmu_prior_mu/trans.const$hgt
     out$call$Rmu_prior_sig<-dat$Rmu_prior_sig/trans.const$hgt
   }
-  if(!checks[2]|checks[3]){
-    R<-.index.element(extract(stanfit,"R",permute=F,inc_warmup=T),excl.iter,1,T)-
-      log(trans.const$hgt)
-    if(k>1){
-      R<-R-log(new.fac)
-    }else{
-      R<-R+log(trans.const$X_sig2)
-    }
+  if(!constrain.Rsig2|trend){
+    R<-.index.element(extract(stanfit,"R",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)-
+      log(trans.const$hgt)+log(mean(trans.const$X_sig2))
     wgts<-call$tree$edge.length/sum(call$tree$edge.length)
     if(nchain==1){
       bg.rate<-log(apply(R,1,function(ii) sum(exp(ii)*wgts)))
@@ -590,8 +464,6 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
   }
   incl.inds<-which(apply(out$chains[,,1],2,function(ii) !all(is.na(ii))))
   out$chains<-.index.element(out$chains,incl.inds,2)
-  class(out)<-'corateBM_fit'
-  
   #add rate deviation chains
   if(report.devs){
     if(nchain==1){
@@ -610,38 +482,39 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
                       c(1,3,2))
   }
   
-  #create parameter diagnostics table
+  
+  ##PARAMETER DIAGNOSTICS TABLE##
   out$param.diags<-.index.element(out$chains,1:4,1)
   dimnames(out$param.diags)<-c(diagnostics=list(c('inits','bulk_ess','tail_ess','Rhat')),
                                dimnames(out$chains)[-1])
   if(!include.warmup){
-    out$chains<-.index.element(out$chains,1,1,T)
+    out$chains<-.index.element(out$chains,1,1,TRUE)
   }
   out$param.diags[2,,]<-apply(out$chains,c(2,3),rstan::ess_bulk)
   out$param.diags[3,,]<-apply(out$chains,c(2,3),rstan::ess_tail)
   out$param.diags[4,,]<-apply(out$chains,c(2,3),rstan::Rhat)
   
+  
+  ##EXTRA POSTERIOR DISTRIBUTION INFO##
   #add quantiles
   if(!is.null(report.quantiles)){
     out$quantiles<-.int.quantiles(out,c('.|dev'))
   }
-  
   #add means
   if(report.means){
     out$means<-.int.means(out,c('.|dev'))
     out$means<-array(out$means,dim(out$means)[-1],dimnames(out$means)[-1])
   }
-  
   #add MAPs
   if(report.MAPs){
     out$MAPs<-.int.MAPs(out,c('.|dev'))
     out$MAPs<-array(out$MAPs,dim(out$MAPs)[-1],dimnames(out$MAPs)[-1])
   }
-  
   #add rate deviation posterior probabilities
   if(report.devs){
     out$post.probs<-apply(.int.chains(out,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
   }
+  
   
   out
 }
@@ -680,52 +553,49 @@ form.output<-function(corateBM.run,stanfit=NULL,call=NULL,trans.const=NULL,dat=N
 #I think I fixed this by making sure a .csv is tacked onto the end of out.file if it doesn't already have it
 
 #' @export
-fit.corateBM<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
-                       constrain.Rsig2=F,trend=F,lik.power=1,
-                       return.as.obj=T,out.file=NULL,check.overwrite=T,...,
-                       include.warmup=F,report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.MAPs=TRUE,report.devs=TRUE,
-                       sampling.scale=F,
-                       X0.prior.mu=NULL,X0.prior.sig=NULL,
-                       X.prior.mu=NULL,X.prior.sig=NULL,scale.X.prior=T,
-                       evosig2.prior=NULL,evocor.prior=NULL,
-                       R0.prior.mu=NULL,R0.prior.sig=NULL,Rsig2.prior=NULL,
-                       intrasig2.prior=NULL,intracor.prior=NULL,
-                       Rmu.prior.mu=NULL,Rmu.prior.sig=NULL){
-  if(sampling.scale){
-    input<-form.input(tree,trait.data,intra.var,ensure.prop.prior,
-                      constrain.Rsig2,trend,lik.power,
-                      X.prior.mu=X.prior.mu,X.prior.sig=X.prior.sig,scale.X.prior=rep(F,NCOL(trait.data)))
-  }else{
-    input<-form.input(tree,trait.data,intra.var,ensure.prop.prior,
-                      constrain.Rsig2,trend,lik.power,
-                      X0.prior.mu,X0.prior.sig,
-                      X.prior.mu,X.prior.sig,scale.X.prior,
-                      evosig2.prior,evocor.prior,
-                      R0.prior.mu,R0.prior.sig,Rsig2.prior,
-                      intrasig2.prior,intracor.prior,
-                      Rmu.prior.mu,Rmu.prior.sig)
+fit.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend=FALSE,lik.power=1,sampling.scale=FALSE,
+                       return.as.obj=TRUE,out.file=NULL,check.overwrite=TRUE,
+                       include.warmup=FALSE,
+                       report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.MAPs=TRUE,report.devs=TRUE,
+                       ...){
+  input<-input.evorates(tree,trait.data,trait.se,constrain.Rsig2,trend,lik.power,sampling.scale,...)
+  stan.args.list<-list(...)
+  if(length(stan.args.list)>0){
+    prior.args.names<-c('^(R[\\._]?0).*((mu)|(mean))','(R[\\._]?0).*((sig)|(sd))',
+                        '^((intra)|(Y))[\\._]?((sig2)|(var))',
+                        '^R[\\._]?((sig2)|(var))',
+                        '^((R[\\._]?mu)|(trend)).*((mu)|(mean))','^((R[\\._]?mu)|(trend)).*((sig)|(sd))')
+    which.prior.args<-apply(do.call(cbind,lapply(prior.args.names,grepl,x=names(stan.args.list))),1,any)
+    stan.args.list<-stan.args.list[!which.prior.args]
+    stan.args.list<-stan.args.list[!(names(stan.args.list)%in%
+                                       c('object','data','pars','include','sample_file','chain_id','save_warmup'))]
   }
-  if(hasArg(chains)){
-    nchain<-list(...)$chains
+  if(!is.null(stan.args.list$chains)){
+    nchain<-stan.args.list$chains
   }else{
     nchain<-4
   }
-  prep<-.prep.run(input,return.as.obj,out.file,check.overwrite,nchain,
-                  constrain.Rsig2,trend,lik.power,
-                  X0.prior.mu,X0.prior.sig,
-                  evosig2.prior,evocor.prior,
-                  R0.prior.mu,R0.prior.sig,Rsig2.prior,
-                  intrasig2.prior,intracor.prior,
-                  Rmu.prior.mu,Rmu.prior.sig)
+  prep<-.prep.run(input,return.as.obj,out.file,check.overwrite,
+                  constrain.Rsig2,trend,lik.power,NULL,nchain)
   if(return.as.obj){
-    ret<-sampling(object=stanmodels[[prep$stanobj]],data=prep$dat,
-                  pars=prep$exclude.pars,include=F,sample_file=prep$out.file,...)
+    ret<-do.call(sampling,
+                 c(object=list(stanmodels[[prep$stanobj]]),
+                   data=list(prep$input.evorates.obj$dat),
+                   pars=list(prep$exclude.pars),
+                   include=list(FALSE),
+                   sample_file=list(prep$out.file),
+                   stan.args.list))
   }else{
-    sampling(object=stanmodels[[prep$stanobj]],data=prep$dat,
-             pars=prep$exclude.pars,include=F,sample_file=prep$out.file,...)
+    do.call(sampling,
+            c(object=list(stanmodels[[prep$stanobj]]),
+              data=list(prep$input.evorates.obj$dat),
+              pars=list(prep$exclude.pars),
+              include=list(FALSE),
+              sample_file=list(prep$out.file),
+              stan.args.list))
   }
   if(!is.null(prep$out.file)){
-    saveRDS(prep$corateBM.form.dat,prep$file.strings[length(prep$file.strings)])
+    saveRDS(prep$input.evorates.obj,prep$file.strings[length(prep$file.strings)])
     message('MCMC samples were saved as:\n\t',
             paste(basename(prep$file.strings[-length(prep$file.strings)]),'\n',collapse='\t'),
             'and input data/transformation constants were saved as:\n\t',
@@ -734,8 +604,8 @@ fit.corateBM<-function(tree,trait.data,intra.var=F,ensure.prop.prior=T,
     gsub('_\\d+\\.csv$','',prep$file.strings[1])
   }
   if(return.as.obj){
-    run<-c(stanfit=ret,prep$corateBM.form.dat)
-    form.output(run,stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL,include.warmup,
-                report.quantiles,report.means,report.MAPs,report.devs)
+    run<-c(stanfit=ret,prep$input.evorates.obj)
+    output.evorates(run,NULL,NULL,NULL,NULL,include.warmup,
+                    report.quantiles,report.means,report.MAPs,report.devs)
   }
 }

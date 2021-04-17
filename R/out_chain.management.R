@@ -242,7 +242,7 @@ exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
       return(fit)
     }
   }else{
-    fit$chains<-.index.element(fit$chains,1:(chains.len-target.len),1,T)
+    fit$chains<-.index.element(fit$chains,1:(chains.len-target.len),1,TRUE)
   }
   #redo parameter diagnostics (other than inits)
   fit$param.diags[2,,]<-apply(fit$chains,c(2,3),rstan::ess_bulk)

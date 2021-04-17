@@ -1,5 +1,8 @@
 .int.chains<-function(fit,select){
   fit[['chains']]<-.expand.element(fit[['chains']])
+  tmp<-.select.iterations(fit[['chains']],select)
+  fit[['chains']]<-tmp[[1]]
+  select<-tmp[[2]]
   out<-.int.op(fit[['chains']],select)
   out
 }
@@ -13,7 +16,22 @@
                                             nchar(dimnames(fit[['quantiles']])[[1]])-1))/100
   }
   if(is.list(select)){
-    if(length(select)<2|is.null(select[[2]])){
+    if(length(select)>1){
+      if(is.null(select[[2]])){
+        select[[2]]<-def.report.quantiles
+      }else{
+        lessthans<-select[[2]]<0
+        greaterthans<-select[[2]]>1
+        if(any(lessthans)){
+          select[[2]][lessthans]<-0
+          warning('Some specified quantiles are less than 0 (they should be between 0 and 1): these were set to 0.')
+        }
+        if(any(greaterthans)){
+          select[[2]][greaterthans]<-1
+          warning('Some specified quantiles are greater than 1 (they should be between 0 and 1): these were set to 1.')
+        }
+      }
+    }else{
       select[[2]]<-def.report.quantiles
     }
   }else{
@@ -54,7 +72,7 @@
     post<-.int.sampler(fit,'post')
     diags.len<-dim(post)[1]
     if(diags.len-chains.len>0){
-      post<-.index.element(post,1:(diags.len-chains.len),1,T)
+      post<-post[-(1:(diags.len-chains.len)),,,drop=FALSE]
     }
     MAP.inds<-sapply(1:nchain, function(ii) which.max(post[,,ii]))
     out<-array(sapply(1:nchain,function(ii) tmp[MAP.inds[ii],,ii]),
@@ -66,19 +84,24 @@
   out
 }
 
+#allow it to select specific iterations like the new %chains% operator
 .int.sampler<-function(fit,select){
   fit[['sampler.params']]<-.expand.element(fit[['sampler.params']])
+  tmp<-.select.iterations(fit[['sampler.params']],select)
+  fit[['sampler.params']]<-tmp[[1]]
+  select<-tmp[[2]]
   if(is.numeric(select)){
-    select<-c(paste(c('accept_stat','stepsize','treedepth','n_leapfrog','diverget','energy'),
+    select<-c(paste(c('accept_stat','stepsize','treedepth','n_leapfrog','divergent','energy'),
                   '__',sep=''),c('prior','lik','post'))[select]
   }
   out<-.int.op(fit[['sampler.params']],select)
   out
 }
 
+#need to update error handling
 .int.diagnostics<-function(fit,select){
   if(is.list(select)){
-    if(length(select)<2){
+    if(length(select)<2|is.null(select[[2]])){
       select[[2]]<-1:4
     }
   }else{
@@ -88,6 +111,9 @@
   out<-.int.op(fit[['param.diags']],select[[1]])
   if(is.numeric(select[[2]])){
     select[[2]]<-dimnames(out)[[1]][select[[2]]]
+    if(length(select[[2]])==0){
+      select[[2]]<-NA
+    }
   }
   tmp<-lapply(select[[2]],function(ii) grep(ii,dimnames(out)[[1]]))
   if(all(lengths(tmp)==0)){
@@ -98,7 +124,7 @@
             paste(select[[2]][which(lengths(tmp)==0)],collapse=', '))
   }
   inds<-sort(unique(unlist(tmp)))
-  out<-.index.element(out,inds,1)
+  out<-out[inds,,,drop=FALSE]
   out
 }
 
@@ -179,6 +205,33 @@
     }
   }
   inds<-sort(unique(unlist(tmp)))
-  .index.element(element,inds,2)
+  element[,inds,,drop=FALSE]
 }
 #flip flop any question mark dohickeys...
+
+.select.iterations<-function(element,select){
+  if(is.list(select)){
+    if(length(select)>1){
+      if(!is.null(select[[2]])){
+        all.neg<-all(select[[2]]<=0)
+        all.pos<-all(select[[2]]>=0)
+        if(all.neg|all.pos){
+          exceeds<-select[[2]]>dim(element)[1]
+          if(all(exceeds)){
+            warning('All specified iterations are out of bounds (i.e., above the number of available iterations in chains): defaulted to including all iterations')
+          }else{
+            if(any(exceeds)){
+              select[[2]]<-select[[2]][!exceeds]
+              warning('Some specified iterations are out of bounds (i.e., above the number of iterations in chains): these iterations were ignored')
+            }
+            element<-element[select[[2]],,,drop=F]
+          }
+        }else{
+          warning('A mix of negative and positive iterations are specified: please specify only negative iterations (to exclude iterations) or positive iterations (to include iterations). Defaulted to including all iterations.')
+        }
+      }
+    }
+    select<-select[[1]]
+  }
+  list(element,select)
+}

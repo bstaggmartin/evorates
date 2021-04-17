@@ -8,7 +8,7 @@ alter.cols(x, alpha = NA, mod.val = 0)
 }
 \arguments{
 \item{x}{Vector of color values, which can either be a character vector of color names and/or hexadecimal codes, or a numeric
-vector. In the latter case, the vecotr will be coerced to integers taken to correspond to colors currently defined in palette().}
+vector. In the latter case, the vector will be coerced to integers taken to correspond to colors currently defined in palette().}
 
 \item{alpha}{Vector of alpha (transparency) values (numeric), with 0 corresponding to complete transparency and 1 to complete
 opaqueness. Use NA to not modify transparency of original color vector. alph must consist of NA's and/or values between 0 and 1.}
@@ -27,8 +27,8 @@ or truncated to be the same length as x.
 }
 \examples{
 colors<-c('red','green','blue')
-alter.cols(colors,alph=c(0,1,0.5),mod.val=c(0,-0.5,-0.75))
+alter.cols(colors,alpha=c(0,1,0.5),mod.val=c(0,-0.5,-0.75))
 #recycling behavior 
-alter.cols(colors,alph=0.2,mod.val=-0.5)
+alter.cols(colors,alpha=0.2,mod.val=-0.5)
 
 }

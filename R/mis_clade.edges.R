@@ -1,10 +1,17 @@
 #finds most recent common ancestral INTERNAL node of specified nodes (so, if tip, finds node ancestral
 #to tip rather than tip itself) and then gets numbers of all edge descending from that node
 #' @export
-get.clade.edges<-function(tree,node){
+get.clade.edges<-function(tree,node,partial.match=TRUE){
   attr(tree,'order')<-NULL
   tree<-reorder(tree,'cladewise')
   tree<-di2multi(tree,tol=0)
+  if(partial.match&is.character(node)){
+    try.node<-unlist(lapply(node,function(ii) grep(ii,tree$tip.label)))
+    if(length(try.node)==0){
+      stop('specified node (',node,') does not exist in tree')
+    }
+    node<-try.node
+  }
   if(length(node)>1){
     try.node<-try(getMRCA(tree,node),silent=T)
     if(inherits(try.node,'try-error')){
@@ -13,10 +20,11 @@ get.clade.edges<-function(tree,node){
     node<-try.node
   }
   if(is.character(node)){
-    node<-which(tree$tip.label==node)
-    if(length(node)==0){
-      stop('specified node ',node,' does not exist in tree')
+    try.node<-which(tree$tip.label==node)
+    if(length(try.node)==0){
+      stop('specified node (',node,') does not exist in tree')
     }
+    node<-try.node
   }
   if(!(node%in%tree$edge)){
     stop('node ',node,' does not exist in tree')

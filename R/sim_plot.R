@@ -3,7 +3,7 @@
 plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram','cladogram','fan','unrooted','radial'),
                         col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
                         alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
-                        xlab=NULL,ylab=NULL,add=F,color.element='R',...,
+                        xlab=NULL,ylab=NULL,add=F,color.element='R',exp=F,...,
                         legend=T,legend.args=NULL){
   tree<-sim$tree
   try.type<-try(match.arg(type,c('phenogram','phylogram','cladogram','fan','unrooted','radial')))
@@ -47,9 +47,12 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
     legend<-F
     warning('set legend to FALSE since specified color element is NULL')
   }
+  if(exp){
+    sim[[color.element]]<-exp(sim[[color.element]])
+  }
   if(length(traits)>2&type=='phenogram'){
     pairs(sim,traits=traits,col=col,val.range=val.range,res=res,alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
-          color.element=color.element,...,
+          color.element=color.element,exp=exp,...,
           legend=legend,legend.args=legend.args)
   }else{
     if(is.null(xlab)){
@@ -103,7 +106,11 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
       if(nrow(sim$X)==n){
         scaled.tree<-tree
         if(!is.null(sim$R)){
-          scaled.tree$edge.length<-tree$edge.length*exp(sim$R)
+          if(color.element=='R'&exp){
+            scaled.tree$edge.length<-tree$edge.length*sim$R
+          }else{
+            scaled.tree$edge.length<-tree$edge.length*exp(sim$R)
+          }
         }
         anc.states<-matrix(NA,tree$Nnode,ncol(sim$X))
         rownames(anc.states)<-n+1:tree$Nnode
@@ -262,7 +269,7 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
       }
     }
     if(legend){
-      legend.call<-c(sim=list(sim),color.element=color.element,
+      legend.call<-c(sim=list(sim),color.element=color.element,exp=exp,
                      col=list(col),val.range=list(val.range),res=res,
                      alpha=if(length(alpha)==1) alpha else list(alpha),breaks=if(length(breaks)==1) breaks else list(breaks),
                      legend.args)
@@ -396,7 +403,7 @@ pairs.corateBM<-function(sim,traits=1:ncol(sim$X),
     if(is.null(legend.args$xpd)){
       legend.args$xpd<-T
     }
-    legend.call<-c(sim=list(sim),color.element=color.element,
+    legend.call<-c(sim=list(sim),color.element=color.element,exp=exp,
                    col=list(col),val.range=list(val.range),res=res,
                    alpha=if(length(alpha)==1) alpha else list(alpha),breaks=if(length(breaks)==1) breaks else list(breaks),
                    legend.args)
@@ -407,11 +414,11 @@ pairs.corateBM<-function(sim,traits=1:ncol(sim$X),
 }
 
 #' @export
-legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','topright'),color.element='R',
+legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','topright'),color.element='R',exp=F,
                           col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
                           alpha=NA,breaks=NULL,select.levels=NULL,
                           box.dims=NULL,box.offset=NULL,box.scale=1,
-                          txt.col=NULL,main=expression(ln~(sigma^2)),...){
+                          txt.col=NULL,main=NULL,...){
   try.location<-try(match.arg(location,c('bottomleft','topleft','bottomright','topright')),silent=T)
   if(inherits(try.location,'try-error')){
     stop(location," is not an available named position to put the legend: please specify one of the following: 'bottomleft', 'topleft', 'bottomright', or 'topright'")
@@ -522,6 +529,17 @@ legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','t
               labels=list(labels),
               txt.args))
   }
+  if(is.null(main)){
+    if(color.element=='R'){
+      if(exp){
+        main<-expression(sigma^2)
+      }else{
+        main<-expression(ln~(sigma^2))
+      }
+    }else{
+      main<-substitute(color.element)
+    }
+  }
   main.side<-NA
   if(hasArg(main.side)){
     if(list(...)$main.side<=4&list(...)$main.side>=1){
@@ -562,6 +580,6 @@ legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','t
   do.call(text,
           as.list(c(x=x.pos,
                     y=y.pos,
-                    labels=main,
+                    labels=list(main),
                     main.args)))
 }

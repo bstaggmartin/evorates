@@ -1,9 +1,9 @@
 #simulate trait and rate data under an autocorrelated Brownian motion model
 #' @export
 sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
-                       n.obs=rep(1,length(tree$tip.label)),intra.var=F,intracov=0.2^2,
-                       anc.states=F){
-  tree<-.format.tree(tree)$tree
+                       n.obs=rep(1,length(tree$tip.label)),intravar=F,intracov=0.2^2,
+                       anc.states=F,slow=F,res=500){
+  tree<-.coerce.tree(tree)$tree
   k<-max(sapply(list(X0,evocov,intracov),NROW))
   if(length(X0)<k){
     warning('X0 implies lower number of traits than evocov and/or intracov: recycling X0 to match other inputs')
@@ -35,12 +35,24 @@ sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
   n_R[n+1]<-R0
   R<-vector('numeric',n_e)
   seed<-matrix(rnorm(n_e*(k+2)),nrow=n_e)
+  if(slow){
+    dt<-max(ndepths)/res
+    nts<-floor(elen/dt)
+    dts<-elen/(nts+1)
+    additional.seed<-lapply(nts,function(ii) rnorm(ii+1))
+  }
   for(i in 1:n_e){
     t<-elen[i]
-    n_R[edge[i,2]]<-n_R[edge[i,1]]+seed[i,1]*sqrt(Rsig2*t)
-    R[i]<-mean(n_R[edge[i,]])+seed[i,2]*sqrt(Rsig2*t/12)
-    if(Rmu!=0&t!=0){
-      R[i]<-R[i]-log(abs(Rmu))-log(t)+log(abs(diff(exp(Rmu*ndepths[edge[i,]]))))
+    if(slow){
+      tmp<-n_R[edge[i,1]]+cumsum(additional.seed[[i]]*sqrt(Rsig2*dts[i])+Rmu*dts[i])
+      R[i]<-log(mean(exp(c(n_R[edge[i,1]],tmp))))
+      n_R[edge[i,2]]<-tmp[length(tmp)]
+    }else{
+      n_R[edge[i,2]]<-n_R[edge[i,1]]+seed[i,1]*sqrt(Rsig2*t)
+      R[i]<-mean(n_R[edge[i,]])+seed[i,2]*sqrt(Rsig2*t/12)
+      if(Rmu!=0&t!=0){
+        R[i]<-R[i]-log(abs(Rmu))-log(t)+log(abs(diff(exp(Rmu*ndepths[edge[i,]]))))
+      }
     }
     X[edge[i,2],]<-X[edge[i,1],]+sqrt(t*exp(R[i]))*chol.evocov%*%seed[i,-(1:2)]
   }
@@ -58,9 +70,9 @@ sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
     out$k<-k
   }
   if(any(n.obs>1)){
-    intra.var<-T
+    intravar<-T
   }
-  if(intra.var){
+  if(intravar){
     if(NROW(intracov)<k){
       warning('intracov implies lower number of traits than X0 and/or evocov: recycled intracov (assuming no covariance if undeclared) to match other inputs')
     }else if(length(dim(intracov))==0&k>1){
@@ -93,9 +105,9 @@ sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
 #REMOVE oprate and wnrate stuff!
 #' @export
 sim.corateBM.old<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,Ralpha=0,Rtheta=0,WN=F,
-                           n.obs=rep(1,length(tree$tip.label)),intra.var=F,intracov=0.2^2,
+                           n.obs=rep(1,length(tree$tip.label)),intravar=F,intracov=0.2^2,
                            anc.states=F){
-  tree<-.format.tree(tree)$tree
+  tree<-.coerce.tree(tree)$tree
   k<-max(sapply(list(X0,evocov,intracov),NROW))
   if(length(X0)<k){
     warning('X0 implies lower number of traits than evocov and/or intracov: recycling X0 to match other inputs')
@@ -176,9 +188,9 @@ sim.corateBM.old<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,Ralpha=0,Rtheta
     out$k<-k
   }
   if(any(n.obs>1)){
-    intra.var<-T
+    intravar<-T
   }
-  if(intra.var){
+  if(intravar){
     if(NROW(intracov)<k){
       warning('intracov implies lower number of traits than X0 and/or evocov: recycled intracov (assuming no covariance if undeclared) to match other inputs')
     }else if(length(dim(intracov))==0&k>1){
