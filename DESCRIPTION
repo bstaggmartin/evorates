@@ -1,24 +1,20 @@
-Package: contSimmap
+Package: evorates
 Type: Package
-Title: Simulates continuous character histories along phylogenies
+Title: Fitting continuously variable rate models to comparative data on continuous traits
 Version: 0.1.0
 Author: person('Martin','Bruce',role=c('aut','cre'))
-Maintainer: <mart2121@msu.edu>
+Maintainer: <bruce.stagg.martin@gmail.com>
 Description: More about what it does (maybe more than one line)
     Use four spaces when indenting paragraphs within the Description.
 License: GPL-3  + file LICENSE
 Imports:
-    abind,
     ape,
     methods,
-    mvnfast,
     phytools,
     Rcpp (>= 0.12.0),
     RcppParallel (>= 5.0.1),
-    Rphylopars,
     rstan (>= 2.18.1),
-    rstantools (>= 2.1.1),
-    truncnorm
+    rstantools (>= 2.1.1)
 Suggests:
   testthat
 Encoding: UTF-8

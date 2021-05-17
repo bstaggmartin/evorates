@@ -1,7 +1,8 @@
 #plot an autocorrelated Brownian motion simulation
+#add an option to only exponentiate legend?
 #' @export
 plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram','cladogram','fan','unrooted','radial'),
-                        col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
+                        col=c('deepskyblue','darkgray','brown1'),na.col='gray90',val.range=NULL,res=100,
                         alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
                         xlab=NULL,ylab=NULL,add=F,color.element='R',exp=F,...,
                         legend=T,legend.args=NULL){
@@ -72,7 +73,7 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
     if(is.null(colvec)){
       if(is.null(breaks)){
         if(is.null(val.range)){
-          val.range<-range(sim[[color.element]])
+          val.range<-range(sim[[color.element]],na.rm=TRUE)
         }
         colramp<-colorRampPalette(col,alpha=T)(res)
         colramp<-alter.cols(colramp,alpha=.lin.interp(alpha,length(colramp)))
@@ -89,9 +90,13 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
         if(is.null(sim[[color.element]])){
           colvec<-colramp[round((length(breaks)+2)/2)]
         }else{
-          colvec<-colramp[cut(sim[[color.element]],c(min(sim[[color.element]])-1,breaks,max(sim[[color.element]])+1))]
+          colvec<-colramp[cut(sim[[color.element]],
+                              c(min(sim[[color.element]],na.rm=TRUE)-1,
+                                breaks,
+                                max(sim[[color.element]],na.rm=TRUE)+1))]
         }
       }
+      colvec[is.na(colvec)]<-na.col
     }else{
       colvec<-rep(colvec,length.out=nrow(tree$edge))
       colvec<-alter.cols(colvec,alpha=alpha)
@@ -104,21 +109,27 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
     if(type=='phenogram'){
       n<-length(tree$tip.label)
       if(nrow(sim$X)==n){
-        scaled.tree<-tree
+        #will need to be updated to handle multivariate stuff
+        elen<-tree$edge.length
         if(!is.null(sim$R)){
           if(color.element=='R'&exp){
-            scaled.tree$edge.length<-tree$edge.length*sim$R
+            elen<-elen*sim$R
           }else{
-            scaled.tree$edge.length<-tree$edge.length*exp(sim$R)
+            elen<-elen*exp(sim$R)
           }
         }
-        anc.states<-matrix(NA,tree$Nnode,ncol(sim$X))
-        rownames(anc.states)<-n+1:tree$Nnode
-        colnames(anc.states)<-colnames(sim$X)
-        for(i in traits){
-          anc.states[,i]<-.quick.recon(sim$X[,i],scaled.tree)
-        }
-        sim$X<-rbind(sim$X,anc.states)
+        elen[is.na(elen)]<-0
+        XX<-array(NA,c(1,tree$Nnode+n,1),
+                  list(NULL,c(tree$tip.label,1:tree$Nnode+n),NULL))
+        PP<-XX
+        LL<-XX
+        XX[,tree$tip.label,]<-sim$X[tree$tip.label,]
+        PP[,tree$tip.label,]<-Inf
+        LL[,tree$edge[,2],]<-elen
+        LL[,n+1,]<-0
+        tmp<-as.matrix(.anc.recon(tree,XX,LL,PP,FALSE)[[1]][1,,1])
+        colnames(tmp)<-traits
+        sim$X<-tmp
       }
       sim$X<-sim$X[c(tree$tip.label,n+1:tree$Nnode),,drop=F]
       if(length(traits)==1){
@@ -168,105 +179,103 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
                   list(...)[names(list(...))%in%gen.args]))
       }
     }else{
-      if(add){
-        #no support for adding tip labels if add is set to TRUE...yet
-        tree.plot<-try(get("last_plot.phylo",envir=.PlotPhyloEnv),silent=T)
-        if(inherits(tree.plot,'try-error')){
-          tmpf<-tempfile()
-          pdf(tmpf)
-          do.call(plot,
-                  c(x=list(tree),
-                    type=type,
-                    edge.color=list(colvec),
-                    edge.width=ifelse(length(lwd)>1,list(lwd),lwd),
-                    edge.lty=ifelse(length(lwd)>1,list(lty),lty),
-                    list(...)[!(names(list(...))%in%c('type','edge.color','edge.width','edge.lty'))]))
-          dev.off()
-          unlink(tmpf)
-          tree.plot<-get("last_plot.phylo",envir=.PlotPhyloEnv)
-        }
-        tree.plot$type<-tree.plot$type
-        if(tree.plot$type=='phylogram'){
-          if(tree.plot$direction%in%c('leftwards','rightwards')){
-            coords.list<-c(y0=list(tree.plot$yy[as.vector(t(tree$edge))]),y1=list(tree.plot$yy[rep(tree$edge[,2],each=2)]),
-                           x0=list(tree.plot$xx[rep(tree$edge[,1],each=2)]),x1=list(tree.plot$xx[as.vector(t(tree$edge))]))
-          }else{
-            coords.list<-c(y0=list(tree.plot$yy[rep(tree$edge[,1],each=2)]),y1=list(tree.plot$yy[as.vector(t(tree$edge))]),
-                           x0=list(tree.plot$xx[as.vector(t(tree$edge))]),x1=list(tree.plot$xx[rep(tree$edge[,2],each=2)]))
-          }
-          colvec<-rep(colvec,each=2)
-          lwdvec<-rep(lwdvec,each=2)
-          ltyvec<-rep(ltyvec,each=2)
-        }else if(tree.plot$type=='fan'){
-          r<-sqrt(tree.plot$xx^2+tree.plot$yy^2)
-          theta<-atan(tree.plot$yy/tree.plot$xx)
-          theta[tree.plot$xx<0]<-theta[tree.plot$xx<0]+pi
-          theta[is.nan(theta)]<-0
-          theta[theta<theta[1]]<-theta[theta<theta[1]]+2*pi
-          theta0<-theta[as.vector(t(tree$edge))]
-          theta1<-theta[rep(tree$edge[,2],each=2)]
-          r0<-r[rep(tree$edge[,1],each=2)]
-          r1<-r[as.vector(t(tree$edge))]
-          colvec<-rep(colvec,each=2)
-          lwdvec<-rep(lwdvec,each=2)
-          ltyvec<-rep(ltyvec,each=2)
-          if(hasArg(ang.res)){
-            ang<-seq(0,2*pi,length.out=list(...)$ang.res)
-          }else{
-            ang<-seq(0,2*pi,length.out=100)
-          }
-          new.theta0<-new.theta1<-new.r0<-new.r1<-new.colvec<-new.lwdvec<-new.ltyvec<-NULL
-          for(i in 1:length(theta0)){
-            tmp<-c(theta0[i],theta1[i])
-            int.ang<-ang[ang>min(tmp)&ang<max(tmp)]
-            if(r0[i]==0|theta0[i]==theta1[i]|length(int.ang)==0){
-              new.theta0<-c(new.theta0,theta0[i])
-              new.theta1<-c(new.theta1,theta1[i])
-              new.r0<-c(new.r0,r0[i])
-              new.r1<-c(new.r1,r1[i])
-              new.colvec<-c(new.colvec,colvec[i])
-              new.lwdvec<-c(new.lwdvec,lwdvec[i])
-              new.ltyvec<-c(new.ltyvec,ltyvec[i])
-              next
-            }else{
-              if(tmp[1]>tmp[2]){
-                int.ang<-rev(int.ang)
-              }
-              new.theta0<-c(new.theta0,theta0[i],int.ang)
-              new.theta1<-c(new.theta1,int.ang,theta1[i])
-              new.r0<-c(new.r0,rep(r0[i],length(int.ang)+1))
-              new.r1<-c(new.r1,rep(r1[i],length(int.ang)+1))
-              new.colvec<-c(new.colvec,rep(colvec[i],length(int.ang)+1))
-              new.lwdvec<-c(new.lwdvec,rep(lwdvec[i],length(int.ang)+1))
-              new.ltyvec<-c(new.ltyvec,rep(ltyvec[i],length(int.ang)+1))
-            }
-          }
-          colvec<-new.colvec
-          lwdvec<-new.lwdvec
-          ltyvec<-new.ltyvec
-          coords.list<-c(x0=list(new.r0*cos(new.theta0)),
-                         x1=list(new.r1*cos(new.theta1)),
-                         y0=list(new.r0*sin(new.theta0)),
-                         y1=list(new.r1*sin(new.theta1)))
-        }else{
-          coords.list<-c(y0=list(tree.plot$yy[tree$edge[,1]]),y1=list(tree.plot$yy[tree$edge[,2]]),
-                         x0=list(tree.plot$xx[tree$edge[,1]]),x1=list(tree.plot$xx[tree$edge[,2]]))
-        }
-        do.call(segments,
-                c(coords.list,
-                  col=list(colvec),
-                  lwd=list(lwdvec),
-                  lty=list(ltyvec),
-                  list(...)[names(list(...))%in%gen.args]))
-      }else{
+      if(!add){
+        do.call(plot,
+                c(x=list(tree),
+                  type=type,
+                  edge.color=rgb(0,0,0,0),
+                  list(...)[!(names(list(...))%in%c('type','edge.color'))]))
+      }
+      #no support for adding tip labels if add is set to TRUE...yet
+      tree.plot<-try(get("last_plot.phylo",envir=.PlotPhyloEnv),silent=T)
+      if(inherits(tree.plot,'try-error')){
+        tmpf<-tempfile()
+        pdf(tmpf)
         do.call(plot,
                 c(x=list(tree),
                   type=type,
                   edge.color=list(colvec),
-                  edge.width=list(lwdvec),
-                  edge.lty=list(ltyvec),
+                  edge.width=if(length(lwd)>1) list(lwd) else lwd,
+                  edge.lty=if(length(lwd)>1) list(lty) else lty,
                   list(...)[!(names(list(...))%in%c('type','edge.color','edge.width','edge.lty'))]))
+        dev.off()
+        unlink(tmpf)
+        tree.plot<-get("last_plot.phylo",envir=.PlotPhyloEnv)
       }
+      tree.plot$type<-tree.plot$type
+      if(tree.plot$type=='phylogram'){
+        if(tree.plot$direction%in%c('leftwards','rightwards')){
+          coords.list<-c(y0=list(tree.plot$yy[as.vector(t(tree$edge))]),y1=list(tree.plot$yy[rep(tree$edge[,2],each=2)]),
+                         x0=list(tree.plot$xx[rep(tree$edge[,1],each=2)]),x1=list(tree.plot$xx[as.vector(t(tree$edge))]))
+        }else{
+          coords.list<-c(y0=list(tree.plot$yy[rep(tree$edge[,1],each=2)]),y1=list(tree.plot$yy[as.vector(t(tree$edge))]),
+                         x0=list(tree.plot$xx[as.vector(t(tree$edge))]),x1=list(tree.plot$xx[rep(tree$edge[,2],each=2)]))
+        }
+        colvec<-rep(colvec,each=2)
+        lwdvec<-rep(lwdvec,each=2)
+        ltyvec<-rep(ltyvec,each=2)
+      }else if(tree.plot$type=='fan'){
+        r<-sqrt(tree.plot$xx^2+tree.plot$yy^2)
+        theta<-atan(tree.plot$yy/tree.plot$xx)
+        theta[tree.plot$xx<0]<-theta[tree.plot$xx<0]+pi
+        theta[is.nan(theta)]<-0
+        theta[theta<theta[1]]<-theta[theta<theta[1]]+2*pi
+        theta[theta<0]<-2*pi+theta[theta<0]
+        theta0<-theta[as.vector(t(tree$edge))]
+        theta1<-theta[rep(tree$edge[,2],each=2)]
+        r0<-r[rep(tree$edge[,1],each=2)]
+        r1<-r[as.vector(t(tree$edge))]
+        colvec<-rep(colvec,each=2)
+        lwdvec<-rep(lwdvec,each=2)
+        ltyvec<-rep(ltyvec,each=2)
+        if(hasArg(ang.res)){
+          ang<-seq(0,2*pi,length.out=list(...)$ang.res)
+        }else{
+          ang<-seq(0,2*pi,length.out=100)
+        }
+        new.theta0<-new.theta1<-new.r0<-new.r1<-new.colvec<-new.lwdvec<-new.ltyvec<-NULL
+        for(i in 1:length(theta0)){
+          tmp<-c(theta0[i],theta1[i])
+          int.ang<-ang[ang>min(tmp)&ang<max(tmp)]
+          if(r0[i]==0|theta0[i]==theta1[i]|length(int.ang)==0){
+            new.theta0<-c(new.theta0,theta0[i])
+            new.theta1<-c(new.theta1,theta1[i])
+            new.r0<-c(new.r0,r0[i])
+            new.r1<-c(new.r1,r1[i])
+            new.colvec<-c(new.colvec,colvec[i])
+            new.lwdvec<-c(new.lwdvec,lwdvec[i])
+            new.ltyvec<-c(new.ltyvec,ltyvec[i])
+            next
+          }else{
+            if(tmp[1]>tmp[2]){
+              int.ang<-rev(int.ang)
+            }
+            new.theta0<-c(new.theta0,theta0[i],int.ang)
+            new.theta1<-c(new.theta1,int.ang,theta1[i])
+            new.r0<-c(new.r0,rep(r0[i],length(int.ang)+1))
+            new.r1<-c(new.r1,rep(r1[i],length(int.ang)+1))
+            new.colvec<-c(new.colvec,rep(colvec[i],length(int.ang)+1))
+            new.lwdvec<-c(new.lwdvec,rep(lwdvec[i],length(int.ang)+1))
+            new.ltyvec<-c(new.ltyvec,rep(ltyvec[i],length(int.ang)+1))
+          }
+        }
+        colvec<-new.colvec
+        lwdvec<-new.lwdvec
+        ltyvec<-new.ltyvec
+        coords.list<-c(x0=list(new.r0*cos(new.theta0)),
+                       x1=list(new.r1*cos(new.theta1)),
+                       y0=list(new.r0*sin(new.theta0)),
+                       y1=list(new.r1*sin(new.theta1)))
+      }else{
+        coords.list<-c(y0=list(tree.plot$yy[tree$edge[,1]]),y1=list(tree.plot$yy[tree$edge[,2]]),
+                       x0=list(tree.plot$xx[tree$edge[,1]]),x1=list(tree.plot$xx[tree$edge[,2]]))
+      }
+      do.call(segments,
+              c(coords.list,
+                col=list(colvec),
+                lwd=list(lwdvec),
+                lty=list(ltyvec),
+                list(...)[names(list(...))%in%gen.args]))
     }
     if(legend){
       legend.call<-c(sim=list(sim),color.element=color.element,exp=exp,
@@ -306,17 +315,26 @@ pairs.corateBM<-function(sim,traits=1:ncol(sim$X),
   }
   n<-length(tree$tip.label)
   if(nrow(sim$X)==n){
-    scaled.tree<-tree
+    #will need to be updated to handle multivariate stuff
+    elen<-tree$edge.length
     if(!is.null(sim$R)){
-      scaled.tree$edge.length<-tree$edge.length*exp(sim$R)
+      if(color.element=='R'&exp){
+        elen<-elen*sim$R
+      }else{
+        elen<-elen*exp(sim$R)
+      }
     }
-    anc.states<-matrix(NA,tree$Nnode,ncol(sim$X))
-    rownames(anc.states)<-n+1:tree$Nnode
-    colnames(anc.states)<-colnames(sim$X)
-    for(i in traits){
-      anc.states[,i]<-.quick.recon(sim$X[,i],scaled.tree)
-    }
-    sim$X<-rbind(sim$X,anc.states)
+    XX<-array(NA,c(1,tree$Nnode+n,1),
+              list(NULL,c(tree$tip.label,1:tree$Nnode+n),NULL))
+    PP<-XX
+    LL<-XX
+    XX[,tree$tip.label,]<-sim$X[tree$tip.label,]
+    PP[,tree$tip.label,]<-Inf
+    LL[,tree$edge[,2],]<-elen
+    LL[,n+1,]<-0
+    tmp<-as.matrix(.anc.recon(tree,XX,LL,PP,FALSE)[[1]][1,,1])
+    colnames(tmp)<-traits
+    sim$X<-tmp
   }
   sim$X<-sim$X[c(tree$tip.label,n+1:tree$Nnode),,drop=F]
   if(is.null(lab)){
@@ -413,6 +431,7 @@ pairs.corateBM<-function(sim,traits=1:ncol(sim$X),
   par(old.par)
 }
 
+#plot 3 to 4 numbers next to legend
 #' @export
 legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','topright'),color.element='R',exp=F,
                           col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
@@ -431,7 +450,7 @@ legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','t
   txt.args<-txt.args[-which(txt.args=='...')]
   if(is.null(breaks)){
     if(is.null(val.range)){
-      val.range<-range(sim[[color.element]])
+      val.range<-range(sim[[color.element]],na.rm=TRUE)
     }
     colramp<-colorRampPalette(col,alpha=T)(res)
     colramp<-alter.cols(colramp,alpha=.lin.interp(alpha,length(colramp)))
@@ -519,8 +538,8 @@ legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','t
               labels=list(labels),
               txt.args))
   }else{
-    labels<-paste(breaks[-length(breaks)],'-',breaks[-1])
-    labels<-c(paste('<',breaks[1]),labels,paste('>',breaks[length(breaks)]))
+    labels<-paste(signif(breaks[-length(breaks)],3),signif(breaks[-1],3),sep=' - ')
+    labels<-c(paste('<',signif(breaks[1],3)),labels,paste('>',signif(breaks[length(breaks)],3)))
     labels<-labels[select.levels]
     y.pos<-apply(cbind(y.int[-length(y.int)],y.int[-1]),1,mean)
     do.call(text,

@@ -48,7 +48,7 @@
     select[[2]]<-select[[2]][is.na(matches)]
   }
   if(length(select[[2]])>0){
-    out[is.na(out[,1,1]),,]<-apply(tmp,c(2,3),quantile,probs=select[[2]])
+    out[is.na(out[,1,1]),,]<-apply(tmp,c(2,3),quantile,probs=select[[2]],na.rm=TRUE)
   }
   out
 }
@@ -56,7 +56,7 @@
 .int.means<-function(fit,select){
   if(is.null(fit[['means']])){
     tmp<-.int.chains(fit,select)
-    out<-array(apply(tmp,c(2,3),mean),c(1,dim(tmp)[-1]),dimnames(tmp))
+    out<-array(apply(tmp,c(2,3),mean,na.rm=TRUE),c(1,dim(tmp)[-1]),dimnames(tmp))
   }else{
     fit[['means']]<-.expand.element(fit[['means']])
     out<-.int.op(fit[['means']],select)

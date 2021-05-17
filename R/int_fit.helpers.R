@@ -41,7 +41,7 @@
 
 .coerce.trait.mat<-function(in.trait.mat){
   trait.mat<-in.trait.mat
-  if(is.vector(trait.mat)&is.numeric(trait.mat)){
+  if(length(dim(trait.mat))<=1&is.numeric(trait.mat)){
     input.code<-1
     trait.mat<-as.matrix(trait.mat)
   }else if(is.data.frame(trait.mat)){
@@ -58,7 +58,7 @@
       rownames(new.trait.mat)<-as.character(trait.mat[,labels.col])
       trait.mat<-new.trait.mat
     }
-  }else if(is.matrix(trait.mat)&is.numeric(trait.mat)){
+  }else if(length(dim(trait.mat))==2&is.numeric(trait.mat)){
     input.code<-3
   }else{
     stop('Format of ',
@@ -85,6 +85,12 @@
 }
 
 .coerce.tree<-function(tree,trait.data=NULL,trait.se=NULL){
+  node.names<-as.character(1:tree$Nnode+length(tree$tip.label))
+  node.matches<-unlist(sapply(paste('^',rownames(trait.data),'$',sep=''),
+                              function(ii) grep(ii,node.names,value=TRUE)))
+  if(length(node.matches)>0){
+    tree<-multi.bind.tip(tree,node.matches,0,as.numeric(node.matches),0)
+  }
   attr(tree,'order')<-NULL
   tree<-reorder(tree,'cladewise')
   tree<-di2multi(tree,tol=0)
@@ -171,7 +177,7 @@
             paste(conflicts_mis_X,collapse=', '),
             ', but tip(s) have no observations associated with them: defaulted to ignoring fixed standard errors. Specify a single observation for any tips you want to associate with a fixed standard error.')
   }
-  trait.se<-unique(trait.se)
+  trait.se<-trait.se[!duplicated(paste(rownames(trait.se),trait.se)),,drop=FALSE]
   #Check for specification of 2 different standard errors for same tip
   conflicts_dups<-rownames(trait.se)[duplicated(rownames(trait.se))]
   if(length(conflicts_dups)>0){
@@ -184,25 +190,18 @@
 }
 
 #might be better to account for standard error?
-.get.trans.const<-function(tree,X,mis,phy.sd){
+.get.trans.const<-function(tree,X,mis){
   trans.const<-list(hgt=NULL,X_sig2=rep(0,ncol(X)))
   trans.const$hgt<-max(node.depth.edgelength(tree))
   tree$edge.length<-tree$edge.length/trans.const$hgt
   for(i in 1:ncol(X)){
     tmp.X<-X[!mis,i]
     if(length(tmp.X)>1){
-      if(phy.sd){
-        tmp.tree<-multi2di(tree)
-        if(length(tmp.X)<length(tree$tip.label)){
-          tmp.tree<-keep.tip(tmp.tree,names(tmp.X))
-        }
-        trans.const$X_sig2[i]<-mean(pic(tmp.X,tmp.tree)^2)
-      }else{
-        trans.const$X_sig2[i]<-var(tmp.X)
-      }
+      trans.const$X_sig2[i]<-var(tmp.X)
     }
     if(trans.const$X_sig2[i]==0){
-      #no information to scale trait data --> either everything is missing or everything has mean of 0
+      warning('No information to scale trait data--every tip is missing and/or has the same mean trait value: defaulted to not scaling trait data but you should probably double-check your input!',
+              immediate.=TRUE)
       trans.const$X_sig2[i]<-1
     }
   }
@@ -250,10 +249,10 @@
   ##FINAL PRIOR/CONSTRAINT SETTINGS##
   dat<-input.evorates.obj$dat
   #10 is just a bit tight--20 seems just right
-  def.priors<-list('R0_prior_mu'=0,'R0_prior_sig'=20,
-                   'Ysig2_prior_sig'=5,
-                   'Rsig2_prior_sig'=20,
-                   'Rmu_prior_mu'=0,'Rmu_prior_sig'=20)
+  def.priors<-list('R0_prior_mu'=0,'R0_prior_sig'=10,
+                   'Ysig2_prior_sig'=2,
+                   'Rsig2_prior_sig'=5,
+                   'Rmu_prior_mu'=0,'Rmu_prior_sig'=10)
   #we'll need to tweak this for multivariate priors
   for(i in names(def.priors)){
     if(!is.null(prior.list[[i]])){
@@ -288,7 +287,7 @@
   ##CHOOSE MODEL/EXCLUDED PARAMETERS##
   #will become more complex/important with multivariate extension
   exclude.pars<-c('std_R0','std_Ysig2','std_Rsig2','std_Rmu','raw_R','SE','tmp_lik','tmp_mu')
-  if(length(dat$n_mis_SE)==0){
+  if(dat$n_mis_SE==0){
     exclude.pars<-c(exclude.pars,'Ysig2')
   }
   if(dat$constr_Rsig2){
@@ -300,7 +299,7 @@
   if(dat$constr_Rsig2&dat$constr_Rmu){
     exclude.pars<-c(exclude.pars,'R')
   }
-  stanobj<-'univar_evorates'
+  stanobj<-'univar_evorates_normpri'
   
   ##FORM OUTPUT FOR RUNNING MODEL##
   out<-list(return.as.obj=return.as.obj,stanobj=stanobj,exclude.pars=exclude.pars,out.file=out.file,

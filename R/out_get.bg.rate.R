@@ -112,7 +112,7 @@ get.bg.rate<-function(fit,node=NULL,element=c('chains','quantiles','means','MAPs
     }else{
       R<-do.call(paste('.int.',int.element,sep=''),list(fit=fit,select=edge.group[[i]]))
       wgts<-tree$edge.length[edge.group[[i]]]/sum(tree$edge.length[edge.group[[i]]])
-      out.list[[i]]<-array(log(apply(R,c(1,3),function(ii) sum(exp(ii)*wgts))),
+      out.list[[i]]<-array(log(apply(R,c(1,3),function(ii) sum(exp(ii)*wgts,na.rm=TRUE))),
                            dim=c(dim(R)[1],1,dim(R)[3]),
                            c(dimnames(R)[1],parameters=name[[i]],dimnames(R)[3]))
       if(element=='quantiles'){
@@ -243,7 +243,7 @@ get.bg.rate.old<-function(fit,node=NULL,element=c('chains','quantiles','means','
     }else{
       R<-do.call(paste('.int.',int.element,sep=''),list(fit=fit,select=edge.group[[i]]))
       wgts<-tree$edge.length[edge.group[[i]]]/sum(tree$edge.length[edge.group[[i]]])
-      out.list[[i]]<-array(apply(R,c(1,3),function(ii) sum(ii*wgts)),
+      out.list[[i]]<-array(apply(R,c(1,3),function(ii) sum(ii*wgts,na.rm=TRUE)),
                            dim=c(dim(R)[1],1,dim(R)[3]),
                            c(dimnames(R)[1],parameters=name[[i]],dimnames(R)[3]))
       if(element=='quantiles'){

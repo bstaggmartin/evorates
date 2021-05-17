@@ -33,9 +33,9 @@ dlkj<-function(cor,nu=1,log=F){
   }
   out
 }
-sig<-aperm(rethinking::rlkjcorr(1e3,5,2),c(2,3,1))
-dlkj(sig,nu=2)
-plot(dlkj(sig,nu=2,log=T)~apply(sig,3,rethinking::dlkjcorr,eta=2))
+# sig<-aperm(rethinking::rlkjcorr(1e3,5,2),c(2,3,1))
+# dlkj(sig,nu=2)
+# plot(dlkj(sig,nu=2,log=T)~apply(sig,3,rethinking::dlkjcorr,eta=2))
 #yep, just differs by a constant
 
 #returns 0 if any rows are not unit simplices

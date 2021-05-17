@@ -179,10 +179,10 @@ transformed data {
 
 parameters {
   //parameters on sampling scale: see below for parameter definitions
-  real<lower=-pi()/2, upper=pi()/2> std_R0;
+  real std_R0;
   real<lower=0, upper=pi()/2> std_Ysig2[has_mis_SE ? 1:0];
   real<lower=0, upper=pi()/2> std_Rsig2[constr_Rsig2 ? 0:1];
-  real<lower=-pi()/2, upper=pi()/2> std_Rmu[constr_Rmu ? 0:1];
+  real std_Rmu[constr_Rmu ? 0:1];
   vector[constr_Rsig2 ? 0:e] raw_R;
 }
 
@@ -198,7 +198,7 @@ transformed parameters {
   
   
   //high level priors
-  R0 = R0_prior_mu + R0_prior_sig * tan(std_R0); //R0 prior: cauchy(R0_prior_mu, R0_prior_sig)
+  R0 = R0_prior_mu + R0_prior_sig * std_R0; //R0 prior: normal(R0_prior_mu, R0_prior_sig)
   if(has_mis_SE){
     Ysig2[1] = Ysig2_prior_sig * tan(std_Ysig2[1]); //Ysig2 prior: half-cauchy(0, Ysig2_prior)
   }
@@ -206,7 +206,7 @@ transformed parameters {
 	  Rsig2[1] = Rsig2_prior_sig * tan(std_Rsig2[1]); //Rsig2 prior: half-cauchy(0, Rsig2_prior)
 	}
 	if(!constr_Rmu){
-	  Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * tan(std_Rmu[1]); //Rmu prior: cauchy(Rmu_prior_mu, Rmu_prior_sig)
+	  Rmu[1] = Rmu_prior_mu + Rmu_prior_sig * std_Rmu[1]; //Rmu prior: normal(Rmu_prior_mu, Rmu_prior_sig)
 	}
   
   
@@ -238,6 +238,13 @@ transformed parameters {
 }
 
 model {
+  //high level priors
+  std_R0 ~ std_normal();
+  if(!constr_Rmu){
+    std_Rmu[1] ~ std_normal();
+  }
+  
+  
   //'seed' for sampling from R prior: see above
 	if(!constr_Rsig2){
 	  raw_R ~ std_normal();
@@ -265,7 +272,7 @@ generated quantities{
   }
   
   
-  prior = cauchy_lpdf(R0 | R0_prior_mu, R0_prior_sig);
+  prior = normal_lpdf(R0 | R0_prior_mu, R0_prior_sig);
   if(has_contra){
     prior += cauchy_lpdf(Ysig2 | 0, Ysig2_prior_sig) + log(2);
   }
@@ -274,6 +281,6 @@ generated quantities{
     prior += multi_normal_cholesky_lpdf(R | tmp_mu, sqrt(Rsig2[1]) * chol_eV);
   }
   if(!constr_Rmu){
-    prior += cauchy_lpdf(Rmu[1] | Rmu_prior_mu, Rmu_prior_sig);
+    prior += normal_lpdf(Rmu[1] | Rmu_prior_mu, Rmu_prior_sig);
   }
 }

@@ -8,13 +8,15 @@ using namespace Rcpp;
 
 
 RcppExport SEXP _rcpp_module_boot_stan_fit4univar_evorates_mod();
+RcppExport SEXP _rcpp_module_boot_stan_fit4univar_evorates_normpri_mod();
 
 static const R_CallMethodDef CallEntries[] = {
     {"_rcpp_module_boot_stan_fit4univar_evorates_mod", (DL_FUNC) &_rcpp_module_boot_stan_fit4univar_evorates_mod, 0},
+    {"_rcpp_module_boot_stan_fit4univar_evorates_normpri_mod", (DL_FUNC) &_rcpp_module_boot_stan_fit4univar_evorates_normpri_mod, 0},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_contSimmap(DllInfo *dll) {
+RcppExport void R_init_evorates(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

@@ -24,56 +24,83 @@
   }
 }
 
-.quick.recon<-function(X,tree,just.root=F){
-  if(!is.null(names(X))){
-    X<-X[tree$tip.label]
-  }
-  XX<-rep(NA,nrow(tree$edge)+1)
-  names(XX)<-c(tree$tip.label,length(tree$tip.label)+1:tree$Nnode)
-  PP<-rep(NA,nrow(tree$edge)+1)
-  for(e in nrow(tree$edge):0){
+.anc.recon<-function(tree,XX,LL,PP,stochastic){
+  ntips<-length(tree$tip.label)
+  nedges<-nrow(tree$edge)
+  for(e in nedges:0){
     if(e==0){
-      n<-length(tree$tip.label)+1
-      d<-tree$edge[which(tree$edge[,1]==n),2]
-      sum.P<-sum(PP[d])
-      XX[n]<-sum(XX[d]*PP[d]/sum.P)
-      PP[n]<-sum(sum.P)
-      break
+      n<-ntips+1
+    }else{
+      n<-tree$edge[e,2]
     }
-    n<-tree$edge[e,2]
-    if(length(which(tree$edge[,1]==n))==0){
-      XX[n]<-X[n]
-      PP[n]<-1/tree$edge.length[e]
-    }
-    if(length(which(tree$edge[,1]==n))>0){
-      d<-tree$edge[which(tree$edge[,1]==n),2]
-      infs<-is.infinite(PP[d])
-      if(any(infs)){
-        XX[n]<-XX[d[infs]]
-        PP[n]<-1/tree$edge.length[e]
+    d<-tree$edge[which(tree$edge[,1]==n),2]
+    if(length(d)==0){
+      if(is.infinite(PP[1,n,1])){
+        PP[,n,]<-1/LL[,n,]
       }else{
-        sum.P<-sum(PP[d])
-        XX[n]<-sum(XX[d]*PP[d]/sum.P)
-        PP[n]<-sum.P/(1+tree$edge.length[e]*sum.P)
+        PP[,n,]<-PP[,n,]/(1+LL[,n,]*PP[,n,])
+      }
+    }else{
+      des_P<-PP[,d,,drop=F]
+      des_X<-XX[,d,,drop=F]
+      infs<-is.infinite(des_P[1,,1])
+      inf.code<-sum(infs)
+      if(inf.code>1){
+        stop('Two tips are occupying the exact same phylogenetic position: something went very wrong here.')
+      }else if(inf.code==1){
+        XX[,n,]<-des_X[,infs,]
+        PP[,n,]<-1/LL[,n,]
+      }else{
+        sum_P<-apply(des_P,c(1,3),sum)
+        if(sum_P==0){
+          XX[,n,]<-0
+        }else{
+          XX[,n,]<-apply(XX[,d,,drop=F]*PP[,d,,drop=F],c(1,3),sum)/sum_P
+        }
+        PP[,n,]<-sum_P/(1+LL[,n,]*sum_P)
       }
     }
   }
-  if(just.root){
-    XX[length(tree$tip.label)+1]
-  }else{
-    for(e in 1:nrow(tree$edge)){
+  if(stochastic){
+    niter<-dim(XX)[1]
+    nchains<-dim(XX)[3]
+    XX[,ntips+1,]<-rnorm(niter*nchains,XX[,ntips+1,],sqrt(1/PP[,ntips+1,]))
+    sds<-PP
+    sds[,,]<-1/sqrt(PP/(1-LL*PP)+1/LL)
+    for(e in 1:nedges){
       n<-tree$edge[e,2]
-      if(length(which(tree$edge[,1]==n))!=0){
-        a<-tree$edge[e,1]
-        if(is.infinite(PP[n])){
-          XX[n]<-XX[a]
-        }else{
-          XX[n]<-XX[n]*PP[n]*tree$edge.length[e]+XX[a]-XX[a]*PP[n]*tree$edge.length[e]
-        }
-        #no need for variance if only goal is ancestral states
+      a<-tree$edge[e,1]
+      if(is.infinite(PP[1,n,1])){
+        XX[,n,]<-XX[,n,]
+      }else{
+        PL<-PP[,n,]*LL[,n,]
+        XX[,n,]<-(XX[,n,]-XX[,a,])*PL+XX[,a,]
+        XX[,n,]<-rnorm(niter*nchains,XX[,n,],sds[,n,])
       }
     }
-    XX[-(1:length(tree$tip.label))]
+    XX
+  }else{
+    for(e in 1:nedges){
+      n<-tree$edge[e,2]
+      a<-tree$edge[e,1]
+      if(is.infinite(PP[1,n,1])){
+        XX[,n,]<-XX[,n,]
+      }else{
+        PL<-round(PP[,n,]*LL[,n,],15)
+        if(PL==1){
+          PP[,n,]<-Inf
+        }else{
+          P_diff<-PP[,a,]-PP[,n,]
+          XX[,n,]<-(XX[,n,]-XX[,a,])*PL+XX[,a,]
+          if(is.infinite(P_diff)){
+            PP[,n,]<-PP[,n,]/(1-PL)+1/LL[,n,]
+          }else{
+            PP[,n,]<-PP[,n,]/(1-PL)+P_diff/(1+LL[,n,]*P_diff)
+          }
+        }
+      }
+    }
+    list(XX,1/PP)
   }
 }
 

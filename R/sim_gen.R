@@ -1,21 +1,22 @@
-#simulate trait and rate data under an autocorrelated Brownian motion model
+#simulate trait and rate data under an EvoRates model
+#get rid of intravar, set default intracov to 0
 #' @export
-sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
-                       n.obs=rep(1,length(tree$tip.label)),intravar=F,intracov=0.2^2,
-                       anc.states=F,slow=F,res=500){
+sim.evorates<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,trait.names=NULL,
+                       n.obs=rep(1,length(tree$tip.label)),Ysig2=0,percent=FALSE,
+                       anc.states=FALSE,slow=FALSE,res=500){
   tree<-.coerce.tree(tree)$tree
-  k<-max(sapply(list(X0,evocov,intracov),NROW))
+  k<-max(sapply(list(X0,Xsig2,Ysig2),NROW))
   if(length(X0)<k){
-    warning('X0 implies lower number of traits than evocov and/or intracov: recycling X0 to match other inputs')
+    warning('X0 implies lower number of traits than Xsig2 and/or intracov: recycling X0 to match other inputs')
     X0<-rep(X0,length.out=k)
   }
-  if(NROW(evocov)<k){
-    warning('evocov implies lower number of traits than X0 and/or intracov: recycled evocov (assuming no covariance if undeclared) to match other inputs')
-  }else if(length(dim(evocov))==0&k>1){
-    warning('evocov is a vector: turned evocov into a matrix with no covariance')
+  if(NROW(Xsig2)<k){
+    warning('Xsig2 implies lower number of traits than X0 and/or intracov: recycled Xsig2 (assuming no covariance if undeclared) to match other inputs')
+  }else if(length(dim(Xsig2))==0&k>1){
+    warning('Xsig2 is a vector: turned Xsig2 into a matrix with no covariance')
   }
-  evocov<-.coerce.to.cov.mat(evocov,k)
-  chol.evocov<-t(chol(evocov))
+  Xsig2<-.coerce.to.cov.mat(Xsig2,k)
+  chol.Xsig2<-t(chol(Xsig2))
   if(is.null(trait.names)){
     trait.names<-rep(NA,length.out=k)
   }
@@ -54,10 +55,10 @@ sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
         R[i]<-R[i]-log(abs(Rmu))-log(t)+log(abs(diff(exp(Rmu*ndepths[edge[i,]]))))
       }
     }
-    X[edge[i,2],]<-X[edge[i,1],]+sqrt(t*exp(R[i]))*chol.evocov%*%seed[i,-(1:2)]
+    X[edge[i,2],]<-X[edge[i,1],]+sqrt(t*exp(R[i]))*chol.Xsig2%*%seed[i,-(1:2)]
   }
-  scalar<-1/mean(diag(evocov))
-  evocov<-evocov*scalar
+  scalar<-1/mean(diag(Xsig2))
+  Xsig2<-Xsig2*scalar
   R<-R-log(scalar);R0<-R0-log(scalar)
   out<-list('R_0'=R0,'R_sig2'=Rsig2,'X_0'=X0,'R'=R,'R_mu'=Rmu,'tree'=tree)
   if(anc.states){
@@ -66,20 +67,32 @@ sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
     out$X<-as.matrix(X[1:n,])
   }
   if(k>1){
-    out$evocov<-evocov
+    out$Xsig2<-Xsig2
     out$k<-k
   }
-  if(any(n.obs>1)){
-    intravar<-T
+  out$trait.data<-as.matrix(X[1:n,])
+  if(Ysig2==0&any(n.obs>1)){
+    warning('Ysig2 implies no intra-tip variation: set n.obs to 1 for each tip')
   }
-  if(intravar){
-    if(NROW(intracov)<k){
-      warning('intracov implies lower number of traits than X0 and/or evocov: recycled intracov (assuming no covariance if undeclared) to match other inputs')
-    }else if(length(dim(intracov))==0&k>1){
-      warning('intracov is a vector: turned intracov into a matrix with no covariance')
+  if(Ysig2>0){
+    if(NROW(Ysig2)<k){
+      warning('Ysig2 implies lower number of traits than X0 and/or Xsig2: recycled Ysig2 (assuming no covariance if undeclared) to match other inputs')
+    }else if(length(dim(Ysig2))==0&k>1){
+      warning('Ysig2 is a vector: turned Ysig2 into a matrix with no covariance')
     }
-    intracov<-.coerce.to.cov.mat(intracov,k)
-    chol.intracov<-t(chol(intracov))
+    Ysig2<-.coerce.to.cov.mat(Ysig2,k)
+    if(percent){
+      vars<-apply(X,2,var)
+      diag(Ysig2)<-diag(Ysig2^2)*vars
+      Ycor<-Ysig2
+      diag(Ycor)<-0
+      if(any(Ycor<=-1)|any(Ycor>=1)){
+        stop('If Ysig2 is expressed in terms of percentages, off-diagonal elements should represent correlations and be between -1 and 1')
+      }
+      diag(Ycor)<-1
+      Ysig2<-diag(sqrt(diag(Ysig2)),nrow=k)%*%Ycor%*%diag(sqrt(diag(Ysig2)),nrow=k)
+    }
+    chol.Ysig2<-t(chol(Ysig2))
     if(is.null(names(n.obs))){
       n.obs<-rep(n.obs,length.out=n)
     }else{
@@ -88,13 +101,11 @@ sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
       names(n.obs)<-tree$tip.label
     }
     seed<-matrix(rnorm(k*sum(n.obs)),k,sum(n.obs))
-    Y<-X[rep(1:n,n.obs),]+t(chol.intracov%*%seed)
+    Y<-X[rep(1:n,n.obs),]+t(chol.Ysig2%*%seed)
     rownames(Y)<-rep(tree$tip.label,n.obs)
     out$trait.data<-Y
-    out$intracov<-intracov
+    out$Ysig2<-Ysig2
     out$n.obs<-n.obs
-  }else{
-    out$trait.data<-as.matrix(X[1:n,])
   }
   class(out)<-'corateBM'
   out
@@ -104,87 +115,73 @@ sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,trait.names=NULL,
 #simulate trait and rate data under an autocorrelated Brownian motion model
 #REMOVE oprate and wnrate stuff!
 #' @export
-sim.corateBM.old<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,Ralpha=0,Rtheta=0,WN=F,
-                           n.obs=rep(1,length(tree$tip.label)),intravar=F,intracov=0.2^2,
-                           anc.states=F){
+sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,Ralpha=0,Rtheta=0,WN=F,
+                       n.obs=rep(1,length(tree$tip.label)),intravar=F,intracov=0.2^2,
+                       anc.states=F,slow=F,res=500){
   tree<-.coerce.tree(tree)$tree
-  k<-max(sapply(list(X0,evocov,intracov),NROW))
+  k<-max(sapply(list(X0,Xsig2,intracov),NROW))
   if(length(X0)<k){
-    warning('X0 implies lower number of traits than evocov and/or intracov: recycling X0 to match other inputs')
+    warning('X0 implies lower number of traits than Xsig2 and/or intracov: recycling X0 to match other inputs')
     X0<-rep(X0,length.out=k)
   }
-  if(NROW(evocov)<k){
-    warning('evocov implies lower number of traits than X0 and/or intracov: recycled evocov (assuming no covariance if undeclared) to match other inputs')
-  }else if(length(dim(evocov))==0&k>1){
-    warning('evocov is a vector: turned evocov into a matrix with no covariance')
+  if(NROW(Xsig2)<k){
+    warning('Xsig2 implies lower number of traits than X0 and/or intracov: recycled Xsig2 (assuming no covariance if undeclared) to match other inputs')
+  }else if(length(dim(Xsig2))==0&k>1){
+    warning('Xsig2 is a vector: turned Xsig2 into a matrix with no covariance')
   }
-  if(Ralpha>0&Rmu!=0){
-    warning('trended rate evolution (Rmu != 1) is current unsupported under OU rate evolution models (alpha > 0): Rmu set to 0')
-    Rmu<-0
+  Xsig2<-.coerce.to.cov.mat(Xsig2,k)
+  chol.Xsig2<-t(chol(Xsig2))
+  if(is.null(trait.names)){
+    trait.names<-rep(NA,length.out=k)
   }
-  evocov<-.coerce.to.cov.mat(evocov,k)
-  chol.evocov<-t(chol(evocov))
+  def.trait.names<-paste('X',1:k,sep='')
+  trait.names<-ifelse(is.na(trait.names),def.trait.names,trait.names)
   
   n<-length(tree$tip.label)
   edge<-tree$edge
-  edge.t.ranges<-matrix(node.depth.edgelength(tree)[edge],ncol=2)
   n_e<-nrow(edge)
+  ndepths<-node.depth.edgelength(tree)
   elen<-tree$edge.length
   X<-matrix(NA,n+tree$Nnode,k)
-  if(WN){
-    R<-rnorm(n_e,R0+rowMeans(matrix(node.depth.edgelength(tree)[edge],ncol=2))*Rmu,sqrt(Rsig2/(elen+1)))
-  }else{
-    n_R<-X[,1]
-    n_R[n+1]<-R0
-    R<-vector('numeric',n_e)
-  }
   rownames(X)<-c(tree$tip.label,n+1:tree$Nnode)
+  colnames(X)<-trait.names
   X[n+1,]<-X0
-  #could speed things up here by generating only a single seed...
+  n_R<-vector('numeric',max(edge))
+  n_R[n+1]<-R0
+  R<-vector('numeric',n_e)
+  seed<-matrix(rnorm(n_e*(k+2)),nrow=n_e)
+  if(slow){
+    dt<-max(ndepths)/res
+    nts<-floor(elen/dt)
+    dts<-elen/(nts+1)
+    additional.seed<-lapply(nts,function(ii) rnorm(ii+1))
+  }
   for(i in 1:n_e){
     t<-elen[i]
-    if(!WN){
-      if(t==0){
-        mu<-n_R[edge[i,1]]
-        var<-0
-      }else if(Ralpha>0){
-        mu<-n_R[edge[i,1]]*exp(-Ralpha*t)+Rtheta*(1-exp(-Ralpha*t))
-        var<-Rsig2/(2*Ralpha)*(1-exp(-2*Ralpha*t))
-      }else{
-        mu<-n_R[edge[i,1]]
-        var<-Rsig2*t
+    if(slow){
+      tmp<-n_R[edge[i,1]]+cumsum(additional.seed[[i]]*sqrt(Rsig2*dts[i])+Rmu*dts[i])
+      R[i]<-log(mean(exp(c(n_R[edge[i,1]],tmp))))
+      n_R[edge[i,2]]<-tmp[length(tmp)]
+    }else{
+      n_R[edge[i,2]]<-n_R[edge[i,1]]+seed[i,1]*sqrt(Rsig2*t)
+      R[i]<-mean(n_R[edge[i,]])+seed[i,2]*sqrt(Rsig2*t/12)
+      if(Rmu!=0&t!=0){
+        R[i]<-R[i]-log(abs(Rmu))-log(t)+log(abs(diff(exp(Rmu*ndepths[edge[i,]]))))
       }
-      n_R[edge[i,2]]<-rnorm(1,mu,sqrt(var))
-      if(elen[i]!=0){
-        if(Ralpha>0){
-          mu<-Rtheta+(sum(n_R[edge[i,]])-2*Rtheta)*(cosh(Ralpha*t)-1)/(Ralpha*t*sinh(Ralpha*t))
-          var<-Rsig2/(Ralpha^2*t)*((2-2*cosh(Ralpha*t))/(Ralpha*t*sinh(Ralpha*t))+1)
-          if(is.nan(var)){
-            var<-0
-          }else if(var>Rsig2*t/12|var<0){
-            var<-Rsig2*t/12
-          }
-        }else{
-          mu<-mean(n_R[edge[i,]])+Rmu*t/2
-          var<-Rsig2*t/12
-        }
-      }
-      R[i]<-rnorm(1,mu,sqrt(var))
     }
-    seed<-rnorm(k)
-    X[edge[i,2],]<-X[edge[i,1],]+sqrt(t*exp(R[i]))*chol.evocov%*%seed
+    X[edge[i,2],]<-X[edge[i,1],]+sqrt(t*exp(R[i]))*chol.Xsig2%*%seed[i,-(1:2)]
   }
-  scalar<-1/mean(diag(evocov))
-  evocov<-evocov*scalar
+  scalar<-1/mean(diag(Xsig2))
+  Xsig2<-Xsig2*scalar
   R<-R-log(scalar);R0<-R0-log(scalar)
-  out<-list('R_0'=R0,'R_sig2'=Rsig2,'R_alpha'=Ralpha,'R_theta'=Rtheta,'X_0'=X0,'R'=R,'R_mu'=Rmu,'tree'=tree,'WN'=WN)
+  out<-list('R_0'=R0,'R_sig2'=Rsig2,'X_0'=X0,'R'=R,'R_mu'=Rmu,'tree'=tree)
   if(anc.states){
     out$X<-X
   }else{
     out$X<-as.matrix(X[1:n,])
   }
   if(k>1){
-    out$evocov<-evocov
+    out$Xsig2<-Xsig2
     out$k<-k
   }
   if(any(n.obs>1)){
@@ -192,7 +189,7 @@ sim.corateBM.old<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,evocov=1,Ralpha=0,Rtheta
   }
   if(intravar){
     if(NROW(intracov)<k){
-      warning('intracov implies lower number of traits than X0 and/or evocov: recycled intracov (assuming no covariance if undeclared) to match other inputs')
+      warning('intracov implies lower number of traits than X0 and/or Xsig2: recycled intracov (assuming no covariance if undeclared) to match other inputs')
     }else if(length(dim(intracov))==0&k>1){
       warning('intracov is a vector: turned intracov into a matrix with no covariance')
     }

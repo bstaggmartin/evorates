@@ -2,7 +2,7 @@
 % Please edit documentation in R/out_operators.R
 \name{\%sampler\%}
 \alias{\%sampler\%}
-\title{Extract MCMC sampler parameters from a fitted correlated rates Brownian Motion model}
+\title{Extract HMC sampler parameters from a fitted correlated rates Brownian Motion model}
 \usage{
 fit \%sampler\% select
 }
@@ -22,7 +22,7 @@ iterations included in output from the \code{\%sampler\%} operator.
 }
 \description{
 This is an operator for efficiently extracting parameters used to tune the behavior of the Stan-based
-Markov chain Monte Carlo (MCMC) sampler from \code{corateBM_fit} object, as well as prior probabilities
+Hamiltonian Monte Carlo (HMC) sampler from \code{corateBM_fit} object, as well as prior probabilities
 and likelihoods associated with samples. Helpful for assessing MCMC behavior and potentially calculating
 marginal likelihoods, among other things.
 }

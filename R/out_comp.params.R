@@ -1,3 +1,5 @@
+#need to check if params2 is NULL and operation is + or * --> doesn't really make sense in this case...
+#yeah, this all needs a revamp
 #' @export
 compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c('-','+','/','*'),
                          element=c('chains','quantiles','means','MAPs'),select.extra=NULL){
@@ -29,7 +31,7 @@ compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c(
     stop('desired element is set to MAPs, but no corateBM_fit is supplied--need posterior probability info to find MAPs')
   }
   params1<-.combine.elements(params1,fit,'chains',simplify=F)
-  if(is.null(params2)&operation=='-'){
+  if(is.null(params2)&operation%in%c('-','/')){
     tmp<-list(chains=params1)
     class(tmp)<-'corateBM_fit'
     if(!is.null(element)){

@@ -31,7 +31,12 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
   #coerce trait.data and trait.se to rownamed matrices
   trait.data<-.coerce.trait.mat(trait.data)
   if(!is.null(trait.se)){
-    trait.se<-.coerce.trait.mat(trait.se)
+    if(length(trait.se==1)&is.null(names(trait.se))&is.numeric(trait.se)){
+      trait.se<-matrix(trait.se,length(tree$tip.label),1)
+      rownames(trait.se)<-tree$tip.label
+    }else{
+      trait.se<-.coerce.trait.mat(trait.se)
+    }
   }
   #coerce tree to be compatible (collapse internal 0-length edges to polytomies, identical tips to single tips)
   tmp<-.coerce.tree(tree,trait.data,trait.se)
@@ -125,12 +130,7 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
   
   
   ##TRANSFORMATION CONSTANTS##
-  if(hasArg(phy.sd)){
-    phy.sd<-list(...)$phy.sd
-  }else{
-    phy.sd<-TRUE
-  }
-  trans.const<-.get.trans.const(tree,X,mis,phy.sd=phy.sd)
+  trans.const<-.get.trans.const(tree,X,mis)
   tree$edge.length<-tree$edge.length/trans.const$hgt
   for(i in 1:ncol(X)){
     X[,i]<-X[,i]/sqrt(trans.const$X_sig2[i])
@@ -156,7 +156,8 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
   
   
   ##TREE INFO##
-  eV<-edge.vcv(tree)
+  edge.key<-which(tree$edge.length!=0)
+  call$edge.key<-edge.key
   poly.nodes<-which(sapply(1:max(tree$edge),function(ii) length(which(ii==tree$edge[,1])))>2)
   if(length(poly.nodes)>0){
     d_poly<-lapply(poly.nodes,function(ii) which(ii==tree$edge[,1]))
@@ -175,8 +176,21 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
   root.edges<-which(tree$edge[,1]==n+1)+1
   des_e<-rbind(root.edges,des_e)
   prune_T<-c(0,tree$edge.length)
-  which_0tip<-which(prune_T[real_e]==0)
-  n_0tip<-length(which_0tip)
+  which_0tip<-prune_T[real_e]==0
+  if(sum(which_0tip)>0){
+    tree<-drop.tip(tree,tree$tip.label[tree$edge[(real_e-1)[which_0tip],2]])
+    real_e<-real_e[!which_0tip]
+    e<-length(real_e)
+  }
+  eV<-edge.vcv(tree)
+  #test
+  # edge.quants<-sample(10,e,replace=TRUE)
+  # cols=rainbow(10)
+  # plot(tree,edge.color=cols[edge.quants])
+  # vec<-rep('gray',nrow(test$edge))
+  # vec[edge.key]<-cols[edge.quants]
+  # plot(call$tree,edge.color=vec)
+  #seems to work!
   postorder<-((2*n-2):1)[-((2*n-2)-tip_e)]
   tip_e<-tip_e+1
   XX<-vector('logical',2*n-1)
@@ -209,7 +223,6 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
   
   ##PUTTING IT ALL TOGETHER##
   dat<-list('n'=n,'e'=e,'eV'=eV,'prune_T'=prune_T,'des_e'=des_e,'tip_e'=tip_e,'real_e'=real_e,'postorder'=postorder,
-            'n_0tip'=n_0tip,'which_0tip'=which_0tip,
             'mis_code'=mis_code,'n_mis_2'=n_mis_2,'n_mis_1'=n_mis_1,'which_non_mis'=array(which_non_mis),
             'X'=as.vector(X),'p_SE'=p_SE,'inv_n_obs'=inv_n_obs,'n_contra'=n_contra,'contra'=contra,'contra_var'=contra_var,
             'n_mis_SE'=n_mis_SE,'which_mis_SE'=which_mis_SE)
@@ -297,7 +310,7 @@ run.evorates<-function(input.evorates.obj,return.as.obj=TRUE,out.file=NULL,check
 #check to see if read_stan_csv checks for compatibility between chains...
 #' @export
 output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL,include.warmup=FALSE,
-                          report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.MAPs=TRUE,report.devs=TRUE){
+                          report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.devs=TRUE,report.MAPs=FALSE){
   ##GATHER UP COMPONENTS##
   list.from.input<-list(stanfit=stanfit,call=call,trans.const=trans.const,dat=dat)
   list.from.run<-list(stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL)
@@ -396,7 +409,7 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   sampler.args$call.thin<-sampler.args$thin
   if(include.warmup){
     niter<-sampler.args$iter
-    excl.iter<-numeric(0)
+    excl.iter<-niter+1
   }else{
     niter<-sampler.args$iter-sampler.args$warmup+1
     excl.iter<-2:sampler.args$warmup
@@ -425,54 +438,51 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   dimnames(out$chains)<-list(iterations=NULL,
                              parameters=param.names,
                              chains=paste('chain',1:nchain))
-  R0<-.index.element(extract(stanfit,"R0",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)-
+  R0<-extract(stanfit,"R0",permute=FALSE,inc_warmup=TRUE)[-excl.iter,,,drop=FALSE]-
     log(trans.const$hgt)+log(mean(trans.const$X_sig2))
   out$chains[,'R_0',]<-R0
   out$call$R0_prior_mu<-dat$R0_prior_mu-log(trans.const$hgt)+log(mean(trans.const$X_sig2))
   out$call$R0_prior_sig<-dat$R0_prior_sig
   if(has.intra){
     #will need to change for multivar
-    Ysig2<-.index.element(extract(stanfit,"Ysig2",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)*
+    Ysig2<-extract(stanfit,"Ysig2",permute=FALSE,inc_warmup=TRUE)[-excl.iter,,,drop=FALSE]*
       trans.const$X_sig2
     out$chains[,'Y_sig2',]<-Ysig2
     out$call$Ysig2_prior_sig<-dat$Ysig2_prior_sig*trans.const$X_sig2
   }
   if(!constrain.Rsig2){
-    Rsig2<-.index.element(extract(stanfit,"Rsig2",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)/
+    Rsig2<-extract(stanfit,"Rsig2",permute=FALSE,inc_warmup=TRUE)[-excl.iter,,,drop=FALSE]/
       trans.const$hgt
     out$chains[,'R_sig2',]<-Rsig2
     out$call$Rsig2_prior_sig<-dat$Rsig2_prior_sig/trans.const$hgt
   }
   if(trend){
-    Rmu<-.index.element(extract(stanfit,"Rmu",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)/
+    Rmu<-extract(stanfit,"Rmu",permute=FALSE,inc_warmup=TRUE)[-excl.iter,,,drop=FALSE]/
       trans.const$hgt
     out$chains[,'R_mu',]<-Rmu
     out$call$Rmu_prior_mu<-dat$Rmu_prior_mu/trans.const$hgt
     out$call$Rmu_prior_sig<-dat$Rmu_prior_sig/trans.const$hgt
   }
   if(!constrain.Rsig2|trend){
-    R<-.index.element(extract(stanfit,"R",permute=FALSE,inc_warmup=TRUE),excl.iter,1,TRUE)-
+    R<-extract(stanfit,"R",permute=FALSE,inc_warmup=TRUE)[-excl.iter,,,drop=FALSE]-
       log(trans.const$hgt)+log(mean(trans.const$X_sig2))
-    wgts<-call$tree$edge.length/sum(call$tree$edge.length)
-    if(nchain==1){
-      bg.rate<-log(apply(R,1,function(ii) sum(exp(ii)*wgts)))
-    }else{
-      bg.rate<-log(apply(R,c(1,2),function(ii) sum(exp(ii)*wgts)))
-    }
+    wgts<-call$tree$edge.length[call$edge.key]/sum(call$tree$edge.length)
+    bg.rate<-log(apply(R,c(1,2),function(ii) sum(exp(ii)*wgts)))
     out$chains[,'bg_rate',]<-bg.rate
-    out$chains[,paste('R_',1:e,sep=''),]<-aperm(R,c(1,3,2))
+    out$chains[,paste0('R_',call$edge.key),]<-aperm(R,c(1,3,2))
   }
   incl.inds<-which(apply(out$chains[,,1],2,function(ii) !all(is.na(ii))))
-  out$chains<-.index.element(out$chains,incl.inds,2)
+  #ensure it includes all edge params!
+  incl.inds<-sort(unique(c(incl.inds,5+1:e)))
+  out$chains<-out$chains[,incl.inds,,drop=FALSE]
+  
+  
   #add rate deviation chains
   if(report.devs){
-    if(nchain==1){
-      rate.devs<-apply(R[,1,],2,function(ii) ii-bg.rate)
-    }else{
-      rate.devs<-R
-      for(i in 1:dim(R)[2]){
-        rate.devs[,i,]<-apply(R[,i,],2,function(ii) ii-bg.rate[,i])
-      }
+    R<-aperm(out$chains[,paste0('R_',1:e),,drop=FALSE],c(1,3,2))
+    rate.devs<-R
+    for(i in 1:dim(R)[2]){
+      rate.devs[,i,]<-R[,i,]-bg.rate[,i]
     }
     tmp<-dimnames(out$chains)
     tmp[[2]]<-c(tmp[[2]],paste('R_',1:e,'_dev',sep=''))
@@ -484,12 +494,13 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   
   
   ##PARAMETER DIAGNOSTICS TABLE##
-  out$param.diags<-.index.element(out$chains,1:4,1)
+  out$param.diags<-out$chains[1:4,,,drop=FALSE]
   dimnames(out$param.diags)<-c(diagnostics=list(c('inits','bulk_ess','tail_ess','Rhat')),
                                dimnames(out$chains)[-1])
   if(!include.warmup){
     out$chains<-.index.element(out$chains,1,1,TRUE)
   }
+  #change to be for multiple chains?
   out$param.diags[2,,]<-apply(out$chains,c(2,3),rstan::ess_bulk)
   out$param.diags[3,,]<-apply(out$chains,c(2,3),rstan::ess_tail)
   out$param.diags[4,,]<-apply(out$chains,c(2,3),rstan::Rhat)
@@ -552,11 +563,152 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #file.rename should take care of this
 #I think I fixed this by making sure a .csv is tacked onto the end of out.file if it doesn't already have it
 
+#' Fit an Evolving Rates model
+#'
+#'
+#' This function processes tree and trait data, runs a Stan-based Hamiltonian Monte Carlo (HMC) sampler to fit
+#' these data to an EvoRates model, and returns the output of this sampler in a (relatively) user-friendly format.
+#'
+#'
+#' @param tree An object of class "\code{phylo}"
+#' @param trait.data Three options:
+#' \itemize{
+#' \item{A named vector of trait values.}
+#' \item{A rownamed matrix of trait values. For the moment, must be 1 column since multivariate models are not
+#' yet supported.}
+#' \item{A data.frame with 2 columns: 1 with numeric data which is interpreted as trait values and 1 with
+#' string/factor data interpreted as names. If more than 1 of either kind of column is found, returns error.
+#' Will also use rownames if no string/factor column is found, but this limits data to consist of only 0-1
+#' observations per tip.}
+#' }
+#' In all cases, the associated names must match the tip labels found in \code{tree} (\code{tree$tip.label})
+#' exactly. Both multiple observations for a single tip and missing observations are allowed.
+#' @param trait.se A vector, matrix, or data.frame of trait value standard errors which must be unambiguously 
+#' labeled (see \code{trait.data}). Alternatively, a single, unlabeled number that will be applied to all tips in
+#' \code{tree} (e.g., you could set it to 0 to specify all trait values are known without error). If \code{NULL}
+#' (the default), standard error is estimated for all tips in the tree while fitting the model. There are several
+#' things to note here: 
+#' \itemize{
+#' \item{unlike \code{trait.data}, there can only be 1 trait standard error per tip.}
+#' \item{you can use \code{NA} to specify tips that you want to estimate standard error for and \code{Inf} to
+#' specify tips that have missing trait values.}
+#' \item{Generally, tips with multiple observations and no observations are automatically assigned standard errors
+#' of \code{NA} and \code{Inf}, respectively.}
+#' \item{Any tips with unspecified standard error default to \code{NA}.}
+#' }
+#' Any conflicting/impossible standard error specifications are corrected and return warnings.
+#' @param constrain.Rsig2 \code{TRUE} or \code{FALSE}: should the \code{R_sig2} parameter be constrained to 0,
+#' resulting in a simple Brownian Motion or Early/Late Burst model? Defaults to \code{FALSE}. See Details for a
+#' definition of model parameters.
+#' @param trend \code{TRUE} or \code{FALSE}: should a trend in rates over time (\code{R_mu})  be estimated,
+#' resulting in an Early/Late Burst or trended EvoRates model? Defaults to \code{FALSE}.
+#' @param lik.power A single number between 0 and 1 specifying what power to raise the likelihood function too.
+#' This is useful for sampling from "power posteriors" that shift the posterior to look more like the prior (indeed,
+#' you can set this to 0 to sample from the prior itself). Useful for model diagnostics and calculating things
+#' like Bayes Factors. Technically, you can set \code{lik.power} above 1 (a technique called "data cloning") but
+#' this is not beneficial for EvoRates models and we don't recommend it.
+#' @param sampling.scale \code{TRUE} or \code{FALSE}: should provided prior parameters (see \code{...}) be
+#' interpreted on the raw scale of the data or on the transformed scale? All data passed to the Stan-based HMC
+#' sampler are transformed such that \code{tree}'s total height is 1 and the standard deviation of the trait data
+#' is 1. Defaults to \code{FALSE}, such prior parameters are interpreted on the untransformed scale.
+#' @param return.as.obj \code{TRUE}or \code{FALSE}: should results be passed back to the R
+#' environment as a \code{evorates_fit} object? Defaults to \code{TRUE}. If \code{FALSE}, results are saved to files
+#' instead with an automatically generated names (see below).
+#' @param out.file A directory to save results to. If unspecified, an automatic directory is
+#' generated based on the current date and time and R's working directory. The function will generate csv files
+#' for each chain of the HMC sampler using Stan's built-in functionality (note that these will thus be on the
+#' transformed scale), as well as a separate RDS file giving additional information about the data. Defaults to
+#' \code{NULL}, which means no results are saved to file, though this will be changed automatically if
+#' \code{return.as.obj = FALSE}.
+#' @param check.overwrite \code{TRUE} or \code{FALSE}: should files in the directory specified by \code{out.file}
+#' be checked to
+#' prevent accidentally overwriting existing files? This part of the code is not thoroughly tested and might take
+#' a long time for folders with many files, so some users may wish to just switch it off. Defaults to \code{TRUE}.
+#' @param include.warmup \code{TRUE} or \code{FALSE}: should warmup be included in posterior samples? Warmup is
+#' always included for parameters used to tune the HMC chain, but warmup may be included or excluded for actual
+#' estimated parameters. Defaults to \code{FALSE}.
+#' @param report.quantiles A vecotr posterior distribution quantiles to return (should be between 0 and 1). Set to
+#' \code{NULL} to not return any quantiles. Defaults to 2.5\%, 50\%, and 97.5\% quantiles.
+#' @param report.means \code{TRUE} or \code{FALSE}: should posterior distribution means be returned? Defaults to
+#' \code{TRUE}.
+#' @param report.devs \code{TRUE} or \code{FALSE}: should the difference between time-averaged rates along each
+#' branch of \code{tree} and the overall average rate ("\code{bg_rate}") on the natural log scale be returned? If
+#' \code{TRUE}, also calculates the posterior probability a particular time-averaged rate is greater than the
+#' overall average. These additional parameters help give a sense of which branches in \code{tree} exhibit
+#' anomalous trait evolution rates under the model. Defaults to \code{TRUE}, but is automatically switched to
+#' \code{FALSE} when fitting a Brownian Motion model (\code{constrain.Rsig2 = FALSE & trend = FALSE}).
+#' @param report.MAPs \code{TRUE} or \code{FALSE}: should maximum a posteriori parameter estimates be returned?
+#' Defaults to \code{FALSE}.
+#' @param ... Other optional arguments:
+#' \itemize{
+#' \item{Prior arguments: all priors follow Cauchy distributions currently, which are basically normal distributions
+#' with extremely fat tails. The mean and standard deviation of these distributions can be tweaked for the priors on
+#' \code{R_0}, \code{R_sig2}, \code{R_mu}, and \code{Y_sig2}. See Details for definitions of what these parameters
+#' mean. To specify a prior mean, pass an argument named "\code{<parameter name>_mean}" (e.g., "\code{R_0_mean}"),
+#' and to specify a prior standard deviation, pass an argument named "\code{<parameter name>_sd}" (e.g.,
+#' "\code{R_mu_sd}").}
+#' \item{Additional arguments to pass to \code{rstan::sampling()}, most commonly:
+#' \itemize{
+#' \item{\code{chains} to specify the number of HMC chains (defaults to 4)}
+#' \item{\code{iter} to  specify the number of iterations in HMC chains (defaults to 2000)}
+#' \item{\code{warmup} to specify the number of warmup iterations (defaults to \code{floor(iter/2)})}
+#' \item{\code{thin} to specify which iterations to keep in results (defaults to 1 or no thinning)}
+#' \item{\code{cores} to specify the number of computer cores to use (defaults to \code{getOption("mc.cores", 1L)})}
+#' \item{\code{refresh} to control when progress is reported (defaults to \code{max(iter/10, 1)}, and can be
+#' suppressed by setting to 0 or less)}
+#' \item{There are other things users might want to mess with, like \code{seed}, \code{init}, and \code{control}.
+#' See \code{?rstan::sampling} and \code{?rstan::stan} for further details.}
+#' }}
+#' }
+#' 
+#' 
+#' @return An object of class "\code{evorates_fit}" if \code{return.as.obj = TRUE}. Otherwise, nothing, as results
+#' are saved to file instead (see \code{out.file} for details). An \code{evorates_fit} object is a list of at least
+#' 5 components:
+#' \itemize{
+#' \item{\code{call}, which contains information on the final tree, trait values, trait standard errors, and prior
+#' parameters passed to Stan's HMC sampling algorithm (on untransformed scale for better interpretability,
+#' see \code{sampling.scale}).}
+#' \item{\code{sampler.control}, which contains various information on the HMC run, including the number of chains,
+#' iterations, warmup, thinning rate, etc.}
+#' \item{\code{sampler.params}, an array of parameters/diagnostics that were used to tune the behavior of the HMC
+#' while Stan ran it, as well as the (log) prior (\code{prior}), likelihood (\code{lik}), and posterior probability
+#' (\code{post}) of each iteration in the HMC. See Stan manual for more information on what the parameters mean.
+#' The likelihood is not raised to \code{lik.power} here, but the log posterior probability is calculated while
+#' accounting for \code{lik.power}. This always includes warmup iterations, though these can be discarded using
+#' \code{exclude.warmup()} or \code{combine.chains()}.}
+#' \item{\code{param.diags}, an array of diagnostics for each parameter estimated during the fit, including the
+#' initial value of the HMC chain (\code{init}), the bulk effective sample size (\code{bulk_ess}), the tail
+#' effective sample size (\code{tail_ess}), and the Rhat (\code{Rhat}). See \code{?rstan::Rhat} for more details
+#' on what these diagnostics mean. Generally, you want effective sample sizes to be greater than 100 and Rhat to be
+#' less than 1.05.}
+#' \item{\code{chains}, an array of sampled parameter values for each parameter estimated during the fit. See
+#' details for further information on what each parameter means.}
+#' \item{The object optionally contains arrays of posterior distribution quantiles (\code{quantiles}) and means
+#' (\code{means}), posterior probabilities (\code{post.prob}, see \code{report.devs}), and maximum a posteriori
+#' parameter estimates (\code{MAPs}).}
+#' }
+#' All arrays' dimensions go in the order of iterations/diagnostics/quantiles, then parameters, then chains.
+#' 
+#' 
+#' @details 
+#' which correspond to the trait evolution rate at the root of \code{tree}, the
+#' "rate" at which
+#' rates stochastically vary, the rate at which rates decrease or increase, and variance of trait measurements at
+#' the tips, respectively.
+#' 
+#' 
+#' @family EvoRates fitting functions
+#' 
+#' 
+#' @examples
+#' 
+#' 
 #' @export
 fit.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend=FALSE,lik.power=1,sampling.scale=FALSE,
                        return.as.obj=TRUE,out.file=NULL,check.overwrite=TRUE,
                        include.warmup=FALSE,
-                       report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.MAPs=TRUE,report.devs=TRUE,
+                       report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.devs=TRUE,report.MAPs=FALSE,
                        ...){
   input<-input.evorates(tree,trait.data,trait.se,constrain.Rsig2,trend,lik.power,sampling.scale,...)
   stan.args.list<-list(...)
@@ -606,6 +758,6 @@ fit.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend
   if(return.as.obj){
     run<-c(stanfit=ret,prep$input.evorates.obj)
     output.evorates(run,NULL,NULL,NULL,NULL,include.warmup,
-                    report.quantiles,report.means,report.MAPs,report.devs)
+                    report.quantiles,report.means,report.devs,report.MAPs)
   }
 }
