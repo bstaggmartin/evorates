@@ -151,7 +151,7 @@
   out
 }
 
-.is.corateBM.element<-function(params){
+.is.evorates.element<-function(params){
   check.vec<-c('iterations','quantiles','diagnostics','parameters','chains')
   any(names(dimnames(params))%in%check.vec)|any(names(attributes(params))%in%check.vec)
 }
@@ -204,18 +204,18 @@
 
 .combine.elements<-function(in.params,fit=NULL,element=NULL,select.extra=NULL,simplify=T){
   params<-in.params
-  if(.is.corateBM.element(params)){
+  if(.is.evorates.element(params)){
     params<-list(params)
   }
   if(!is.list(params)){
     params<-as.list(params)
   }
-  types<-sapply(params,function(ii) if(.is.corateBM.element(ii)) 'element' else 'select')
+  types<-sapply(params,function(ii) if(.is.evorates.element(ii)) 'element' else 'select')
   if(all(types=='select')&is.null(fit)){
-    stop(deparse(substitute(in.params)),' appears to consist of strings/numbers specifying parameters to extract out of a corateBM_fit, but no corateBM_fit is supplied')
+    stop(deparse(substitute(in.params)),' appears to consist of strings/numbers specifying parameters to extract out of a evorates_fit, but no evorates_fit is supplied')
   }
   if(any(types=='select')&is.null(fit)){
-    warning(deparse(substitute(in.params)),' contains ',paste(params[which(types=='select')],collapse=', '),', which appear to be strings/numbers specifying parameters to extract out of a corateBM_fit, but no corateBM_fit is supplied: these strings/numbers were excluded')
+    warning(deparse(substitute(in.params)),' contains ',paste(params[which(types=='select')],collapse=', '),', which appear to be strings/numbers specifying parameters to extract out of a evorates_fit, but no evorates_fit is supplied: these strings/numbers were excluded')
     params<-params[-which(types=='select')]
     types<-types[-which(types=='select')]
   }
@@ -240,7 +240,7 @@
     }else{
       try.element<-try(match.arg(element,c('chains','quantiles','means','MAPs','diagnostics','sampler')),silent=T)
       if(inherits(try.element,'try-error')){
-        stop(element," is not an available element to extract from a correlated rates BM fit: please specify one of the following: 'chains', 'quantiles', 'means', 'MAPs', 'diagnostics', or 'sampler'")
+        stop(element," is not an available element to extract from a evolving rates model fit: please specify one of the following: 'chains', 'quantiles', 'means', 'MAPs', 'diagnostics', or 'sampler'")
       }
       element<-try.element
     }
@@ -287,7 +287,7 @@
       }
       out.dim<-unlist(out.dim)
     }else{
-      stop('dimensional mismatch in elements specified by ',deparse(substitute(in.params)),': did these all come from the same corateBM_fit, and were they all extracted using the same parameters?')
+      stop('dimensional mismatch in elements specified by ',deparse(substitute(in.params)),': did these all come from the same evorates_fit, and were they all extracted using the same parameters?')
     }
     names(out.dimnames)<-c(names(dimnames(out[[1]]))[1],'parameters','chains')
     out.arr<-array(NA,out.dim,out.dimnames)
@@ -305,7 +305,7 @@
   out
 }
 #can get duplicates of the same parameter and probs not super efficient since it runs a separate call to %chains% each time it runs...
-#could cannabalize this function to add parameters to your corateBM_fit...
+#could cannabalize this function to add parameters to your evorates_fit...
 #yeah, I did a minor update to begin generalizing this, but ultimately I'd like it to be a combine.elements function...
 #need to figure out what to do in cases where the element is ambiguous
 #also, should 4-D arrays be coerced to 3-D with .expand.element?

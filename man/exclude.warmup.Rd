@@ -2,12 +2,12 @@
 % Please edit documentation in R/out_chain.management.R
 \name{exclude.warmup}
 \alias{exclude.warmup}
-\title{Exclude warmup in a fitted correlated rates Brownian Motion model}
+\title{Exclude warmup in a fitted evolving rates model}
 \usage{
 exclude.warmup(fit, warmup = fit$sampler.control$warmup, sampler = T)
 }
 \arguments{
-\item{fit}{An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.}
+\item{fit}{An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.}
 
 \item{warmup}{the number of iterations to be excluded, counting from the 1st iteration, even if it isn't
 stored in \code{fit}.}
@@ -16,12 +16,12 @@ stored in \code{fit}.}
 too?}
 }
 \value{
-an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
 included.
 }
 \description{
 This function gets rid of an arbitrary number of iterations at the beginning of all chains from the output
-of the function \code{fit.corateBM}.
+of the function \code{fit.evorates}.
 }
 \details{
 Keep in \code{warmup} counts form the first iteration. For example, if \code{fit} has 2000

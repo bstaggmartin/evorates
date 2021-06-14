@@ -41,7 +41,7 @@ including a single comma ("\code{,}"), this operator will attempt to
 switch the text preceding the comma with any text coming after the comma and before an underscore 
 ("\code{_}"). In practice, this helps extract parameters related to covariance matrices, as
 "\code{trait1,trait2_evocov}" is automatically converted to "\code{trait2,trait1_evocov}". This is helpful
-because corateBM model outputs only store values for the lower triangle of the covariance matrix, since
+because evorates model outputs only store values for the lower triangle of the covariance matrix, since
 they are symmetric. Can return unpredictable results in cases where "\code{,}" or "\code{_}" are part of
 trait names or tip labels. Use double-backslashes ("\code{\\\\,}" or "\code{\\\\_}") to indicate "escaped"
 commas and underscores that the function should ignore during this swapping behavior. Note that you can
@@ -62,11 +62,11 @@ example.fit\%xchains\%list('R_0',c(23,45,52))
 
 }
 \seealso{
-Other corateBM_fit operators: 
+Other evorates_fit operators: 
 \code{\link{\%MAPs\%}()},
 \code{\link{\%diagnostics\%}()},
 \code{\link{\%means\%}()},
 \code{\link{\%quantiles\%}()},
 \code{\link{\%sampler\%}()}
 }
-\concept{corateBM_fit operators}
+\concept{evorates_fit operators}

@@ -2,27 +2,27 @@
 % Please edit documentation in R/out_chain.management.R
 \name{combine.chains}
 \alias{combine.chains}
-\title{Combine chains in a fitted correlated rates Brownian Motion model}
+\title{Combine chains in a fitted evolving rates model}
 \usage{
 combine.chains(fit, simplify = T)
 }
 \arguments{
-\item{fit}{An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.}
+\item{fit}{An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.}
 
 \item{simplify}{TRUE or FALSE value: should the resulting elements of \code{fit} have dimensions of length
 1 collapsed and stored as attributes?}
 }
 \value{
-an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
 included.
 }
 \description{
-This function combines all chains from the output of the function \code{fit.corateBM} in sequential order.
+This function combines all chains from the output of the function \code{fit.evorates} in sequential order.
 }
 \details{
 By sequential, I mean that the chains beginning of the second chain will follow the end of the
 first chain, and so on. No permutation business is attempted. It is obviously unwise to run this function
-with a \code{corateBM_fit} including chains that have not yet reached a stationary distribution or include
+with a \code{evorates_fit} including chains that have not yet reached a stationary distribution or include
 obvious burn-in/warmup iterations.
 
 The resulting chain name will simply be all the previous chain names separated by commas (e.g.,

@@ -52,7 +52,9 @@
         PP[,n,]<-1/LL[,n,]
       }else{
         sum_P<-apply(des_P,c(1,3),sum)
-        if(sum_P==0){
+        #this could be improved...assumes the same thing the infinite does earlier--that iterations won't have mixes of inf and
+        #non-infs at the same node
+        if(sum_P[1,1]==0){
           XX[,n,]<-0
         }else{
           XX[,n,]<-apply(XX[,d,,drop=F]*PP[,d,,drop=F],c(1,3),sum)/sum_P

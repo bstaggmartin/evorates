@@ -1,8 +1,15 @@
+def.color.scheme<-function(){
+  alter.cols(c('royalblue4','plum4','brown1'),
+             mod.val=c(-0.2,-0.2,-0.05,
+                       0,0,0,
+                       0.2,0.2,0.2))
+}
+
 #plot an autocorrelated Brownian motion simulation
 #add an option to only exponentiate legend?
 #' @export
-plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram','cladogram','fan','unrooted','radial'),
-                        col=c('deepskyblue','darkgray','brown1'),na.col='gray90',val.range=NULL,res=100,
+plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram','cladogram','fan','unrooted','radial'),
+                        col=def.color.scheme(),na.col='gray90',val.range=NULL,res=100,
                         alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
                         xlab=NULL,ylab=NULL,add=F,color.element='R',exp=F,...,
                         legend=T,legend.args=NULL){
@@ -17,13 +24,13 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
   plot.args<-plot.args[-which(plot.args=='...')]
   gen.args<-graphics:::.Pars
   if(any(names(list(...))=='edge.color')){
-    warning('plot.corateBM uses col rather than edge.color to control line color: edge.color was ignored')
+    warning('plot.evorates uses col rather than edge.color to control line color: edge.color was ignored')
   }
   if(any(names(list(...))=='edge.width')){
-    warning('plot.corateBM uses lwd rather than edge.width to control line width: edge.width was ignored')
+    warning('plot.evorates uses lwd rather than edge.width to control line width: edge.width was ignored')
   }
   if(any(names(list(...))=='edge.lty')){
-    warning('plot.corateBM uses lty rather than edge.lty to control line type: edge.lty was ignored')
+    warning('plot.evorates uses lty rather than edge.lty to control line type: edge.lty was ignored')
   }
   if(is.null(colnames(sim$X))){
     colnames(sim$X)<-paste('trait',1:ncol(sim$X))
@@ -101,7 +108,7 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
       colvec<-rep(colvec,length.out=nrow(tree$edge))
       colvec<-alter.cols(colvec,alpha=alpha)
       if(legend){
-        warning('skipped plotting a legend since corateBM was plotted with custom color vector')
+        warning('skipped plotting a legend since evorates was plotted with custom color vector')
       }
     }
     lwdvec<-rep(lwd,length.out=nrow(tree$edge))
@@ -282,15 +289,15 @@ plot.corateBM<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
                      col=list(col),val.range=list(val.range),res=res,
                      alpha=if(length(alpha)==1) alpha else list(alpha),breaks=if(length(breaks)==1) breaks else list(breaks),
                      legend.args)
-      do.call(legend.corateBM,legend.call)
+      do.call(legend.evorates,legend.call)
     }
   }
 }
 
 #improve label handling: DONE 8/25
 #' @export
-pairs.corateBM<-function(sim,traits=1:ncol(sim$X),
-                         col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
+pairs.evorates<-function(sim,traits=1:ncol(sim$X),
+                         col=def.color.scheme(),val.range=NULL,res=100,
                          alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
                          lab=NULL,color.element='R',...,
                          legend=T,legend.args=NULL){
@@ -425,19 +432,24 @@ pairs.corateBM<-function(sim,traits=1:ncol(sim$X),
                    col=list(col),val.range=list(val.range),res=res,
                    alpha=if(length(alpha)==1) alpha else list(alpha),breaks=if(length(breaks)==1) breaks else list(breaks),
                    legend.args)
-    do.call(legend.corateBM,
+    do.call(legend.evorates,
             legend.call)
   }
   par(old.par)
 }
 
 #plot 3 to 4 numbers next to legend
+#exp.txt only works for non-break legends...can't imagine why it would need to be otherwise
 #' @export
-legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','topright'),color.element='R',exp=F,
-                          col=c('deepskyblue','darkgray','brown1'),val.range=NULL,res=100,
+legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','topright'),color.element='R',
+                          exp=FALSE,exp.txt=TRUE,
+                          col=def.color.scheme(),val.range=NULL,res=100,
                           alpha=NA,breaks=NULL,select.levels=NULL,
                           box.dims=NULL,box.offset=NULL,box.scale=1,
                           txt.col=NULL,main=NULL,...){
+  if(exp){
+    exp.txt<-FALSE
+  }
   try.location<-try(match.arg(location,c('bottomleft','topleft','bottomright','topright')),silent=T)
   if(inherits(try.location,'try-error')){
     stop(location," is not an available named position to put the legend: please specify one of the following: 'bottomleft', 'topleft', 'bottomright', or 'topright'")
@@ -527,11 +539,14 @@ legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','t
       labels<-val.range[1]
     }else{
       labels<-pretty(seq(val.range[1],val.range[2],length.out=100))
-      labels<-labels[c(2,length(labels)-1)]
+      labels<-labels[2:(length(labels)-1)]
     }
     y.pos<-coords$y[2]+(labels-val.range[1])/
       (diff(val.range))*
       (coords$y[3]-coords$y[2])
+    if(exp.txt){
+      labels<-round(exp(labels),3)
+    }
     do.call(text,
             c(x=coords$x[side],
               y=list(y.pos),
@@ -550,7 +565,7 @@ legend.corateBM<-function(sim,location=c('bottomleft','topleft','bottomright','t
   }
   if(is.null(main)){
     if(color.element=='R'){
-      if(exp){
+      if(exp|exp.txt){
         main<-expression(sigma^2)
       }else{
         main<-expression(ln~(sigma^2))

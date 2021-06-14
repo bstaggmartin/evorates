@@ -1,10 +1,10 @@
-#' Select chains in a fitted correlated rates Brownian Motion model
+#' Select chains in a fitted evolving rates model
 #' 
 #' 
-#' This function extracts specific chains from the output of the function \code{fit.corateBM}.
+#' This function extracts specific chains from the output of the function \code{fit.evorates}.
 #' 
 #' 
-#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
 #' @param chains A character or numeric vector. If of class character, the given text is matched to names of
 #' the available chains in \code{fit}. If of class numeric, the function assumes \code{chains} refers to the
 #' name "chain \code{chains}".
@@ -12,7 +12,7 @@
 #' 1 collapsed and stored as attributes?
 #' 
 #' 
-#' @return an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+#' @return an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
 #' included.
 #' 
 #' 
@@ -63,24 +63,24 @@ select.chains<-function(fit,chains,simplify=T){
 }
 
 #automatically excludes iterations not included in chains and inits--doesn't make sense anymore
-#' Combine chains in a fitted correlated rates Brownian Motion model
+#' Combine chains in a fitted evolving rates model
 #' 
 #' 
-#' This function combines all chains from the output of the function \code{fit.corateBM} in sequential order.
+#' This function combines all chains from the output of the function \code{fit.evorates} in sequential order.
 #' 
 #' 
-#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
 #' @param simplify TRUE or FALSE value: should the resulting elements of \code{fit} have dimensions of length
 #' 1 collapsed and stored as attributes?
 #' 
 #' 
-#' @return an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+#' @return an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
 #' included.
 #' 
 #' 
 #' @details By sequential, I mean that the chains beginning of the second chain will follow the end of the
 #' first chain, and so on. No permutation business is attempted. It is obviously unwise to run this function
-#' with a \code{corateBM_fit} including chains that have not yet reached a stationary distribution or include
+#' with a \code{evorates_fit} including chains that have not yet reached a stationary distribution or include
 #' obvious burn-in/warmup iterations.
 #' 
 #' The resulting chain name will simply be all the previous chain names separated by commas (e.g.,
@@ -168,14 +168,14 @@ combine.chains<-function(fit,simplify=T){
 }
 
 #for getting rid of warmup in chains and related elements
-#' Exclude warmup in a fitted correlated rates Brownian Motion model
+#' Exclude warmup in a fitted evolving rates model
 #' 
 #' 
 #' This function gets rid of an arbitrary number of iterations at the beginning of all chains from the output
-#' of the function \code{fit.corateBM}.
+#' of the function \code{fit.evorates}.
 #' 
 #' 
-#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
 #' @param warmup the number of iterations to be excluded, counting from the 1st iteration, even if it isn't
 #' stored in \code{fit}.
 #' @param sampler TRUE or FALSE value: should the iterations be excluded from the \code{sampler.params} element
@@ -187,7 +187,7 @@ combine.chains<-function(fit,simplify=T){
 #' iterations.
 #' 
 #' 
-#' @return an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+#' @return an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
 #' included.
 #' 
 #' 
@@ -269,14 +269,14 @@ exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
 }
 #seems to work for various situations now--things will get funky as you include thinning, though...
 
-#' Thin chains in a fitted correlated rates Brownian Motion model
+#' Thin chains in a fitted evolving rates model
 #' 
 #' 
-#' This function thins all chains from the output of the function \code{fit.corateBM} by keeping only every
+#' This function thins all chains from the output of the function \code{fit.evorates} by keeping only every
 #' \code{thin}th iteration.
 #' 
 #' 
-#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
 #' @param thin 
 #' 
 #' 
@@ -285,7 +285,7 @@ exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
 #' iterations.
 #' 
 #' 
-#' @return an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+#' @return an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
 #' included.
 #' 
 #' 

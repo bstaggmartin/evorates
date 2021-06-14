@@ -20,10 +20,10 @@ multi.bind.tip<-function(tree,names,edge.lengths=NULL,nodes,positions=0){
   int.nodes<-nodes>length(tree$tip.label)
   tips<-nodes<=length(tree$tip.label)
   for(i in 1:max.len){
-    try.tree<-try(bind.tip(tree,args.list$names[i],
-                           if(is.na(args.list$edge.lengths[i])) NULL else args.list$edge.lengths[i],
-                           args.list$nodes[i],
-                           args.list$positions[i]),silent=T)
+    try.tree<-try(phytools::bind.tip(tree,args.list$names[i],
+                                     if(is.na(args.list$edge.lengths[i])) NULL else args.list$edge.lengths[i],
+                                     args.list$nodes[i],
+                                     args.list$positions[i]),silent=T)
     if(inherits(try.tree,'try-error')){
       warning("failed to bind tip '",args.list$names[i],"' to node ",nodes[i],' due to following error:\n',
               try.tree)

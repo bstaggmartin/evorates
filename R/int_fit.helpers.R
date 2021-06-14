@@ -93,7 +93,7 @@
   }
   attr(tree,'order')<-NULL
   tree<-reorder(tree,'cladewise')
-  tree<-di2multi(tree,tol=0)
+  tree<-di2multi(tree,tol=1e-300)
   dist.mat<-cophenetic(tree)
   diag(dist.mat)<-NA
   if(any(dist.mat==0,na.rm=TRUE)){
@@ -215,7 +215,7 @@
     if(is.null(out.file)){
       message("no file output name specified, but model results aren't set to be returned in R working environment:\n picked file output name automatically based off current date and time")
       time<-Sys.time()
-      out.file<-paste0('corateBM_',gsub(' |-|:','_',time))
+      out.file<-paste0('evorates_',gsub(' |-|:','_',time))
     }
     directory<-dirname(out.file)
     if(!file.exists(directory)){

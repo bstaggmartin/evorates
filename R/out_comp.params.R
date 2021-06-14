@@ -11,7 +11,7 @@ compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c(
   if(!is.null(element)){
     try.element<-try(match.arg(element,c('chains','quantiles','means','MAPs')),silent=T)
     if(inherits(try.element,'try-error')){
-      stop(element," is not an available element to extract from a correlated rates BM fit: please specify one of the following: 'chains', 'quantiles', 'means', or 'MAPs' (can also set to NULL to suppress element output)")
+      stop(element," is not an available element to extract from a evolving rates model fit: please specify one of the following: 'chains', 'quantiles', 'means', or 'MAPs' (can also set to NULL to suppress element output)")
     }
     element<-try.element
     if(!is.null(select.extra)){
@@ -28,12 +28,12 @@ compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c(
     stop('both element and posterior probability output suppressed: nothing to return')
   }
   if(is.null(fit)&element=='MAPs'){
-    stop('desired element is set to MAPs, but no corateBM_fit is supplied--need posterior probability info to find MAPs')
+    stop('desired element is set to MAPs, but no evorates_fit is supplied--need posterior probability info to find MAPs')
   }
   params1<-.combine.elements(params1,fit,'chains',simplify=F)
   if(is.null(params2)&operation%in%c('-','/')){
     tmp<-list(chains=params1)
-    class(tmp)<-'corateBM_fit'
+    class(tmp)<-'evorates_fit'
     if(!is.null(element)){
       out<-list(do.call(paste('%',element,'%',sep=''),list(fit=tmp,select=select)))
       names(out)<-element
@@ -77,7 +77,7 @@ compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c(
     if(element=='MAPs'){
       tmp$sampler.params<-fit$sampler.params
     }
-    class(tmp)<-'corateBM_fit'
+    class(tmp)<-'evorates_fit'
     out$chains<-NULL
     if(!is.null(element)){
       out[[element]]<-do.call(paste('.int.',element,sep=''),list(fit=tmp,select=select))

@@ -34,14 +34,14 @@
 #' switch the text preceding the comma with any text coming after the comma and before an underscore 
 #' ("\code{_}"). In practice, this helps extract parameters related to covariance matrices, as
 #' "\code{trait1,trait2_evocov}" is automatically converted to "\code{trait2,trait1_evocov}". This is helpful
-#' because corateBM model outputs only store values for the lower triangle of the covariance matrix, since
+#' because evorates model outputs only store values for the lower triangle of the covariance matrix, since
 #' they are symmetric. Can return unpredictable results in cases where "\code{,}" or "\code{_}" are part of
 #' trait names or tip labels. Use double-backslashes ("\code{\\\\,}" or "\code{\\\\_}") to indicate "escaped"
 #' commas and underscores that the function should ignore during this swapping behavior. Note that you can
 #' also use "\code{\\\\,}" to do encode regular expression searches of the form "\code{{m,n}}".
 #' 
 #' 
-#' @family corateBM_fit operators
+#' @family evorates_fit operators
 #' 
 #' 
 #' @examples
@@ -59,8 +59,8 @@
 #' 
 #' @export
 `%chains%`<-function(fit,select){
-  if(!inherits(fit,'corateBM_fit')){
-    stop("the %chains% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  if(!inherits(fit,'evorates_fit')){
+    stop("the %chains% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
   }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
@@ -74,15 +74,15 @@
 #check if def.report.quantiles are in an already existing quantiles object
 #if not, select parameters, then extract quantiles!
 #improved speed 760-fold (als created helpful new function, .simplify.array...)
-#' Extract posterior distribution quantiles from a fitted correlated rates Brownian Motion model
+#' Extract posterior distribution quantiles from a fitted evolving rates model
 #'
 #'
 #' This is an operator for efficiently extracting quantiles of sampled parameter values for particular
-#' parameters from output of the function \code{fit.corateBM}. Doesn't require a pre-stored \code{quantiles}
+#' parameters from output of the function \code{fit.evorates}. Doesn't require a pre-stored \code{quantiles}
 #' element.
 #'
 #'
-#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
 #' @param select A list with two elements: 1) A character or numeric vector. If of class character, the given
 #' text is matched to parameter names using regular expressions. If of class numeric, the numbers are matched
 #' to indices of rate parameters ("\code{R_i}"), including the root ("\code{R_0}"). Exhibits special behavior
@@ -108,7 +108,7 @@
 #' switch the text preceding the comma with any text comeing after the comma and before an underscore 
 #' ("\code{_}"). In practice, this helps extract parameters related to covariance matrices, as
 #' "\code{trait1,trait2_evocov}" is automatically converted to "\code{trait2,trait1_evocov}". This is helpful
-#' because corateBM model outputs only store values for the lower triangle of the covariance matrix, since
+#' because evorates model outputs only store values for the lower triangle of the covariance matrix, since
 #' they are symmetric. Can return unpredictable results in cases where "\code{,}" or "\code{_}" are part of
 #' trait names or tip labels. Use double-backslashes ("\code{\\\\,}" or "\code{\\\\_}") to indicate "escaped"
 #' commas and underscores that the function should ignore during this swapping behavior. Note that you can
@@ -119,7 +119,7 @@
 #' a text element the select argument.
 #' 
 #' 
-#' @family corateBM_fit operators
+#' @family evorates_fit operators
 #' 
 #' 
 #' @examples
@@ -137,8 +137,8 @@
 #' 
 #' @export
 `%quantiles%`<-function(fit,select){
-  if(!inherits(fit,'corateBM_fit')){
-    stop("the %quantiles% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  if(!inherits(fit,'evorates_fit')){
+    stop("the %quantiles% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
   }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
@@ -148,14 +148,14 @@
   .simplify.element(out)
 }
 
-#' Extract posterior distribution means from a fitted correlated rates Brownian Motion model
+#' Extract posterior distribution means from a fitted evolving rates model
 #'
 #'
 #' This is an operator for efficiently extracting means of sampled parameter values for particular parameters
-#' from output of the function \code{fit.corateBM}. Doesn't require a pre-stored \code{means} element.
+#' from output of the function \code{fit.evorates}. Doesn't require a pre-stored \code{means} element.
 #'
 #'
-#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
 #' @param select A character or numeric vector. If of class character, the given text is matched to parameter
 #' names using regular expressions. If of class numeric, the numbers are matched to indices of rate parameters
 #' ("\code{R_i}"), including the root ("\code{R_0}"). Exhibits special behavior with regards to rate deviation
@@ -175,7 +175,7 @@
 #' switch the text preceding the comma with any text comeing after the comma and before an underscore 
 #' ("\code{_}"). In practice, this helps extract parameters related to covariance matrices, as
 #' "\code{trait1,trait2_evocov}" is automatically converted to "\code{trait2,trait1_evocov}". This is helpful
-#' because corateBM model outputs only store values for the lower triangle of the covariance matrix, since
+#' because evorates model outputs only store values for the lower triangle of the covariance matrix, since
 #' they are symmetric. Can return unpredictable results in cases where "\code{,}" or "\code{_}" are part of
 #' trait names or tip labels. Use double-backslashes ("\code{\\\\,}" or "\code{\\\\_}") to indicate "escaped"
 #' commas and underscores that the function should ignore during this swapping behavior. Note that you can
@@ -186,7 +186,7 @@
 #' text element the select argument.
 #' 
 #' 
-#' @family corateBM_fit operators
+#' @family evorates_fit operators
 #' 
 #' 
 #' @examples
@@ -202,8 +202,8 @@
 #' 
 #' @export
 `%means%`<-function(fit,select){
-  if(!inherits(fit,'corateBM_fit')){
-    stop("the %means% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  if(!inherits(fit,'evorates_fit')){
+    stop("the %means% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
   }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
@@ -213,15 +213,15 @@
   .simplify.element(out)
 }
 
-#' Extract max a posteriori parameter estimates from a fitted correlated rates Brownian Motion model
+#' Extract max a posteriori parameter estimates from a fitted evolving rates model
 #'
 #'
 #' This is an operator for efficiently extracting sampled parameter values from iterations that exhibited the
-#' highest posterior probability for each chain in the output of the function \code{fit.corateBM}. Doesn't
+#' highest posterior probability for each chain in the output of the function \code{fit.evorates}. Doesn't
 #' require a pre-stored \code{MAPs} element.
 #'
 #'
-#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
 #' @param select A character or numeric vector. If of class character, the given text is matched to parameter
 #' names using regular expressions. If of class numeric, the numbers are matched to indices of rate parameters
 #' ("\code{R_i}"), including the root ("\code{R_0}"). Exhibits special behavior with regards to rate deviation
@@ -253,7 +253,7 @@
 #' switch the text preceding the comma with any text comeing after the comma and before an underscore 
 #' ("\code{_}"). In practice, this helps extract parameters related to covariance matrices, as
 #' "\code{trait1,trait2_evocov}" is automatically converted to "\code{trait2,trait1_evocov}". This is helpful
-#' because corateBM model outputs only store values for the lower triangle of the covariance matrix, since
+#' because evorates model outputs only store values for the lower triangle of the covariance matrix, since
 #' they are symmetric. Can return unpredictable results in cases where "\code{,}" or "\code{_}" are part of
 #' trait names or tip labels. Use double-backslashes ("\code{\\\\,}" or "\code{\\\\_}") to indicate "escaped"
 #' commas and underscores that the function should ignore during this swapping behavior. Note that you can
@@ -264,7 +264,7 @@
 #' text element the select argument.
 #' 
 #' 
-#' @family corateBM_fit operators
+#' @family evorates_fit operators
 #' 
 #' 
 #' @examples
@@ -280,8 +280,8 @@
 #' 
 #' @export
 `%MAPs%`<-function(fit,select){
-  if(!inherits(fit,'corateBM_fit')){
-    stop("the %MAPs% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  if(!inherits(fit,'evorates_fit')){
+    stop("the %MAPs% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
   }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
@@ -291,16 +291,16 @@
   .simplify.element(out)
 }
 
-#' Extract HMC sampler parameters from a fitted correlated rates Brownian Motion model
+#' Extract HMC sampler parameters from a fitted evolving rates model
 #'
 #'
 #' This is an operator for efficiently extracting parameters used to tune the behavior of the Stan-based
-#' Hamiltonian Monte Carlo (HMC) sampler from \code{corateBM_fit} object, as well as prior probabilities
+#' Hamiltonian Monte Carlo (HMC) sampler from \code{evorates_fit} object, as well as prior probabilities
 #' and likelihoods associated with samples. Helpful for assessing MCMC behavior and potentially calculating
 #' marginal likelihoods, among other things.
 #'
 #'
-#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
 #' @param select A character or numeric vector. If of class character, the given text is matched to parameter
 #' names using regular expressions. If of class numeric, the numbers are taken simply taken as indices. See
 #' details for names/order of available parameters.
@@ -324,7 +324,7 @@
 #' respect to a reparameterized sampling scale used by Stan internally.
 #' 
 #' 
-#' @family corateBM_fit operators
+#' @family evorates_fit operators
 #' 
 #' 
 #' @examples
@@ -342,8 +342,8 @@
 #' 
 #' @export
 `%sampler%`<-function(fit,select){
-  if(!inherits(fit,'corateBM_fit')){
-    stop("the %sampler% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  if(!inherits(fit,'evorates_fit')){
+    stop("the %sampler% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
   }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){
@@ -353,14 +353,14 @@
   .simplify.element(out)
 }
 
-#' Extract posterior distribution diagnostics from a fitted correlated rates Brownian Motion model
+#' Extract posterior distribution diagnostics from a fitted evolving rates model
 #'
 #'
 #' This is an operator for efficiently extracting diagnostic summary statistics of posterior distributions for
-#' particular parameters from output of the function \code{fit.corateBM}.
+#' particular parameters from output of the function \code{fit.evorates}.
 #'
 #'
-#' @param fit An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.
+#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
 #' @param select A list with two elements: 1) A character or numeric vector. If of class character, the given
 #' text is matched to parameter names using regular expressions. If of class numeric, the numbers are matched
 #' to indices of rate parameters ("\code{R_i}"), including the root ("\code{R_0}"). Exhibits special behavior
@@ -388,7 +388,7 @@
 #' switch the text preceding the comma with any text comeing after the comma and before an underscore 
 #' ("\code{_}"). In practice, this helps extract parameters related to covariance matrices, as
 #' "\code{trait1,trait2_evocov}" is automatically converted to "\code{trait2,trait1_evocov}". This is helpful
-#' because corateBM model outputs only store values for the lower triangle of the covariance matrix, since
+#' because evorates model outputs only store values for the lower triangle of the covariance matrix, since
 #' they are symmetric. Can return unpredictable results in cases where "\code{,}" or "\code{_}" are part of
 #' trait names or tip labels. Use double-backslashes ("\code{\\\\,}" or "\code{\\\\_}") to indicate "escaped"
 #' commas and underscores that the function should ignore during this swapping behavior. Note that you can
@@ -401,7 +401,7 @@
 #' Insert explanation of diagnostics here
 #' 
 #' 
-#' @family corateBM_fit operators
+#' @family evorates_fit operators
 #' 
 #' 
 #' @examples
@@ -420,8 +420,8 @@
 #' 
 #' @export
 `%diagnostics%`<-function(fit,select){
-  if(!inherits(fit,'corateBM_fit')){
-    stop("the %diagnostics% operator only accepts fitted correlated rate BM fits (class 'corateBM_fit') on left hand side")
+  if(!inherits(fit,'evorates_fit')){
+    stop("the %diagnostics% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
   }
   is.char<-try(is.character(select),silent=T)
   if(inherits(is.char,'try-error')){

@@ -2,12 +2,12 @@
 % Please edit documentation in R/out_operators.R
 \name{\%quantiles\%}
 \alias{\%quantiles\%}
-\title{Extract posterior distribution quantiles from a fitted correlated rates Brownian Motion model}
+\title{Extract posterior distribution quantiles from a fitted evolving rates model}
 \usage{
 fit \%quantiles\% select
 }
 \arguments{
-\item{fit}{An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.}
+\item{fit}{An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.}
 
 \item{select}{A list with two elements: 1) A character or numeric vector. If of class character, the given
 text is matched to parameter names using regular expressions. If of class numeric, the numbers are matched
@@ -26,7 +26,7 @@ parameters and stores quantiles and chains information as attributes.
 }
 \description{
 This is an operator for efficiently extracting quantiles of sampled parameter values for particular
-parameters from output of the function \code{fit.corateBM}. Doesn't require a pre-stored \code{quantiles}
+parameters from output of the function \code{fit.evorates}. Doesn't require a pre-stored \code{quantiles}
 element.
 }
 \details{
@@ -39,7 +39,7 @@ For convenience, when faced with text including a single comma ("\code{,}"), thi
 switch the text preceding the comma with any text comeing after the comma and before an underscore 
 ("\code{_}"). In practice, this helps extract parameters related to covariance matrices, as
 "\code{trait1,trait2_evocov}" is automatically converted to "\code{trait2,trait1_evocov}". This is helpful
-because corateBM model outputs only store values for the lower triangle of the covariance matrix, since
+because evorates model outputs only store values for the lower triangle of the covariance matrix, since
 they are symmetric. Can return unpredictable results in cases where "\code{,}" or "\code{_}" are part of
 trait names or tip labels. Use double-backslashes ("\code{\\\\,}" or "\code{\\\\_}") to indicate "escaped"
 commas and underscores that the function should ignore during this swapping behavior. Note that you can
@@ -64,11 +64,11 @@ example.fit\%quantiles\%list('R_0',0.432)
 
 }
 \seealso{
-Other corateBM_fit operators: 
+Other evorates_fit operators: 
 \code{\link{\%MAPs\%}()},
 \code{\link{\%chains\%}()},
 \code{\link{\%diagnostics\%}()},
 \code{\link{\%means\%}()},
 \code{\link{\%sampler\%}()}
 }
-\concept{corateBM_fit operators}
+\concept{evorates_fit operators}

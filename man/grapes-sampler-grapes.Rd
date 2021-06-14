@@ -2,12 +2,12 @@
 % Please edit documentation in R/out_operators.R
 \name{\%sampler\%}
 \alias{\%sampler\%}
-\title{Extract HMC sampler parameters from a fitted correlated rates Brownian Motion model}
+\title{Extract HMC sampler parameters from a fitted evolving rates model}
 \usage{
 fit \%sampler\% select
 }
 \arguments{
-\item{fit}{An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.}
+\item{fit}{An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.}
 
 \item{select}{A character or numeric vector. If of class character, the given text is matched to parameter
 names using regular expressions. If of class numeric, the numbers are taken simply taken as indices. See
@@ -22,7 +22,7 @@ iterations included in output from the \code{\%sampler\%} operator.
 }
 \description{
 This is an operator for efficiently extracting parameters used to tune the behavior of the Stan-based
-Hamiltonian Monte Carlo (HMC) sampler from \code{corateBM_fit} object, as well as prior probabilities
+Hamiltonian Monte Carlo (HMC) sampler from \code{evorates_fit} object, as well as prior probabilities
 and likelihoods associated with samples. Helpful for assessing MCMC behavior and potentially calculating
 marginal likelihoods, among other things.
 }
@@ -51,11 +51,11 @@ example.fit\%sampler\%1:7
 \seealso{
 \code{\link[rstan]{check_hmc_diagnostics}}
 
-Other corateBM_fit operators: 
+Other evorates_fit operators: 
 \code{\link{\%MAPs\%}()},
 \code{\link{\%chains\%}()},
 \code{\link{\%diagnostics\%}()},
 \code{\link{\%means\%}()},
 \code{\link{\%quantiles\%}()}
 }
-\concept{corateBM_fit operators}
+\concept{evorates_fit operators}

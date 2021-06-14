@@ -71,10 +71,10 @@ sim.evorates<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,trait.names=NULL,
     out$k<-k
   }
   out$trait.data<-as.matrix(X[1:n,])
-  if(Ysig2==0&any(n.obs>1)){
+  if(all(Ysig2==0)&any(n.obs>1)){
     warning('Ysig2 implies no intra-tip variation: set n.obs to 1 for each tip')
   }
-  if(Ysig2>0){
+  if(any(Ysig2>0)){
     if(NROW(Ysig2)<k){
       warning('Ysig2 implies lower number of traits than X0 and/or Xsig2: recycled Ysig2 (assuming no covariance if undeclared) to match other inputs')
     }else if(length(dim(Ysig2))==0&k>1){
@@ -107,7 +107,7 @@ sim.evorates<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,trait.names=NULL,
     out$Ysig2<-Ysig2
     out$n.obs<-n.obs
   }
-  class(out)<-'corateBM'
+  class(out)<-'evorates'
   out
 }
 
@@ -115,7 +115,7 @@ sim.evorates<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,trait.names=NULL,
 #simulate trait and rate data under an autocorrelated Brownian motion model
 #REMOVE oprate and wnrate stuff!
 #' @export
-sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,Ralpha=0,Rtheta=0,WN=F,
+sim.evorates<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,Ralpha=0,Rtheta=0,WN=F,
                        n.obs=rep(1,length(tree$tip.label)),intravar=F,intracov=0.2^2,
                        anc.states=F,slow=F,res=500){
   tree<-.coerce.tree(tree)$tree
@@ -211,6 +211,6 @@ sim.corateBM<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,Ralpha=0,Rtheta=0,WN
   }else{
     out$trait.data<-as.matrix(X[1:n,])
   }
-  class(out)<-'corateBM'
+  class(out)<-'evorates'
   out
 }

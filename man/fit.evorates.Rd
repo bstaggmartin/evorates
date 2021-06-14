@@ -19,6 +19,7 @@ fit.evorates(
   report.quantiles = c(0.025, 0.5, 0.975),
   report.means = TRUE,
   report.devs = TRUE,
+  remove.trend = TRUE,
   report.MAPs = FALSE,
   ...
 )
@@ -99,11 +100,17 @@ estimated parameters. Defaults to \code{FALSE}.}
 \code{TRUE}.}
 
 \item{report.devs}{\code{TRUE} or \code{FALSE}: should the difference between time-averaged rates along each
-branch of \code{tree} and the overall average rate ("\code{bg_rate}") on the natural log scale be returned? If
-\code{TRUE}, also calculates the posterior probability a particular time-averaged rate is greater than the
-overall average. These additional parameters help give a sense of which branches in \code{tree} exhibit
-anomalous trait evolution rates under the model. Defaults to \code{TRUE}, but is automatically switched to
-\code{FALSE} when fitting a Brownian Motion model (\code{constrain.Rsig2 = FALSE & trend = FALSE}).}
+branch of \code{tree} and the overall average rate on the natural log scale ("rate deviations") be returned?
+If \code{TRUE}, also
+calculates the posterior probability a particular time-averaged rate is greater than the overall average. These
+additional parameters help give a sense of which branches in \code{tree} exhibit anomalous trait evolution rates
+under the model. Defaults to \code{TRUE}, but is automatically switched to \code{FALSE} when fitting a Brownian
+Motion model (\code{constrain.Rsig2 = FALSE & trend = FALSE}).}
+
+\item{remove.trend}{\code{TRUE} or \code{FALSE}: should the rate deviation calculations remove (i.e., "account for") the
+effect of trends in rates over time? This is sometimes helpful since strong trends in rates can mask otherwise anomalously
+high or low trait evolution rates in certain parts of the tree. Defaults to \code{TRUE}, but has no effect if no trend was
+fitted or if \code{report.devs} is \code{FALSE}.}
 
 \item{report.MAPs}{\code{TRUE} or \code{FALSE}: should maximum a posteriori parameter estimates be returned?
 Defaults to \code{FALSE}.}
@@ -154,8 +161,8 @@ less than 1.05.}
 \item{\code{chains}, an array of sampled parameter values for each parameter estimated during the fit. See
 details for further information on what each parameter means.}
 \item{The object optionally contains arrays of posterior distribution quantiles (\code{quantiles}) and means
-(\code{means}), posterior probabilities (\code{post.prob}, see \code{report.devs}), and maximum a posteriori
-parameter estimates (\code{MAPs}).}
+(\code{means}), posterior probabilities (\code{post.prob}, see \code{report.devs} and \code{remove.trend}),
+and maximum a posteriori parameter estimates (\code{MAPs}).}
 }
 All arrays' dimensions go in the order of iterations/diagnostics/quantiles, then parameters, then chains.
 }
@@ -173,4 +180,4 @@ the tips, respectively.
 
 
 }
-\concept{EvoRates fitting functions}
+\concept{evorates fitting functions}

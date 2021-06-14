@@ -2,21 +2,21 @@
 % Please edit documentation in R/out_chain.management.R
 \name{thin.chains}
 \alias{thin.chains}
-\title{Thin chains in a fitted correlated rates Brownian Motion model}
+\title{Thin chains in a fitted evolving rates model}
 \usage{
 thin.chains(fit, thin = 2)
 }
 \arguments{
-\item{fit}{An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.}
+\item{fit}{An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.}
 
 \item{thin}{}
 }
 \value{
-an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
 included.
 }
 \description{
-This function thins all chains from the output of the function \code{fit.corateBM} by keeping only every
+This function thins all chains from the output of the function \code{fit.evorates} by keeping only every
 \code{thin}th iteration.
 }
 \details{

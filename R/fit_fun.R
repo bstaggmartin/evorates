@@ -126,6 +126,7 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
   out.trait.se<-as.matrix(p_SE)
   out.trait.se[out.trait.se==-1]<-NA
   out.trait.se[out.trait.se==-2]<-Inf
+  out.trait.se<-sqrt(out.trait.se)
   call<-list(trait.data=trait.data,trait.se=out.trait.se,tree=tree)
   
   
@@ -182,14 +183,14 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
     real_e<-real_e[!which_0tip]
     e<-length(real_e)
   }
-  eV<-edge.vcv(tree)
-  #test
+  eV<-edge.vcv(di2multi(tree,tol=1e-300))
+  #test--below now only works for polytomies, but not necessarily 0 tips
   # edge.quants<-sample(10,e,replace=TRUE)
   # cols=rainbow(10)
-  # plot(tree,edge.color=cols[edge.quants])
-  # vec<-rep('gray',nrow(test$edge))
-  # vec[edge.key]<-cols[edge.quants]
-  # plot(call$tree,edge.color=vec)
+  # plot(call$tree,edge.color=cols[edge.quants],show.tip.label=FALSE)
+  # vec<-rep('gray',nrow(tree$edge))
+  # vec[real_e[edge.key]-1]<-cols[edge.quants]
+  # plot(tree,edge.color=vec,show.tip.label=FALSE)
   #seems to work!
   postorder<-((2*n-2):1)[-((2*n-2)-tip_e)]
   tip_e<-tip_e+1
@@ -310,7 +311,8 @@ run.evorates<-function(input.evorates.obj,return.as.obj=TRUE,out.file=NULL,check
 #check to see if read_stan_csv checks for compatibility between chains...
 #' @export
 output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL,include.warmup=FALSE,
-                          report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.devs=TRUE,report.MAPs=FALSE){
+                          report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.devs=TRUE,remove.trend=TRUE,
+                          report.MAPs=FALSE){
   ##GATHER UP COMPONENTS##
   list.from.input<-list(stanfit=stanfit,call=call,trans.const=trans.const,dat=dat)
   list.from.run<-list(stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL)
@@ -390,7 +392,7 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
             immediate.=TRUE)
   }
   out<-list()
-  class(out)<-'corateBM_fit'
+  class(out)<-'evorates_fit'
   out$call<-c(call,
               'constrain.Rsig2'=list(constrain.Rsig2),
               'trend'=list(trend),
@@ -479,10 +481,21 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   
   #add rate deviation chains
   if(report.devs){
-    R<-aperm(out$chains[,paste0('R_',1:e),,drop=FALSE],c(1,3,2))
-    rate.devs<-R
-    for(i in 1:dim(R)[2]){
-      rate.devs[,i,]<-R[,i,]-bg.rate[,i]
+    rate.devs<-aperm(out$chains[,paste0('R_',1:e),,drop=FALSE],c(1,3,2))
+    if(trend&remove.trend){
+      edgerans<-call$tree$edge
+      edgerans[,]<-node.depth.edgelength(call$tree)[edgerans]
+      trend.contrib<-rate.devs
+      trend.contrib[,,]<-aperm(out$chains[,'R_mu',,drop=FALSE],c(1,3,2))
+      trend.contrib<-aperm(trend.contrib,c(3,1,2))
+      trend.contrib<-log(abs(trend.contrib))+log(call$tree$edge.length)-
+        log(abs(exp(trend.contrib*edgerans[,2])-exp(trend.contrib*edgerans[,1])))
+      trend.contrib<-aperm(trend.contrib,c(2,3,1))
+      rate.devs<-rate.devs+trend.contrib
+    }
+    bg.rate<-apply(rate.devs,c(1,2),function(ii) sum(ii*wgts))
+    for(i in 1:dim(rate.devs)[2]){
+      rate.devs[,i,]<-rate.devs[,i,]-bg.rate[,i]
     }
     tmp<-dimnames(out$chains)
     tmp[[2]]<-c(tmp[[2]],paste('R_',1:e,'_dev',sep=''))
@@ -632,11 +645,16 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' @param report.means \code{TRUE} or \code{FALSE}: should posterior distribution means be returned? Defaults to
 #' \code{TRUE}.
 #' @param report.devs \code{TRUE} or \code{FALSE}: should the difference between time-averaged rates along each
-#' branch of \code{tree} and the overall average rate ("\code{bg_rate}") on the natural log scale be returned? If
-#' \code{TRUE}, also calculates the posterior probability a particular time-averaged rate is greater than the
-#' overall average. These additional parameters help give a sense of which branches in \code{tree} exhibit
-#' anomalous trait evolution rates under the model. Defaults to \code{TRUE}, but is automatically switched to
-#' \code{FALSE} when fitting a Brownian Motion model (\code{constrain.Rsig2 = FALSE & trend = FALSE}).
+#' branch of \code{tree} and the overall average rate on the natural log scale ("rate deviations") be returned?
+#' If \code{TRUE}, also
+#' calculates the posterior probability a particular time-averaged rate is greater than the overall average. These
+#' additional parameters help give a sense of which branches in \code{tree} exhibit anomalous trait evolution rates
+#' under the model. Defaults to \code{TRUE}, but is automatically switched to \code{FALSE} when fitting a Brownian
+#' Motion model (\code{constrain.Rsig2 = FALSE & trend = FALSE}).
+#' @param remove.trend \code{TRUE} or \code{FALSE}: should the rate deviation calculations remove (i.e., "account for") the
+#' effect of trends in rates over time? This is sometimes helpful since strong trends in rates can mask otherwise anomalously
+#' high or low trait evolution rates in certain parts of the tree. Defaults to \code{TRUE}, but has no effect if no trend was
+#' fitted or if \code{report.devs} is \code{FALSE}.
 #' @param report.MAPs \code{TRUE} or \code{FALSE}: should maximum a posteriori parameter estimates be returned?
 #' Defaults to \code{FALSE}.
 #' @param ... Other optional arguments:
@@ -685,8 +703,8 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' \item{\code{chains}, an array of sampled parameter values for each parameter estimated during the fit. See
 #' details for further information on what each parameter means.}
 #' \item{The object optionally contains arrays of posterior distribution quantiles (\code{quantiles}) and means
-#' (\code{means}), posterior probabilities (\code{post.prob}, see \code{report.devs}), and maximum a posteriori
-#' parameter estimates (\code{MAPs}).}
+#' (\code{means}), posterior probabilities (\code{post.prob}, see \code{report.devs} and \code{remove.trend}),
+#' and maximum a posteriori parameter estimates (\code{MAPs}).}
 #' }
 #' All arrays' dimensions go in the order of iterations/diagnostics/quantiles, then parameters, then chains.
 #' 
@@ -698,7 +716,7 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' the tips, respectively.
 #' 
 #' 
-#' @family EvoRates fitting functions
+#' @family evorates fitting functions
 #' 
 #' 
 #' @examples
@@ -708,7 +726,8 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 fit.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend=FALSE,lik.power=1,sampling.scale=FALSE,
                        return.as.obj=TRUE,out.file=NULL,check.overwrite=TRUE,
                        include.warmup=FALSE,
-                       report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.devs=TRUE,report.MAPs=FALSE,
+                       report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.devs=TRUE,remove.trend=TRUE,
+                       report.MAPs=FALSE,
                        ...){
   input<-input.evorates(tree,trait.data,trait.se,constrain.Rsig2,trend,lik.power,sampling.scale,...)
   stan.args.list<-list(...)
@@ -758,6 +777,7 @@ fit.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend
   if(return.as.obj){
     run<-c(stanfit=ret,prep$input.evorates.obj)
     output.evorates(run,NULL,NULL,NULL,NULL,include.warmup,
-                    report.quantiles,report.means,report.devs,report.MAPs)
+                    report.quantiles,report.means,report.devs,remove.trend,
+                    report.MAPs)
   }
 }

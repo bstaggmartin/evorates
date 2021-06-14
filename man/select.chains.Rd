@@ -2,12 +2,12 @@
 % Please edit documentation in R/out_chain.management.R
 \name{select.chains}
 \alias{select.chains}
-\title{Select chains in a fitted correlated rates Brownian Motion model}
+\title{Select chains in a fitted evolving rates model}
 \usage{
 select.chains(fit, chains, simplify = T)
 }
 \arguments{
-\item{fit}{An object of class "\code{corateBM_fit}", the output of a call to \code{fit.corateBM}.}
+\item{fit}{An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.}
 
 \item{chains}{A character or numeric vector. If of class character, the given text is matched to names of
 the available chains in \code{fit}. If of class numeric, the function assumes \code{chains} refers to the
@@ -17,11 +17,11 @@ name "chain \code{chains}".}
 1 collapsed and stored as attributes?}
 }
 \value{
-an object of class "\code{corateBM_fit}". All previously-existing elements in \code{fit} will be
+an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
 included.
 }
 \description{
-This function extracts specific chains from the output of the function \code{fit.corateBM}.
+This function extracts specific chains from the output of the function \code{fit.evorates}.
 }
 \seealso{
 Other chain management: 
