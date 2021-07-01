@@ -23,6 +23,15 @@ included.
 \description{
 This function extracts specific chains from the output of the function \code{fit.evorates}.
 }
+\examples{
+#requires example fitted model object
+#get chain 1 and 2
+select.chains(example.fit,c('chain 1','chain 2'))
+#or
+select.chains(example.fit,1:2)
+
+
+}
 \seealso{
 Other chain management: 
 \code{\link{combine.chains}()},

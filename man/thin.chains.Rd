@@ -24,6 +24,13 @@ Keep in \code{warmup} counts form the first iteration. For example, if \code{fit
 iterations with the first 1000 as warmup, you would set \code{warmup} to 1500 to keep the last 500
 iterations.
 }
+\examples{
+#requires example fitted model object
+#keep every 3rd iteration
+thin.chains(example.fit,3)
+
+
+}
 \seealso{
 Other chain management: 
 \code{\link{combine.chains}()},

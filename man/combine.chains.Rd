@@ -37,6 +37,12 @@ however, will be kept.
 After combining chains, the resulting composite 'markov chain' no longer corresponds to any one set of
 initialization values. As such, the 'inits' diagnostic from the param.diags element is set to NA.
 }
+\examples{
+#requires example fitted model object
+combine.chains(example.fit)
+
+
+}
 \seealso{
 Other chain management: 
 \code{\link{exclude.warmup}()},

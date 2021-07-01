@@ -28,6 +28,17 @@ Keep in \code{warmup} counts form the first iteration. For example, if \code{fit
 iterations with the first 1000 as warmup, you would set \code{warmup} to 1500 to keep the last 500
 iterations.
 }
+\examples{
+#requires example fitted model object
+#exclude warmup iterations from sampler
+exclude.warmup(example.fit)
+#exclude some non-warmup iterations
+exclude.warmup(example.fit,1100)
+#exclude some non-warmup iterations, but keep in sampler.params
+exclude.warmup(example.fit,1100,F)
+
+
+}
 \seealso{
 Other chain management: 
 \code{\link{combine.chains}()},

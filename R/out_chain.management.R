@@ -19,7 +19,7 @@
 #' @family chain management
 #' 
 #' 
-#' @example
+#' @examples
 #' #requires example fitted model object
 #' #get chain 1 and 2
 #' select.chains(example.fit,c('chain 1','chain 2'))
@@ -99,7 +99,7 @@ select.chains<-function(fit,chains,simplify=T){
 #' @family chain management
 #' 
 #' 
-#' @example
+#' @examples
 #' #requires example fitted model object
 #' combine.chains(example.fit)
 #' 
@@ -194,7 +194,7 @@ combine.chains<-function(fit,simplify=T){
 #' @family chain management
 #' 
 #' 
-#' @example
+#' @examples
 #' #requires example fitted model object
 #' #exclude warmup iterations from sampler
 #' exclude.warmup(example.fit)
@@ -292,7 +292,7 @@ exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
 #' @family chain management
 #' 
 #' 
-#' @example
+#' @examples
 #' #requires example fitted model object
 #' #keep every 3rd iteration
 #' thin.chains(example.fit,3)
