@@ -157,7 +157,8 @@
     trait.se[tmp]<- -1
     warning('Fixed standard errors are specified for tip(s) ',
             paste(conflicts_intra,collapse=', '),
-            ', but tip(s) have intra-tip observations associated with them: defaulted to ignoring fixed standard errors. Specify a single observation for any tips you want to associate with a fixed standard error.')
+            ', but tip(s) have intra-tip observations associated with them: defaulted to ignoring fixed standard errors. Specify a single observation for any tips you want to associate with a fixed standard error.',
+            immediate.=TRUE)
   }
   #Check for specification of infinite standard errors on tips with observations
   tmp<-which(trait.se==-2&!mis)
@@ -166,7 +167,8 @@
     trait.se[tmp]<- -1
     warning('Infinite standard errors are specified for tip(s) ',
             paste(conflicts_mis_X,collapse=', '),
-            ', but tip(s) have observations associated with them: defaulted to using an unfixed standard error. Do not specify any observations for any tips you want to associate with an infinite standard error (i.e., missing data).')
+            ', but tip(s) have observations associated with them: defaulted to using an unfixed standard error. Do not specify any observations for any tips you want to associate with an infinite standard error (i.e., missing data).',
+            immediate.=TRUE)
   }
   #Check for specification of non-infinite (fixed or unfixed) standard errors on tips without observations
   tmp<-which(trait.se!=-2&mis)
@@ -175,7 +177,8 @@
     trait.se[tmp]<- -2
     warning('Fixed standard errors are specified for tip(s) ',
             paste(conflicts_mis_X,collapse=', '),
-            ', but tip(s) have no observations associated with them: defaulted to ignoring fixed standard errors. Specify a single observation for any tips you want to associate with a fixed standard error.')
+            ', but tip(s) have no observations associated with them: defaulted to ignoring fixed standard errors. Specify a single observation for any tips you want to associate with a fixed standard error.',
+            immediate.=TRUE)
   }
   trait.se<-trait.se[!duplicated(paste(rownames(trait.se),trait.se)),,drop=FALSE]
   #Check for specification of 2 different standard errors for same tip

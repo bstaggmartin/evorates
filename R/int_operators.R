@@ -184,7 +184,7 @@
   select<-gsub('@{17}','_',select)
   tmp<-lapply(select,function(ii) grep(ii,param.names,perl=T))
   forbidden.inds<-grep('_dev$',param.names)
-  for(i in grep('dev$',select,invert=T)){
+  for(i in grep('dev\\$*$',select,invert=TRUE)){
     tmp[[i]]<-tmp[[i]][!(tmp[[i]]%in%forbidden.inds)]
   }
   if(all(lengths(tmp)==0)){

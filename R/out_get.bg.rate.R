@@ -1,5 +1,6 @@
 #allow for simultaneously getting multiple clades via passing a list to node? --> done
 #add support for removing trend, if present?
+#add diagnostics?
 #' @export
 get.bg.rate<-function(fit,node=length(fit$call$tree$tip.label)+1,edge.group=NULL,
                       element=c('chains','quantiles','means','MAPs'),
@@ -18,6 +19,22 @@ get.bg.rate<-function(fit,node=length(fit$call$tree$tip.label)+1,edge.group=NULL
     int.element<-'chains'
   }else{
     int.element<-element
+  }
+  if(remove.trend){
+    try.R<-try(fit%chains%1,silent=TRUE)
+    try.Rmu<-try(fit%chains%'^R_mu$',silent=TRUE)
+    if(!inherits(try.R,'try-error')&!inherits(try.Rmu,'try-error')){
+      e<-nrow(tree$edge)
+      is.simplified<-length(dim(fit$chains))<3
+      if(!is.simplified){
+        fit$chains[,paste('R',1:e,sep='_'),]<-remove.trend(fit,'chains')
+      }else{
+        fit$chains[,paste('R',1:e,sep='_')]<-remove.trend(fit,'chains')
+      }
+      if(int.element!='chains'){
+        fit[[int.element]]<-NULL
+      }
+    }
   }
   if(!is.list(node)){
     node<-list(node)
@@ -80,7 +97,7 @@ get.bg.rate<-function(fit,node=length(fit$call$tree$tip.label)+1,edge.group=NULL
     out.list<-out.list[!bad.indices]
   }
   edge.group<-lapply(edge.group,function(ii) sort(unique(ii)))
-  try.R<-try(fit%chains%'R_1$',silent=TRUE)
+  try.R<-try(fit%chains%1,silent=TRUE)
   if(inherits(try.R,'try-error')){
     warning('fit has no rate heterogeneity: background rates will be identical for all specified edge groups')
     has.R<-F

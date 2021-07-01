@@ -580,7 +580,7 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #'
 #'
 #' This function processes tree and trait data, runs a Stan-based Hamiltonian Monte Carlo (HMC) sampler to fit
-#' these data to an EvoRates model, and returns the output of this sampler in a (relatively) user-friendly format.
+#' these data to an evorates model, and returns the output of this sampler in a (relatively) user-friendly format.
 #'
 #'
 #' @param tree An object of class "\code{phylo}"
@@ -614,12 +614,12 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' resulting in a simple Brownian Motion or Early/Late Burst model? Defaults to \code{FALSE}. See Details for a
 #' definition of model parameters.
 #' @param trend \code{TRUE} or \code{FALSE}: should a trend in rates over time (\code{R_mu})  be estimated,
-#' resulting in an Early/Late Burst or trended EvoRates model? Defaults to \code{FALSE}.
-#' @param lik.power A single number between 0 and 1 specifying what power to raise the likelihood function too.
+#' resulting in an Early/Late Burst or trended evorates model? Defaults to \code{FALSE}.
+#' @param lik.power A single number between 0 and 1 specifying what power to raise the likelihood function to.
 #' This is useful for sampling from "power posteriors" that shift the posterior to look more like the prior (indeed,
 #' you can set this to 0 to sample from the prior itself). Useful for model diagnostics and calculating things
 #' like Bayes Factors. Technically, you can set \code{lik.power} above 1 (a technique called "data cloning") but
-#' this is not beneficial for EvoRates models and we don't recommend it.
+#' this is not beneficial for evorates models and we don't recommend it.
 #' @param sampling.scale \code{TRUE} or \code{FALSE}: should provided prior parameters (see \code{...}) be
 #' interpreted on the raw scale of the data or on the transformed scale? All data passed to the Stan-based HMC
 #' sampler are transformed such that \code{tree}'s total height is 1 and the standard deviation of the trait data
@@ -659,9 +659,10 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' Defaults to \code{FALSE}.
 #' @param ... Other optional arguments:
 #' \itemize{
-#' \item{Prior arguments: all priors follow Cauchy distributions currently, which are basically normal distributions
-#' with extremely fat tails. The mean and standard deviation of these distributions can be tweaked for the priors on
-#' \code{R_0}, \code{R_sig2}, \code{R_mu}, and \code{Y_sig2}. See Details for definitions of what these parameters
+#' \item{Prior arguments: priors on \code{R_0} and \code{R_sig2} follow normal distributions, while priors on \code{R_sig2}
+#' and \code{Y_sig2} follow half-Cauchy distributions, which are basically half-normal distributions with extremely fat tails.
+#' Both the mean and standard deviation of \code{R_0}/\code{R_sig2} priors can be tweaked, while only the standard deviation of
+#' \code{R_sig2}/\code{Y_sig2} can be tweaked. See Details for definitions of what these parameters
 #' mean. To specify a prior mean, pass an argument named "\code{<parameter name>_mean}" (e.g., "\code{R_0_mean}"),
 #' and to specify a prior standard deviation, pass an argument named "\code{<parameter name>_sd}" (e.g.,
 #' "\code{R_mu_sd}").}
@@ -710,10 +711,7 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' 
 #' 
 #' @details 
-#' which correspond to the trait evolution rate at the root of \code{tree}, the
-#' "rate" at which
-#' rates stochastically vary, the rate at which rates decrease or increase, and variance of trait measurements at
-#' the tips, respectively.
+#' PARAMETER DEFINITIONS HERE
 #' 
 #' 
 #' @family evorates fitting functions

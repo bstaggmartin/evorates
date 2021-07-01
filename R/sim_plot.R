@@ -6,12 +6,14 @@ def.color.scheme<-function(){
 }
 
 #plot an autocorrelated Brownian motion simulation
-#add an option to only exponentiate legend?
+#add an option to only exponentiate legend? Done
+#really need to clean these functions up-->chunks of code identical between plot.evorates and pairs, also many of this code
+#should just be internal functions, rather than explicit
 #' @export
 plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram','cladogram','fan','unrooted','radial'),
                         col=def.color.scheme(),na.col='gray90',val.range=NULL,res=100,
                         alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
-                        xlab=NULL,ylab=NULL,add=F,color.element='R',exp=F,...,
+                        xlab=NULL,ylab=NULL,add=F,color.element='R',exp=FALSE,exp.txt=TRUE,...,
                         legend=T,legend.args=NULL){
   tree<-sim$tree
   try.type<-try(match.arg(type,c('phenogram','phylogram','cladogram','fan','unrooted','radial')))
@@ -60,7 +62,7 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
   }
   if(length(traits)>2&type=='phenogram'){
     pairs(sim,traits=traits,col=col,val.range=val.range,res=res,alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
-          color.element=color.element,exp=exp,...,
+          color.element=color.element,exp=exp,exp.txt=exp.txt,...,
           legend=legend,legend.args=legend.args)
   }else{
     if(is.null(xlab)){
@@ -126,15 +128,18 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
           }
         }
         elen[is.na(elen)]<-0
-        XX<-array(NA,c(1,tree$Nnode+n,1),
-                  list(NULL,c(tree$tip.label,1:tree$Nnode+n),NULL))
-        PP<-XX
-        LL<-XX
-        XX[,tree$tip.label,]<-sim$X[tree$tip.label,]
-        PP[,tree$tip.label,]<-Inf
-        LL[,tree$edge[,2],]<-elen
-        LL[,n+1,]<-0
-        tmp<-as.matrix(.anc.recon(tree,XX,LL,PP,FALSE)[[1]][1,,1])
+        tmp<-NULL
+        for(i in 1:ncol(sim$X)){
+          XX<-array(NA,c(1,tree$Nnode+n,1),
+                    list(NULL,c(tree$tip.label,1:tree$Nnode+n),NULL))
+          PP<-XX
+          LL<-XX
+          XX[,tree$tip.label,]<-sim$X[tree$tip.label,i]
+          PP[,tree$tip.label,]<-Inf
+          LL[,tree$edge[,2],]<-elen
+          LL[,n+1,]<-0
+          tmp<-cbind(tmp,.anc.recon(tree,XX,LL,PP,FALSE)[[1]][1,,1])
+        }
         colnames(tmp)<-traits
         sim$X<-tmp
       }
@@ -285,11 +290,12 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
                 list(...)[names(list(...))%in%gen.args]))
     }
     if(legend){
-      legend.call<-c(sim=list(sim),color.element=color.element,exp=exp,
+      legend.call<-c(sim=list(sim),color.element=color.element,exp=exp,exp.txt=exp.txt,
                      col=list(col),val.range=list(val.range),res=res,
                      alpha=if(length(alpha)==1) alpha else list(alpha),breaks=if(length(breaks)==1) breaks else list(breaks),
                      legend.args)
-      do.call(legend.evorates,legend.call)
+      legend.coords<-do.call(legend.evorates,legend.call)
+      invisible(legend.coords)
     }
   }
 }
@@ -299,7 +305,7 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
 pairs.evorates<-function(sim,traits=1:ncol(sim$X),
                          col=def.color.scheme(),val.range=NULL,res=100,
                          alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
-                         lab=NULL,color.element='R',...,
+                         lab=NULL,color.element='R',exp=FALSE,exp.txt=TRUE,...,
                          legend=T,legend.args=NULL){
   tree<-sim$tree
   if(is.null(colnames(sim$X))){
@@ -331,15 +337,18 @@ pairs.evorates<-function(sim,traits=1:ncol(sim$X),
         elen<-elen*exp(sim$R)
       }
     }
-    XX<-array(NA,c(1,tree$Nnode+n,1),
-              list(NULL,c(tree$tip.label,1:tree$Nnode+n),NULL))
-    PP<-XX
-    LL<-XX
-    XX[,tree$tip.label,]<-sim$X[tree$tip.label,]
-    PP[,tree$tip.label,]<-Inf
-    LL[,tree$edge[,2],]<-elen
-    LL[,n+1,]<-0
-    tmp<-as.matrix(.anc.recon(tree,XX,LL,PP,FALSE)[[1]][1,,1])
+    tmp<-NULL
+    for(i in 1:ncol(sim$X)){
+      XX<-array(NA,c(1,tree$Nnode+n,1),
+                list(NULL,c(tree$tip.label,1:tree$Nnode+n),NULL))
+      PP<-XX
+      LL<-XX
+      XX[,tree$tip.label,]<-sim$X[tree$tip.label,i]
+      PP[,tree$tip.label,]<-Inf
+      LL[,tree$edge[,2],]<-elen
+      LL[,n+1,]<-0
+      tmp<-cbind(tmp,.anc.recon(tree,XX,LL,PP,FALSE)[[1]][1,,1])
+    }
     colnames(tmp)<-traits
     sim$X<-tmp
   }
@@ -428,7 +437,7 @@ pairs.evorates<-function(sim,traits=1:ncol(sim$X),
     if(is.null(legend.args$xpd)){
       legend.args$xpd<-T
     }
-    legend.call<-c(sim=list(sim),color.element=color.element,exp=exp,
+    legend.call<-c(sim=list(sim),color.element=color.element,exp=exp,exp.txt=exp.txt,
                    col=list(col),val.range=list(val.range),res=res,
                    alpha=if(length(alpha)==1) alpha else list(alpha),breaks=if(length(breaks)==1) breaks else list(breaks),
                    legend.args)
@@ -483,7 +492,7 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
   }else if(length(box.dims)==1){
     box.dims<-c(box.dims,NA)
   }
-  box.dims<-ifelse(is.na(box.dims),bds.dims/c(30,5),box.dims)
+  box.dims<-box.scale*ifelse(is.na(box.dims),bds.dims/c(30,5),box.dims)
   if(length(box.offset)==0){
     box.offset<-rep(NA,2)
   }else if(length(box.offset)==1){
@@ -499,9 +508,9 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
     y.offset<- bds.dims[2]-box.dims[2]-box.offset[2]
   }
   coords<-list(x=c(0,box.dims[1],box.dims[1],0)+x.offset+bds[1],y=c(0,0,box.dims[2],box.dims[2])+y.offset+bds[3])
-  box.midpt<-sapply(coords,mean)
-  coords$x<-(coords$x-box.midpt[1])*box.scale+box.midpt[1]
-  coords$y<-(coords$y-box.midpt[2])*box.scale+box.midpt[2]
+  # box.midpt<-sapply(coords,mean)
+  # coords$x<-(coords$x-box.midpt[1])*box.scale+box.midpt[1]
+  # coords$y<-(coords$y-box.midpt[2])*box.scale+box.midpt[2]
   y.int<-seq(coords$y[2],coords$y[3],length.out=length(colramp)+1)
   for(i in 1:length(colramp)){
     do.call(polygon,
@@ -603,7 +612,6 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
   if(is.null(main.args$cex)){
     main.args$cex<-1
   }
-  main.args$cex<-main.args$cex*1.5
   if(main.side%in%c(2,4)){
     x.pos<-coords$x[main.side/2]
     y.pos<-mean(coords$y[2:3])
@@ -616,4 +624,5 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
                     y=y.pos,
                     labels=list(main),
                     main.args)))
+  invisible(coords)
 }

@@ -89,12 +89,12 @@
         XX[,n,]<-XX[,n,]
       }else{
         PL<-round(PP[,n,]*LL[,n,],15)
-        if(PL==1){
+        if(PL[1]==1){
           PP[,n,]<-Inf
         }else{
           P_diff<-PP[,a,]-PP[,n,]
           XX[,n,]<-(XX[,n,]-XX[,a,])*PL+XX[,a,]
-          if(is.infinite(P_diff)){
+          if(is.infinite(P_diff[1])){
             PP[,n,]<-PP[,n,]/(1-PL)+1/LL[,n,]
           }else{
             PP[,n,]<-PP[,n,]/(1-PL)+P_diff/(1+LL[,n,]*P_diff)
