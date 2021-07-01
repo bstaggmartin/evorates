@@ -7,7 +7,7 @@
 #'
 #' @docType package
 #' @name evorates
-#' @import ape Rcpp methods
-#' @importFrom rstan sampling extract
+#' @import ape Rcpp methods rstan logspline
+#' @importFrom phytools bind.tip
 #' @useDynLib evorates, .registration=TRUE
 NULL
