@@ -2,6 +2,8 @@
 #okay, can use select.extra to specify a particular iteration from chains too
 #use chain to specify a specific chain using select.chains()
 #if NULL, combine chains (with warning if trying to plot inits)
+#god this function, could be SOOOO much nicer and cleaner-->I have to work on it more
+#in particular, think about accomodating non-default rate and post.probs-->I think there's a better system!
 #' @export
 plot.evorates_fit<-function(fit,
                             element=c('means','quantiles','chains','MAPs','diagnostics'),
@@ -19,7 +21,7 @@ plot.evorates_fit<-function(fit,
       stop("fit must be a fitted evorates model (class 'evorates_fit')")
     }
     in.fit<-fit
-    try.element<-try(match.arg(element,c('means','quantiles','chains','MAPs','diagnostics')),silent=T)
+    try.element<-try(match.arg(element,c('means','quantiles','chains','MAPs','diagnostics')),silent=TRUE)
     if(inherits(try.element,'try-error')){
       stop(element," is not an available element to extract from an evorates fit: please specify one of the following: 'means', 'quantiles', 'chains', 'MAPs', or 'diagnostics'")
     }
@@ -28,6 +30,7 @@ plot.evorates_fit<-function(fit,
     nchains<-fit$sampler.control$chains
     niter<-dim(fit$chains)[1]
     
+    #for now, only takes chains of R array-->probably should generalize
     e<-nrow(fit$call$tree$edge)
     if(!is.null(R)){
       R<-.expand.element(R)
@@ -36,7 +39,18 @@ plot.evorates_fit<-function(fit,
       }
       fit[c('quantiles','means','MAPs')]<-NULL
       fit$chains<-evorates:::.expand.element(fit$chains)
-      fit$chains[,paste('R',1:e,sep='_'),]<-R
+      if(grepl(dimnames('R_[1-9]',fit$chains))){
+        fit$chains[,paste('R',1:e,sep='_'),]<-R
+      }else{
+        tmp.dims<-dim(fit$chains)
+        tmp.dims[2]<-tmp.dims[2]+e
+        tmp.dimnames<-dimnames(fit$chains)
+        tmp.dimnames[[2]]<-c(tmp.dimnames[[2]],paste('R',1:e,sep='_'))
+        fit$chains<-array(c(aperm(fit$chains,c(1,3,2)),aperm(R,c(1,3,2))),
+                          tmp.dims[c(1,3,2)],
+                          tmp.dimnames[c(1,3,2)])
+        fit$chains<-aperm(fit$chains,c(1,3,2))
+      }
       tmp.dimnames<-dimnames(fit$param.diags)
       fit$param.diags<-array(NA,c(4,dim(fit$chains)[2],nchains),
                              c(tmp.dimnames[1],dimnames(fit$chains)[2],tmp.dimnames[3]))
@@ -76,13 +90,31 @@ plot.evorates_fit<-function(fit,
         select.extra<-'bulk_ess'
       }
     }
-    if(!is.null(select.extra)){
-      select<-list(1:e,select.extra)
+    
+    try.R<-try(.int.chains(fit,1),silent=TRUE)
+    if(inherits(try.R,'try-error')){
+      select<-0
     }else{
       select<-1:e
     }
+    if(!is.null(select.extra)){
+      select<-list(select,select.extra)
+    }
     
-    R<-do.call(paste('.int.',element,sep=''),list(fit=fit,select=select))
+    R<-do.call(paste0('.int.',element),list(fit=fit,select=select))
+    if(inherits(try.R,'try-error')){
+      tmp.dims<-dim(R)
+      tmp.dims[2]<-e
+      tmp.dimnames<-dimnames(R)
+      tmp.dimnames[[2]]<-paste('R',1:e,sep='_')
+      R<-array(aperm(R,c(1,3,2)),tmp.dims[c(1,3,2)],tmp.dimnames[c(1,3,2)])
+      R<-aperm(R,c(1,3,2))
+    }
+    
+    if(is.null(fit$post.probs)){
+      fit$post.probs<-compare.params(params1=remove.trend(fit),
+                                     params2=get.bg.rate(fit))$post.probs
+    }
     
     
     

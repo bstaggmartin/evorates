@@ -101,7 +101,7 @@ get.bg.rate<-function(fit,node=length(fit$call$tree$tip.label)+1,edge.group=NULL
   if(inherits(try.R,'try-error')){
     warning('fit has no rate heterogeneity: background rates will be identical for all specified edge groups')
     has.R<-F
-    if((element=='quantiles'|'chains')&!is.null(select.extra)){
+    if((element=='quantiles'|element=='chains')&!is.null(select.extra)){
       select<-list(0,select.extra)
     }else{
       select<-0
@@ -126,7 +126,7 @@ get.bg.rate<-function(fit,node=length(fit$call$tree$tip.label)+1,edge.group=NULL
     }
     if(!has.R){
       tmp.dimnames[[2]]<-name[[i]]
-      dimanmes(R)<-tmp.dimnames
+      dimnames(R)<-tmp.dimnames
       out.list[[i]]<-R
     }else{
       if(element=='chains'&!is.null(select.extra)){

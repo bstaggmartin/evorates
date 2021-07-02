@@ -24,17 +24,18 @@ remove.trend<-function(fit,
   try.Rsig2<-try(fit%chains%'^R_sig2$',silent=TRUE)
   if(inherits(try.Rsig2,'try-error')){
     warning('fit has constrained R_sig2: residual rates will be identical to rate at root of tree')
-    tmp<-.expand.element(chains)
+    tmp<-.expand.element(fit$chains)
     dims<-dim(tmp)
     tmp.dimnames<-dimnames(tmp)
     tmp.dimnames[[2]]<-paste('R',1:e,sep='_')
-    tmp<-array(.int.chains(fit,0),c(dims[1],e,dims[3]),tmp.dimnames)
+    tmp<-array(.int.chains(fit,0),c(dims[1],dims[3],e),tmp.dimnames[c(1,3,2)])
+    tmp<-aperm(tmp,c(1,3,2))
     tmp[,tree$edge.length==0,]<-NA
   }else{
     tmp<-.int.chains(fit,1:e)
     try.Rmu<-try(fit%chains%'^R_mu$',silent=TRUE)
     if(inherits(try.Rmu,'try-error')){
-      warning('fit has constrained R_mu: residual rates will be identical to estimated rates')
+      warning('fit has constrained R_mu: detrended will be identical to estimated rates')
     }else{
       edgerans<-tree$edge
       edgerans[,]<-ape::node.depth.edgelength(tree)[edgerans]

@@ -67,11 +67,15 @@ compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c(
       }
     }
     if(post.probs){
+      tmp<-out$chains
       if(operation=='-'){
-        out$post.probs<-apply(out$chains,c(2,3),function(ii) sum(ii>0)/length(ii))
+        tmp[tmp==0]<-NA
+        out$post.probs<-apply(tmp,c(2,3),function(ii) sum(ii>0,na.rm=TRUE)/sum(!is.na(ii)))
       }else{
-        out$post.probs<-apply(out$chains,c(2,3),function(ii) sum(ii>1)/length(ii))
+        tmp[tmp==1]<-NA
+        out$post.probs<-apply(tmp,c(2,3),function(ii) sum(ii>1,na.rm=TRUE)/sum(!is.na(ii)))
       }
+      out$post.probs[is.infinite(out$post.probs)|is.nan(out$post.probs)]<-0.5
     }
     tmp<-list(chains=out$chains)
     if(element=='MAPs'){

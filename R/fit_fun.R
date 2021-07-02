@@ -386,10 +386,16 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   constrain.Rsig2<-!checks[2]
   trend<-checks[3]
   lik.power<-dat$lik_power
-  if(constrain.Rsig2&!trend&report.devs){
-    report.devs<-FALSE
-    warning('report.devs was set to FALSE: rate deviations are meaningless with no rate heterogeneity',
-            immediate.=TRUE)
+  if(constrain.Rsig2&report.devs){
+    if(!trend){
+      report.devs<-FALSE
+      warning('report.devs was set to FALSE: rate deviations are meaningless with no rate heterogeneity',
+              immediate.=TRUE)
+    }else if(trend&remove.trend){
+      report.devs<-FALSE
+      warning('report.devs was set to FALSE: rate deviations are meaningless in the presence of only a trend if remove.trend is TRUE',
+              immediate.=TRUE)
+    }
   }
   out<-list()
   class(out)<-'evorates_fit'
@@ -474,8 +480,10 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
     out$chains[,paste0('R_',call$edge.key),]<-aperm(R,c(1,3,2))
   }
   incl.inds<-which(apply(out$chains[,,1],2,function(ii) !all(is.na(ii))))
-  #ensure it includes all edge params!
-  incl.inds<-sort(unique(c(incl.inds,5+1:e)))
+  #ensure it includes all edge params if rate heterogeneity exists!
+  if(!constrain.Rsig2|trend){
+    incl.inds<-sort(unique(c(incl.inds,5+1:e)))
+  }
   out$chains<-out$chains[,incl.inds,,drop=FALSE]
   
   
@@ -535,8 +543,12 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
     out$MAPs<-array(out$MAPs,dim(out$MAPs)[-1],dimnames(out$MAPs)[-1])
   }
   #add rate deviation posterior probabilities
+  #should never get instances where deviations are perfectly 0...but just in case
   if(report.devs){
-    out$post.probs<-apply(.int.chains(out,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
+    tmp<-.int.chains(out,'^R_[1-9]+_dev$')
+    tmp[tmp==0]<-NA
+    out$post.probs<-apply(tmp,c(2,3),function(ii) sum(ii>0,na.rm=TRUE)/sum(!is.na(ii)))
+    out$post.probs[is.infinite(out$post.probs)|is.nan(out$post.probs)]<-0.5
   }
   
   
