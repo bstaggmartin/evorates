@@ -24,7 +24,7 @@ This function gets rid of an arbitrary number of iterations at the beginning of 
 of the function \code{fit.evorates}.
 }
 \details{
-Keep in \code{warmup} counts form the first iteration. For example, if \code{fit} has 2000
+Keep in mind \code{warmup} counts form the first iteration. For example, if \code{fit} has 2000
 iterations with the first 1000 as warmup, you would set \code{warmup} to 1500 to keep the last 500
 iterations.
 }

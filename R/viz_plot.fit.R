@@ -39,7 +39,7 @@ plot.evorates_fit<-function(fit,
       }
       fit[c('quantiles','means','MAPs')]<-NULL
       fit$chains<-evorates:::.expand.element(fit$chains)
-      if(grepl(dimnames('R_[1-9]',fit$chains))){
+      if(any(grepl('R_[1-9]',dimnames(fit$chains)[[2]]))){
         fit$chains[,paste('R',1:e,sep='_'),]<-R
       }else{
         tmp.dims<-dim(fit$chains)

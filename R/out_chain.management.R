@@ -153,7 +153,10 @@ combine.chains<-function(fit,simplify=T){
       }
     }
     if(!is.null(fit$post.probs)){
-      fit$post.probs<-apply(.int.chains(fit,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
+      fit$post.probs<-apply(fit$post.probs,1,mean) #equivalent
+      attr(fit$post.probs,'chains')<-dimnames(fit$chains)[[3]]
+      fit$post.probs<-.expand.element(fit$post.probs)
+      # fit$post.probs<-apply(.int.chains(fit,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
     }
     #simplify as needed
     if(simplify){
@@ -182,7 +185,7 @@ combine.chains<-function(fit,simplify=T){
 #' too?
 #' 
 #' 
-#' @details Keep in \code{warmup} counts form the first iteration. For example, if \code{fit} has 2000
+#' @details Keep in mind \code{warmup} counts form the first iteration. For example, if \code{fit} has 2000
 #' iterations with the first 1000 as warmup, you would set \code{warmup} to 1500 to keep the last 500
 #' iterations.
 #' 

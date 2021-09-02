@@ -40,11 +40,15 @@ compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c(
     }else{
       out<-list()
     }
+    tmp<-params1
     if(operation=='-'){
+      tmp[abs(tmp)<1e-10]<-NA #prevent round errors...
       out$post.probs<-.simplify.element(apply(params1,c(2,3),function(ii) sum(ii>0)/length(ii)))
     }else{
+      tmp[abs(tmp-1)<1e-10]<-NA
       out$post.probs<-.simplify.element(apply(params1,c(2,3),function(ii) sum(ii>1)/length(ii)))
     }
+    out$post.probs[is.infinite(out$post.probs)|is.nan(out$post.probs)]<-0.5
     if(length(out)==1){
       out[[1]]
     }else{
@@ -69,10 +73,10 @@ compare.params<-function(fit=NULL,params1,params2=NULL,post.probs=T,operation=c(
     if(post.probs){
       tmp<-out$chains
       if(operation=='-'){
-        tmp[tmp==0]<-NA
+        tmp[abs(tmp)<1e-10]<-NA
         out$post.probs<-apply(tmp,c(2,3),function(ii) sum(ii>0,na.rm=TRUE)/sum(!is.na(ii)))
       }else{
-        tmp[tmp==1]<-NA
+        tmp[abs(tmp-1)<1e-10]<-NA
         out$post.probs<-apply(tmp,c(2,3),function(ii) sum(ii>1,na.rm=TRUE)/sum(!is.na(ii)))
       }
       out$post.probs[is.infinite(out$post.probs)|is.nan(out$post.probs)]<-0.5

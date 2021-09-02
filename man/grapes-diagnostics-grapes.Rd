@@ -62,8 +62,8 @@ example.fit\%diagnostics\%'X2,X1_evocov'
 example.fit\%diagnostics\%'.' #all parameters EXCEPT for rate deviation parameters
 example.fit\%diagnostics\%c('.','dev') #all parameters
 #specific diagnostics extraction
-example.fit\%diagnostics\%list('R_0','0.432,'inits') #initial values
-example.fit\%diagnostics\%list('R_0','0.432,'ess') #bulk and tail effective sample sizes
+example.fit\%diagnostics\%list('R_0','inits') #initial values
+example.fit\%diagnostics\%list('R_0','ess') #bulk and tail effective sample sizes
 
 
 }
@@ -72,7 +72,6 @@ Other evorates_fit operators:
 \code{\link{\%MAPs\%}()},
 \code{\link{\%chains\%}()},
 \code{\link{\%means\%}()},
-\code{\link{\%quantiles\%}()},
-\code{\link{\%sampler\%}()}
+\code{\link{\%quantiles\%}()}
 }
 \concept{evorates_fit operators}

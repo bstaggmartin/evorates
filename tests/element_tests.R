@@ -1,0 +1,10 @@
+fit<-readRDS('~/../Documents/cet_new')
+ele1<-fit%chains%1:3
+ele2<-fit%chains%1
+ele3<-fit%chains%list(1:3,1)
+ele4<-fit%chains%list(1,1)
+fit2<-combine.chains(fit)
+ele5<-fit2%chains%1:3
+ele6<-fit2%chains%1
+ele7<-fit2%chains%list(1:3,1)
+ele8<-fit2%chains%list(1,1)

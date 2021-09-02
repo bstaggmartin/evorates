@@ -59,7 +59,6 @@ Other evorates_fit operators:
 \code{\link{\%MAPs\%}()},
 \code{\link{\%chains\%}()},
 \code{\link{\%diagnostics\%}()},
-\code{\link{\%quantiles\%}()},
-\code{\link{\%sampler\%}()}
+\code{\link{\%quantiles\%}()}
 }
 \concept{evorates_fit operators}

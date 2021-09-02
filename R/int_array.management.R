@@ -6,27 +6,30 @@
 #rendered function more robust in the face of 4D arrays outputted from get.cov.mat and get.trait.mat: side-benefit of now
 #also reorganizing any arrays back into iterations/quantiles/diagnostics, then parameters (however many there are), then
 #chains order
-.expand.element<-function(arr,simplify=F){
+.expand.element<-function(arr,simplify=FALSE){
+  element.type<-.get.element.type(arr)
   if(length(dim(arr))==0){
-    new.arr<-as.matrix(arr)
+    new.arr<-matrix(arr,length(arr))
+    rownames(new.arr)<-names(.strip.ele(arr))
     new.dimnames<-dimnames(new.arr)
     if(is.null(dimnames(new.arr)[[1]])){
       new.dimnames<-rep(list(NULL),2)
       names(new.dimnames)[1]<-'iterations'
-    }else if(sum(grepl('%',dimnames(new.arr)[[1]]))!=0){
+    }else if(sum(grepl('%$',dimnames(new.arr)[[1]]))!=0&is.null(attr(arr,'quantiles'))){
       names(new.dimnames)[1]<-'quantiles'
-    }else if(sum(grepl('^inits$|^bulk_ess$|^tail_ess$|^Rhat$',dimnames(new.arr)[[1]]))!=0){
+    }else if(sum(grepl('^inits$|^bulk_ess$|^tail_ess$|^Rhat$',dimnames(new.arr)[[1]]))!=0&is.null(attr(arr,'diagnostics'))){
       names(new.dimnames)[1]<-'diagnostics'
-    }else if(sum(grepl('_',dimnames(new.arr)[[1]]))!=0){
-      names(new.dimnames)[1]<-'parameters'
-    }else if(sum(grepl('chain',dimnames(new.arr)[[1]]))!=0){
+    }else if(sum(grepl('chain',dimnames(new.arr)[[1]]))!=0&is.null(attr(arr,'chains'))){
       names(new.dimnames)[1]<-'chains'
+    }else{
+      names(new.dimnames)[1]<-'parameters'
     }
     for(i in c('quantiles','diagnostics','parameters','chains')){
       if(!is.null(attr(arr,i))){
         attr(new.arr,i)<-attr(arr,i)
       }
     }
+    class(new.arr)<-c(class(new.arr),'loose_element')
     dimnames(new.arr)<-new.dimnames
     arr<-new.arr
   }
@@ -79,6 +82,8 @@
       arr<-array(aperm(arr,dim.map),dim(arr)[dim.map],dimnames(arr)[dim.map])
     }
   }
+  attr(arr,'element')<-element.type
+  arr<-.add.ele(arr)
   if(simplify){
     if(is.null(dimnames(arr)[[1]])&dim(arr)[1]==1){
       arr<-array(arr,dim(arr)[-1],dimnames(arr)[-1])
@@ -91,26 +96,31 @@
 #length 1 output, prioritizes parameter names over everything else
 ##NEED TO UPDATE TO WORK WITH 2D ELEMENTS (like means and MAPs)--done 7/27
 .simplify.element<-function(arr){
-  old.dimnames<-dimnames(arr)
   old.dims<-dim(arr)
-  out<-do.call('[',c(list(arr),lapply(old.dims,function(ii) -(ii+1))))
-  for(i in 1:length(old.dims)){
-    if(old.dims[i]==1){
-      if(!is.null(old.dimnames[[i]])){
-        attr(out,names(old.dimnames)[i])<-old.dimnames[[i]]
+  if(is.null(old.dims)){
+    arr
+  }else{
+    old.dimnames<-dimnames(arr)
+    out<-do.call('[',c(list(arr),lapply(old.dims,function(ii) -(ii+1))))
+    for(i in 1:length(old.dims)){
+      if(old.dims[i]==1){
+        if(!is.null(old.dimnames[[i]])){
+          attr(out,names(old.dimnames)[i])<-old.dimnames[[i]]
+        }
       }
     }
-  }
-  if(length(out)==1){
-    names(out)<-attr(out,names(old.dimnames)[2])
-    attr(out,names(old.dimnames)[2])<-NULL
-  }
-  for(i in c('quantiles','diagnostics','parameters','chains')){
-    if(!is.null(attr(arr,i))){
-      attr(out,i)<-attr(arr,i)
+    if(length(out)==1){
+      names(out)<-attr(out,names(old.dimnames)[2])
+      attr(out,names(old.dimnames)[2])<-NULL
     }
+    for(i in c('quantiles','diagnostics','parameters','chains','element')){
+      if(!is.null(attr(arr,i))){
+        attr(out,i)<-attr(arr,i)
+      }
+    }
+    out<-.add.ele(out)
+    out
   }
-  out
 }
 
 #newest, generalized version of reduce.array--selects indices from arbitrary arrays without
@@ -143,7 +153,7 @@
                        function(ii) new.dimnames[[ii]][inds.list[[ii]]])
   names(new.dimnames)<-names(dimnames(arr))
   out<-array(do.call('[',c(list(arr),inds.list)),new.dims,new.dimnames)
-  for(i in c('quantiles','diagnostics','parameters','chains')){
+  for(i in c('quantiles','diagnostics','parameters','chains','element')){
     if(!is.null(attr(arr,i))){
       attr(out,i)<-attr(arr,i)
     }
@@ -157,31 +167,13 @@
 }
 
 .get.element.type<-function(arr){
-  dim1<-setNames(dim(arr)[1],names(dimnames(arr))[1])
-  if(names(dim1)=='iterations'){
-    if(dim1>1){
-      sampler.names<-paste(c(paste0(c('^accept_stat','stepsize','treedepth','n_leapfrog','divergent','energy'),'__$'),
-                             'prior$','lik$','post$')
-                           ,collapse='|^')
-      if(grepl(sampler.names,dimnames(arr)[[2]])){
-        out<-'sampler'
-      }else{
-        out<-'chains'
-      }
-    }else{
-      out<-'ambiguous'
-    }
-  }else if(names(dim1)=='quantiles'){
-    out<-'quantiles'
-  }else if(names(dim1)=='diagnostics'){
-    out<-'diagnostics'
-  }else{
-    out<-'unrecognized'
-  }
-  out
+  attr(arr,'element')
 }
 
 .coerce.to.3D<-function(arr){
+  if(length(dim(arr))<3){
+    arr<-.expand.element(arr)
+  }
   if(length(dim(arr))>3){
     new.dim<-dim(arr)
     new.dimnames<-dimnames(arr)
@@ -210,6 +202,7 @@
   if(!is.list(params)){
     params<-as.list(params)
   }
+  params<-params[lengths(params)>0]
   types<-sapply(params,function(ii) if(.is.evorates.element(ii)) 'element' else 'select')
   if(all(types=='select')&is.null(fit)){
     stop(deparse(substitute(in.params)),' appears to consist of strings/numbers specifying parameters to extract out of a evorates_fit, but no evorates_fit is supplied')
@@ -220,14 +213,21 @@
     types<-types[-which(types=='select')]
   }
   #getting provided parameters
-  params[types=='element']<-lapply(params[types=='element'],function(ii) .coerce.to.3D(.expand.element(ii)))
+  params[types=='element']<-lapply(params[types=='element'],function(ii) .coerce.to.3D(ii))
   select.params<-NULL
+  
+  
+  
+  
   #getting parameters selected by characters/numbers
   if(sum(types=='select')>0){
     select<-unlist(params[types=='select'])
     #trying to find right element to use if none provided
     if(is.null(element)){
       if(sum(types=='element')>0){
+        
+        
+        
         element.types<-sapply(params[types=='element'],.get.element.type)
         if(any(element.types%in%c('ambiguous','unrecognized'))|length(unique(element.types))>1){
           stop('element is unspecified, but element type based on provided loose elements is ambiguous: try specifying which element you wish to extract and double-check all loose elements are of the same type (chains, quantiles, means, etc.)')
@@ -237,6 +237,9 @@
       }else{
         element<-'chains'
       }
+      
+      
+      
     }else{
       try.element<-try(match.arg(element,c('chains','quantiles','means','MAPs','diagnostics','sampler')),silent=T)
       if(inherits(try.element,'try-error')){
@@ -261,6 +264,9 @@
     }
     select.params<-do.call(paste0('.int.',element),list(fit=fit,select=select))
   }
+  
+  
+  
   if(is.null(params[types=='element'])){
     out<-select.params
   }else{
@@ -291,6 +297,7 @@
     }
     names(out.dimnames)<-c(names(dimnames(out[[1]]))[1],'parameters','chains')
     out.arr<-array(NA,out.dim,out.dimnames)
+    class(out.arr)<-c(class(out.arr),'loose_element')
     counter<-0
     for(i in 1:length(out)){
       tmp.dim<-dim(out[[i]])[2]
@@ -312,3 +319,30 @@
 #now generalized to simply combine all elements it's face with, including ones specified by select. Tries its best to match
 #element type, but doesn't do anything like coercing provided elements to other types on the fly (considering doing this in the
 #future...)
+
+.strip.ele<-function(x){
+  tmp<-class(x)
+  class(x)<-tmp[!which(tmp=='loose_element')]
+  x
+}
+
+.add.ele<-function(x){
+  tmp<-class(x)
+  class(x)<-c(tmp,'loose_element')
+  x
+}
+
+.check.dims.compat<-function(l,r){
+  l<-.expand.element(l)
+  r<-.expand.element(r)
+  ldims<-dim(l)
+  rdims<-dim(r)
+  lnames<-dimnames(l)
+  rnames<-dimnames(r)
+  if(ldims[1]==rdims[1]&ldims[length(ldims)]==rdims[length(rdims)]&
+     all(lnames[[1]]==rnames[[1]])&all(lnames[[3]]==rnames[[3]])){
+    list(l,r,ldims,rdims,lnames,rnames)
+  }else{
+    NULL
+  }
+}

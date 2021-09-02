@@ -545,7 +545,7 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   #add rate deviation posterior probabilities
   #should never get instances where deviations are perfectly 0...but just in case
   if(report.devs){
-    tmp<-.int.chains(out,'^R_[1-9]+_dev$')
+    tmp<-.int.chains(out,'^R_[1-9][0-9]*_dev$')
     tmp[tmp==0]<-NA
     out$post.probs<-apply(tmp,c(2,3),function(ii) sum(ii>0,na.rm=TRUE)/sum(!is.na(ii)))
     out$post.probs[is.infinite(out$post.probs)|is.nan(out$post.probs)]<-0.5

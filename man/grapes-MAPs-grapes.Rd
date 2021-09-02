@@ -72,7 +72,6 @@ Other evorates_fit operators:
 \code{\link{\%chains\%}()},
 \code{\link{\%diagnostics\%}()},
 \code{\link{\%means\%}()},
-\code{\link{\%quantiles\%}()},
-\code{\link{\%sampler\%}()}
+\code{\link{\%quantiles\%}()}
 }
 \concept{evorates_fit operators}

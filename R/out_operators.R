@@ -59,12 +59,23 @@
 #' 
 #' @export
 `%chains%`<-function(fit,select){
-  if(!inherits(fit,'evorates_fit')){
-    stop("the %chains% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
-  }
-  is.char<-try(is.character(select),silent=T)
+  is.char<-try(is.character(select),silent=TRUE)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
+  }
+  flag<-FALSE
+  if(.is.evorates.element(fit)){
+    type<-.get.element.type(fit)
+    if(type!='chains'){
+      flag<-TRUE
+    }else{
+      fit<-list(chains=fit)
+    }
+  }else if(!inherits(fit,'evorates_fit')){
+    flag<-TRUE
+  }
+  if(flag){
+    stop("the %chains% operator only accepts fitted evolving rates model fits (class 'evorates_fit') or loose chains elements on left hand side")
   }
   out<-.int.chains(fit,select)
   .simplify.element(out)
@@ -74,6 +85,9 @@
 #check if def.report.quantiles are in an already existing quantiles object
 #if not, select parameters, then extract quantiles!
 #improved speed 760-fold (als created helpful new function, .simplify.array...)
+
+#ALTER THIS TO ALLOW STORAGE OF LOOSE QUANTILE ELEMENTS SO PARTICULAR QUANTILES CAN BE EXTRACTED
+
 #' Extract posterior distribution quantiles from a fitted evolving rates model
 #'
 #'
@@ -137,12 +151,27 @@
 #' 
 #' @export
 `%quantiles%`<-function(fit,select){
-  if(!inherits(fit,'evorates_fit')){
-    stop("the %quantiles% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
-  }
-  is.char<-try(is.character(select),silent=T)
+  is.char<-try(is.character(select),silent=TRUE)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
+  }
+  flag<-FALSE
+  if(.is.evorates.element(fit)){
+    type<-.get.element.type(fit)
+    if(type!='chains'&type!='quantiles'){
+      flag<-TRUE
+    }else{
+      if(type=='chains'){
+        fit<-list(chains=fit)
+      }else{
+        fit<-list(quantiles=fit)
+      }
+    }
+  }else if(!inherits(fit,'evorates_fit')){
+    flag<-TRUE
+  }
+  if(flag){
+    stop("the %chains% operator only accepts fitted evolving rates model fits (class 'evorates_fit') or loose chains/quantiles elements on left hand side")
   }
   out<-.int.quantiles(fit,select)
   .simplify.element(out)
@@ -202,12 +231,23 @@
 #' 
 #' @export
 `%means%`<-function(fit,select){
-  if(!inherits(fit,'evorates_fit')){
-    stop("the %means% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
-  }
-  is.char<-try(is.character(select),silent=T)
+  is.char<-try(is.character(select),silent=TRUE)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
+  }
+  flag<-FALSE
+  if(.is.evorates.element(fit)){
+    type<-.get.element.type(fit)
+    if(type!='chains'){
+      flag<-TRUE
+    }else{
+      fit<-list(chains=fit)
+    }
+  }else if(!inherits(fit,'evorates_fit')){
+    flag<-TRUE
+  }
+  if(flag){
+    stop("the %means% operator only accepts fitted evolving rates model fits (class 'evorates_fit') or loose chains elements on left hand side")
   }
   out<-.int.means(fit,select)
   .simplify.element(out)
@@ -280,78 +320,18 @@
 #' 
 #' @export
 `%MAPs%`<-function(fit,select){
-  if(!inherits(fit,'evorates_fit')){
-    stop("the %MAPs% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
-  }
-  is.char<-try(is.character(select),silent=T)
+  is.char<-try(is.character(select),silent=TRUE)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
+  }
+  if(!inherits(fit,'evorates_fit')){
+    stop("the %MAPs% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
   }
   out<-.int.MAPs(fit,select)
   .simplify.element(out)
 }
 
-#' Extract HMC sampler parameters from a fitted evolving rates model
-#'
-#'
-#' This is an operator for efficiently extracting parameters used to tune the behavior of the Stan-based
-#' Hamiltonian Monte Carlo (HMC) sampler from \code{evorates_fit} object, as well as prior probabilities
-#' and likelihoods associated with samples. Helpful for assessing MCMC behavior and potentially calculating
-#' marginal likelihoods, among other things.
-#'
-#'
-#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
-#' @param select A character or numeric vector. If of class character, the given text is matched to parameter
-#' names using regular expressions. If of class numeric, the numbers are taken simply taken as indices. See
-#' details for names/order of available parameters.
-#' 
-#' 
-#' @return A numeric vector, matrix, or 3D array. The dimensions will always go in the order of quantiles,
-#' then parameters, then chains, collapsing any dimensions of length 1 and storing associated name
-#' information in attributes. Note that sampler parameters include warmup iterations. If output from the
-#' \code{\%chains\%} operator includes \code{n} iterations, these will correspond to the last \code{n}
-#' iterations included in output from the \code{\%sampler\%} operator.
-#' 
-#' 
-#' @details The names of the available parameters are "\code{accept_stat__}", "\code{stepsize__}",
-#' "\code{treedepth__}", "\code{n_leapfrog__}", "\code{divergent__}", "\code{energy__}", "\code{prior}",
-#' "\code{lik}", and "\code{ost}", in that order. See Stan documentation for more information on what the
-#' first 6 parameters mean. \code{prior} is the (ln) prior probability of all parameter estimates, while
-#' \code{lik} is the (ln) likelihood of the data given the parameter estimates. Both of these are on the
-#' scale of the transformed data, and therefore differ from the "true" (ln) prior probability and
-#' likelihood by a constant. \code{post} is simply calculated by summing \code{prior} and
-#' \code{lik.power * lik}. \code{post} is distinct from Stan's "\code{lp__}", which is calculated with
-#' respect to a reparameterized sampling scale used by Stan internally.
-#' 
-#' 
-#' @family evorates_fit operators
-#' 
-#' 
-#' @examples
-#' #requires example fitted model object
-#' #get log posterior probability (+ some arbitrary constant) of iterations in mcmc sampler
-#' example.fit%sampler%'lp'
-#' #same result using numeric select
-#' example.fit%sampler%7
-#' #get all sampler parameters
-#' example.fit%sampler%1:7
-#' 
-#' 
-#' @seealso \code{\link[rstan]{check_hmc_diagnostics}}
-#' 
-#' 
-#' @export
-`%sampler%`<-function(fit,select){
-  if(!inherits(fit,'evorates_fit')){
-    stop("the %sampler% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
-  }
-  is.char<-try(is.character(select),silent=T)
-  if(inherits(is.char,'try-error')){
-    select<-deparse(substitute(select))
-  }
-  out<-.int.sampler(fit,select)
-  .simplify.element(out)
-}
+#%sampler% was subsumed into other functions...
 
 #' Extract posterior distribution diagnostics from a fitted evolving rates model
 #'
@@ -414,18 +394,33 @@
 #' example.fit%diagnostics%'.' #all parameters EXCEPT for rate deviation parameters
 #' example.fit%diagnostics%c('.','dev') #all parameters
 #' #specific diagnostics extraction
-#' example.fit%diagnostics%list('R_0','0.432,'inits') #initial values
-#' example.fit%diagnostics%list('R_0','0.432,'ess') #bulk and tail effective sample sizes
+#' example.fit%diagnostics%list('R_0','inits') #initial values
+#' example.fit%diagnostics%list('R_0','ess') #bulk and tail effective sample sizes
 #' 
 #' 
 #' @export
 `%diagnostics%`<-function(fit,select){
-  if(!inherits(fit,'evorates_fit')){
-    stop("the %diagnostics% operator only accepts fitted evolving rates model fits (class 'evorates_fit') on left hand side")
-  }
-  is.char<-try(is.character(select),silent=T)
+  is.char<-try(is.character(select),silent=TRUE)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
+  }
+  flag<-FALSE
+  if(.is.evorates.element(fit)){
+    type<-.get.element.type(fit)
+    if(type!='chains'&type!='diagnostics'){
+      flag<-TRUE
+    }else{
+      if(type=='chains'){
+        fit<-list(chains=fit)
+      }else{
+        fit<-list(param.diags=fit)
+      }
+    }
+  }else if(!inherits(fit,'evorates_fit')){
+    flag<-TRUE
+  }
+  if(flag){
+    stop("the %diagnostics% operator only accepts fitted evolving rates model fits (class 'evorates_fit') or loose chains elements on left hand side")
   }
   out<-.int.diagnostics(fit,select)
   .simplify.element(out)
@@ -435,13 +430,19 @@
 #7/27: %quantiles% for whole large_fit array is only longer than a simple apply implementation by
 #~200 milliseconds...
 
+#ADDING ability to select along first dimension would be nice, I think...done
+#Allowing for name matching too? Would make things more complicated...
+
 #' @export
 `%select%`<-function(element,select){
-  is.char<-try(is.character(select),silent=T)
+  is.char<-try(is.character(select),silent=TRUE)
   if(inherits(is.char,'try-error')){
     select<-deparse(substitute(select))
   }
-  element<-.coerce.to.3D(.expand.element(element))
+  element<-.coerce.to.3D(element)
+  tmp<-.select.iterations(element,select)
+  element<-tmp[[1]]
+  select<-tmp[[2]]
   if(is.numeric(select)){
     select<-paste0('^',dimnames(element)[[2]][select],'$')
   }
