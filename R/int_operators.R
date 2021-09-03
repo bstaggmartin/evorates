@@ -151,25 +151,7 @@
   out
 }
 
-.int.MAPs<-function(fit,select){
-  if(is.null(fit[['MAPs']])){
-    tmp<-.int.chains(fit,c(select,'post'))
-    dims<-dim(tmp)
-    nparams<-dims[2]
-    nchain<-dims[3]
-    MAP.inds<-sapply(1:nchain, function(ii) which.max(tmp[,nparams,ii]))
-    new.dimnames<-dimnames(tmp)
-    new.dimnames[[2]]<-new.dimnames[[2]][-nparams]
-    out<-array(sapply(1:nchain,function(ii) tmp[MAP.inds[ii],-nparams,ii]),
-               c(1,nparams-1,nchain),new.dimnames)
-  }else{
-    fit[['MAPs']]<-.coerce.to.3D(fit[['MAPs']])
-    out<-.int.op(fit[['MAPs']],select)
-  }
-  attr(out,'element')<-'MAPs'
-  class(out)<-c(class(out),'loose_element')
-  out
-}
+#MAPs and sampler no longer existent
 
 #need to update error handling
 .int.diagnostics<-function(fit,select){
