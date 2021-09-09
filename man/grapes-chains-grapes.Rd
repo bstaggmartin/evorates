@@ -63,7 +63,6 @@ example.fit\%xchains\%list('R_0',c(23,45,52))
 }
 \seealso{
 Other evorates_fit operators: 
-\code{\link{\%MAPs\%}()},
 \code{\link{\%diagnostics\%}()},
 \code{\link{\%means\%}()},
 \code{\link{\%quantiles\%}()}

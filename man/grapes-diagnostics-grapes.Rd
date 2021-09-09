@@ -69,7 +69,6 @@ example.fit\%diagnostics\%list('R_0','ess') #bulk and tail effective sample size
 }
 \seealso{
 Other evorates_fit operators: 
-\code{\link{\%MAPs\%}()},
 \code{\link{\%chains\%}()},
 \code{\link{\%means\%}()},
 \code{\link{\%quantiles\%}()}

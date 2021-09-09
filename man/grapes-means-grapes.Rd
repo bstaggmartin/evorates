@@ -56,7 +56,6 @@ example.fit\%means\%c('.','dev') #all parameters
 }
 \seealso{
 Other evorates_fit operators: 
-\code{\link{\%MAPs\%}()},
 \code{\link{\%chains\%}()},
 \code{\link{\%diagnostics\%}()},
 \code{\link{\%quantiles\%}()}

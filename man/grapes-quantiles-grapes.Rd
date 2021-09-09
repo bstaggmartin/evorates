@@ -65,7 +65,6 @@ example.fit\%quantiles\%list('R_0',0.432)
 }
 \seealso{
 Other evorates_fit operators: 
-\code{\link{\%MAPs\%}()},
 \code{\link{\%chains\%}()},
 \code{\link{\%diagnostics\%}()},
 \code{\link{\%means\%}()}

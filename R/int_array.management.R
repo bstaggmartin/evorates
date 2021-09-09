@@ -332,17 +332,43 @@
   x
 }
 
-.check.dims.compat<-function(l,r){
-  l<-.expand.element(l)
-  r<-.expand.element(r)
-  ldims<-dim(l)
-  rdims<-dim(r)
-  lnames<-dimnames(l)
-  rnames<-dimnames(r)
-  if(ldims[1]==rdims[1]&ldims[length(ldims)]==rdims[length(rdims)]&
-     all(lnames[[1]]==rnames[[1]])&all(lnames[[3]]==rnames[[3]])){
-    list(l,r,ldims,rdims,lnames,rnames)
+#make return one code if iterations are messed up, another if chains are messed up
+.check.dims.compat<-function(...){
+  exps<-lapply(list(...),.expand.element)
+  dims<-lapply(exps,dim)
+  nms<-lapply(exps,dimnames)
+  tmp.dims<-dims[[1]]
+  tmp.dims<-tmp.dims[c(1,length(tmp.dims))]
+  tmp.nms<-nms[[1]]
+  tmp.nms<-tmp.nms[c(1,length(tmp.nms))]
+  foo<-function(ind){
+    dims<-dims[[ind]]
+    len<-length(dims)
+    dims<-dims[c(1,len)]
+    nms<-nms[[ind]][c(1,len)]
+    out<-vector(length=2)
+    for(i in 1:2){
+      if(dims[i]==tmp.dims[i]){
+        if(dims[i]==0){
+          out[i]<-TRUE
+        }else{
+          out[i]<-all(nms[[i]]==tmp.nms[[i]])
+        }
+      }else{
+        out[i]<-FALSE
+      }
+    }
+    out
+  }
+  checks<-matrix(unlist(lapply(2:length(exps),foo)),
+                 ncol=2,byrow=TRUE)
+  dim1.check<-all(checks[,1])
+  chain.check<-all(checks[,2])
+  out<-list(exps,dims,nms,TRUE,c(dim1.check,chain.check))
+  if(dim1.check&chain.check){
+    out
   }else{
-    NULL
+    out[[4]]<-FALSE
+    out
   }
 }

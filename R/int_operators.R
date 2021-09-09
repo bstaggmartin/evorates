@@ -2,6 +2,12 @@
 #would be pretty simple in case of .int.chains and .int.means, I think, but more complex for other things...
 #could get weird with .add.sampler too, but that shouldn't be a concern since all 4D arrays should be loose elements
 
+#maybe make everything skip .int.op when supplied '.' for a decent speed gain?
+
+#also make it skip quantiles() when extracting from quantiles object (can this be done?)
+
+#stripping double parentheses?
+
 .int.chains<-function(fit,select){
   fit[['chains']]<-.coerce.to.3D(fit[['chains']])
   #exact matches to sampling parameters...
@@ -125,6 +131,9 @@
 }
 
 .int.means<-function(fit,select){
+  if(is.list(select)){
+    select<-select[[1]]
+  }
   if(!is.null(fit$sampler.params)){
     sampler.tmp<-.add.sampler.select(fit,select,'means')
     sampler.out<-sampler.tmp[[1]]
@@ -153,7 +162,7 @@
 
 #MAPs and sampler no longer existent
 
-#need to update error handling
+#need to update error handling to better reflect input
 .int.diagnostics<-function(fit,select){
   avail<-c('inits','bulk_ess','tail_ess','Rhat')
   if(is.null(fit[['param.diags']])){
@@ -163,11 +172,9 @@
     fit[['param.diags']]<-.coerce.to.3D(fit[['param.diags']])
     def.diags<-dimnames(fit$param.diags)[[1]]
   }
-  num.flag<-FALSE
   if(is.list(select)){
     if(length(select)>1){
       if(is.numeric(select[[2]])){
-        num.flag<-TRUE
         select[[2]]<-def.diags[select[[2]]]
       }else if(!is.character(select[[2]])){
         select[[2]]<-character(0)
@@ -201,9 +208,6 @@
   matches<-lapply(select[[2]],function(ii) grep(ii,avail))
   probs<-lengths(matches)==0
   matches<-unlist(matches)
-  if(!num.flag){
-    matches<-sort(unique(matches))
-  }
   if(all(probs)){
     warning('All specified diagnostics did not match to available diagnostics: resorted to default diagnostics')
     matches<-1:length(def.diags)
@@ -216,9 +220,6 @@
     matches<-lapply(select[[2]],function(ii) grep(ii,def.diags))
     probs<-lengths(matches)==0
     matches<-unlist(matches)
-    if(!num.flag){
-      matches<-sort(unique(matches))
-    }
     if(all(probs)){
       warning('All specified diagnostics not found in provided diagnostics element: resorted to default diagnostics')
       matches<-1:length(def.diags)
@@ -262,6 +263,9 @@
 #internal operator -- select parameters out of fit$element based on edge numbers or regular expressions
 .int.op<-function(element,select){
   if(length(select)!=0){
+    if(is.list(select)){
+      stop('Only non-list parameter selections allowed')
+    }
     problems<-is.na(select)|is.infinite(select)
     if(all(problems)){
       stop("NA or Inf selections not allowed")
@@ -382,13 +386,7 @@
   }else{
     select.extra<-NULL
   }
-  sampler.names<-paste(
-    paste0('^',
-           c(paste0(c('accept_stat','stepsize','treedepth','n_leapfrog','divergent','energy'),
-                    '__'),c('prior','lik','post')),
-           '$'),
-    collapse='|')
-  sampler.matches<-grep(sampler.names,select)
+  sampler.matches<-grep(.get.sampler.names(),select)
   if(length(sampler.matches)>0){
     sampler.select<-paste0('^',select[sampler.matches],'$')
     select<-select[-sampler.matches]
