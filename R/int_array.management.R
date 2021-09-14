@@ -6,20 +6,23 @@
 #rendered function more robust in the face of 4D arrays outputted from get.cov.mat and get.trait.mat: side-benefit of now
 #also reorganizing any arrays back into iterations/quantiles/diagnostics, then parameters (however many there are), then
 #chains order
+
+#less reliance on regular expressions might make this substantially faster...
+#9/14/21--twice as fast! woo!
 .expand.element<-function(arr,simplify=FALSE){
   element.type<-.get.element.type(arr)
   if(length(dim(arr))==0){
     new.arr<-matrix(arr,length(arr))
-    rownames(new.arr)<-names(.strip.ele(arr))
+    check<-rownames(new.arr)<-names(.strip.ele(arr))
     new.dimnames<-dimnames(new.arr)
-    if(is.null(dimnames(new.arr)[[1]])){
+    if(is.null(check)){
       new.dimnames<-rep(list(NULL),2)
       names(new.dimnames)[1]<-'iterations'
-    }else if(sum(grepl('%$',dimnames(new.arr)[[1]]))!=0&is.null(attr(arr,'quantiles'))){
+    }else if(element.type=='quantiles'&is.null(attr(arr,'quantiles'))){
       names(new.dimnames)[1]<-'quantiles'
-    }else if(sum(grepl('^inits$|^bulk_ess$|^tail_ess$|^Rhat$',dimnames(new.arr)[[1]]))!=0&is.null(attr(arr,'diagnostics'))){
+    }else if(element.type=='diagnostics'&is.null(attr(arr,'diagnostics'))){
       names(new.dimnames)[1]<-'diagnostics'
-    }else if(sum(grepl('chain',dimnames(new.arr)[[1]]))!=0&is.null(attr(arr,'chains'))){
+    }else if(is.null(attr(arr,'chains'))){
       names(new.dimnames)[1]<-'chains'
     }else{
       names(new.dimnames)[1]<-'parameters'
@@ -29,47 +32,35 @@
         attr(new.arr,i)<-attr(arr,i)
       }
     }
-    class(new.arr)<-c(class(new.arr),'loose_element')
     dimnames(new.arr)<-new.dimnames
-    arr<-new.arr
+    arr<-.add.ele(new.arr)
   }
   dims<-names(dimnames(arr))
-  dim.map<-lapply(c('iterations|quantiles|diagnostics','parameters','chains'),function(ii) grep(ii,dims))
+  dim.map<-vector('list',3)
+  tmp<-c('quantiles','diagnostics','iterations')
+  type.code<-tmp[match(element.type,tmp[-3],nomatch=3)]
+  names(dim.map)<-c(type.code,'parameters','chains')
+  for(i in names(dim.map)){
+    dim.map[[i]]<-which(dims==i)
+  }
   if(any(lengths(dim.map)==0)){
     tmp<-dim.map
     tmp[lengths(tmp)==0]<-NA
+    lens<-lengths(tmp)
     tmp<-unlist(tmp)
     out.dim<-dim(arr)[tmp]
     out.dim[is.na(tmp)]<-1
     out.dimnames<-dimnames(arr)[tmp]
+    names(out.dimnames)<-rep(names(dim.map),lens)
     ndims<-length(tmp)
     if(lengths(dim.map)[1]==0){
-      if('quantiles'%in%names(attributes(arr))){
-        names(out.dimnames)[1]<-'quantiles'
-        out.dimnames[1]<-list(attr(arr,'quantiles'))
-      }else if('diagnostics'%in%names(attributes(arr))){
-        names(out.dimnames)[1]<-'diagnostics'
-        out.dimnames[1]<-list(attr(arr,'diagnostics'))
-      }else{
-        names(out.dimnames)[1]<-'iterations'
-        out.dimnames[1]<-list(NULL)
-      }
+      out.dimnames[1]<-list(attr(arr,type.code))
     }
     if(lengths(dim.map)[2]==0){
-      names(out.dimnames)[-c(1,ndims)]<-'parameters'
-      if('parameters'%in%names(attributes(arr))){
-        out.dimnames[-c(1,ndims)]<-list(attr(arr,'parameters'))
-      }else{
-        out.dimnames[-c(1,ndims)]<-list(NULL)
-      }
+      out.dimnames[-c(1,ndims)]<-list(attr(arr,'parameters'))
     }
     if(lengths(dim.map)[3]==0){
-      names(out.dimnames)[ndims]<-'chains'
-      if('chains'%in%names(attributes(arr))){
-        out.dimnames[ndims]<-list(attr(arr,'chains'))
-      }else{
-        out.dimnames[ndims]<-list(NULL)
-      }
+      out.dimnames[ndims]<-list(attr(arr,'chains'))
     }
     if(any(is.na(names(dimnames(arr))))){
       arr<-array(arr,out.dim,out.dimnames)
@@ -99,19 +90,23 @@
   old.dims<-dim(arr)
   if(is.null(old.dims)){
     arr
-  }else{
+  }else if(any(old.dims==1)){
     old.dimnames<-dimnames(arr)
-    out<-do.call('[',c(list(arr),lapply(old.dims,function(ii) -(ii+1))))
+    inds<-old.dims>1
+    out<-array(arr,old.dims[inds],old.dimnames[inds])
+    if(length(dim(out))==1){
+      out<-setNames(as.vector(out),dimnames(out)[[1]])
+    }
     for(i in 1:length(old.dims)){
-      if(old.dims[i]==1){
+      if(!inds[i]){
         if(!is.null(old.dimnames[[i]])){
           attr(out,names(old.dimnames)[i])<-old.dimnames[[i]]
         }
       }
     }
     if(length(out)==1){
-      names(out)<-attr(out,names(old.dimnames)[2])
-      attr(out,names(old.dimnames)[2])<-NULL
+      names(out)<-attr(out,'parameters')
+      attr(out,'parameters')<-NULL
     }
     for(i in c('quantiles','diagnostics','parameters','chains','element')){
       if(!is.null(attr(arr,i))){
@@ -120,13 +115,16 @@
     }
     out<-.add.ele(out)
     out
+  }else{
+    arr
   }
 }
 
 #newest, generalized version of reduce.array--selects indices from arbitrary arrays without
 #simplification or destroying names
-#tehcnically, this can be done with [,,...,drop=F], but I didn't know that at the time...
-.index.element<-function(arr,inds,dims,invert=F,allow.reorder=F){
+#technically, this can be done with [,,...,drop=F], but I didn't know that at the time...
+#one of the ladder functions depends on this guys--I'll keep it for now 9/14/21
+.index.element<-function(arr,inds,dims,invert=FALSE,allow.reorder=FALSE){
   inds.list<-vector('list',length(dim(arr)))
   if(is.numeric(inds)){
     inds<-list(inds)
@@ -161,15 +159,6 @@
   out
 }
 
-.is.evorates.element<-function(params){
-  check.vec<-c('iterations','quantiles','diagnostics','parameters','chains')
-  any(names(dimnames(params))%in%check.vec)|any(names(attributes(params))%in%check.vec)
-}
-
-.get.element.type<-function(arr){
-  attr(arr,'element')
-}
-
 .coerce.to.3D<-function(arr){
   if(length(dim(arr))<3){
     arr<-.expand.element(arr)
@@ -194,145 +183,8 @@
   arr
 }
 
-.combine.elements<-function(in.params,fit=NULL,element=NULL,select.extra=NULL,simplify=T){
-  params<-in.params
-  if(.is.evorates.element(params)){
-    params<-list(params)
-  }
-  if(!is.list(params)){
-    params<-as.list(params)
-  }
-  params<-params[lengths(params)>0]
-  types<-sapply(params,function(ii) if(.is.evorates.element(ii)) 'element' else 'select')
-  if(all(types=='select')&is.null(fit)){
-    stop(deparse(substitute(in.params)),' appears to consist of strings/numbers specifying parameters to extract out of a evorates_fit, but no evorates_fit is supplied')
-  }
-  if(any(types=='select')&is.null(fit)){
-    warning(deparse(substitute(in.params)),' contains ',paste(params[which(types=='select')],collapse=', '),', which appear to be strings/numbers specifying parameters to extract out of a evorates_fit, but no evorates_fit is supplied: these strings/numbers were excluded')
-    params<-params[-which(types=='select')]
-    types<-types[-which(types=='select')]
-  }
-  #getting provided parameters
-  params[types=='element']<-lapply(params[types=='element'],function(ii) .coerce.to.3D(ii))
-  select.params<-NULL
-  
-  
-  
-  
-  #getting parameters selected by characters/numbers
-  if(sum(types=='select')>0){
-    select<-unlist(params[types=='select'])
-    #trying to find right element to use if none provided
-    if(is.null(element)){
-      if(sum(types=='element')>0){
-        
-        
-        
-        element.types<-sapply(params[types=='element'],.get.element.type)
-        if(any(element.types%in%c('ambiguous','unrecognized'))|length(unique(element.types))>1){
-          stop('element is unspecified, but element type based on provided loose elements is ambiguous: try specifying which element you wish to extract and double-check all loose elements are of the same type (chains, quantiles, means, etc.)')
-        }else{
-          element<-unique(element.types)
-        }
-      }else{
-        element<-'chains'
-      }
-      
-      
-      
-    }else{
-      try.element<-try(match.arg(element,c('chains','quantiles','means','MAPs','diagnostics','sampler')),silent=T)
-      if(inherits(try.element,'try-error')){
-        stop(element," is not an available element to extract from a evolving rates model fit: please specify one of the following: 'chains', 'quantiles', 'means', 'MAPs', 'diagnostics', or 'sampler'")
-      }
-      element<-try.element
-    }
-    if(element=='quantiles'|element=='diagnostics'){
-      if(is.null(select.extra)&sum(types=='select')>0){
-        dim1.names<-lapply(params[types=='element'],function(ii) dimnames(ii)[[1]])
-        if(length(unique(dim1.names))>1){
-          stop('mismatching quantiles and/or parameter diagnostics in provided loose elements')
-        }else if(element=='quantiles'){
-          select.extra<-as.numeric(substr(dim1.names[[1]],0,nchar(dim1.names[[1]])-1))/100
-        }else{
-          select.extra<-dim1.names
-        }
-      }
-    }
-    if(!is.null(select.extra)){
-      select<-list(select,select.extra)
-    }
-    select.params<-do.call(paste0('.int.',element),list(fit=fit,select=select))
-  }
-  
-  
-  
-  if(is.null(params[types=='element'])){
-    out<-select.params
-  }else{
-    if(!is.null(select.params)){
-      out<-c(list(select.params),params[types=='element'])
-    }else{
-      out<-params[types=='element']
-    }
-    out.dim<-vector(mode='list',length=3)
-    out.dimnames<-vector(mode='list',length=3)
-    for(i in 1:3){
-      if(i==2){
-        out.dim[[i]]<-sum(sapply(out,function(ii) dim(ii)[i]))
-        out.dimnames[[i]]<-unlist(lapply(out,function(ii) dimnames(ii)[[i]]))
-      }else{
-        out.dim[[i]]<-unique(sapply(out,function(ii) dim(ii)[i]))
-        out.dimnames[[i]]<-unique(lapply(out,function(ii) dimnames(ii)[[i]]))
-      }
-    }
-    if(all(lengths(c(out.dim[-2],out.dimnames[-2]))==1)){
-      for(i in c(1,3)){
-        out.dim[[i]]<-out.dim[[i]][[1]]
-        out.dimnames[i]<-out.dimnames[[i]][1]
-      }
-      out.dim<-unlist(out.dim)
-    }else{
-      stop('dimensional mismatch in elements specified by ',deparse(substitute(in.params)),': did these all come from the same evorates_fit, and were they all extracted using the same parameters?')
-    }
-    names(out.dimnames)<-c(names(dimnames(out[[1]]))[1],'parameters','chains')
-    out.arr<-array(NA,out.dim,out.dimnames)
-    class(out.arr)<-c(class(out.arr),'loose_element')
-    counter<-0
-    for(i in 1:length(out)){
-      tmp.dim<-dim(out[[i]])[2]
-      out.arr[,counter+1:tmp.dim,]<-out[[i]]
-      counter<-counter+tmp.dim
-    }
-    out<-out.arr
-  }
-  if(simplify){
-    out<-.simplify.element(out)
-  }
-  out
-}
-#can get duplicates of the same parameter and probs not super efficient since it runs a separate call to %chains% each time it runs...
-#could cannabalize this function to add parameters to your evorates_fit...
-#yeah, I did a minor update to begin generalizing this, but ultimately I'd like it to be a combine.elements function...
-#need to figure out what to do in cases where the element is ambiguous
-#also, should 4-D arrays be coerced to 3-D with .expand.element?
-#now generalized to simply combine all elements it's face with, including ones specified by select. Tries its best to match
-#element type, but doesn't do anything like coercing provided elements to other types on the fly (considering doing this in the
-#future...)
-
-.strip.ele<-function(x){
-  tmp<-class(x)
-  class(x)<-tmp[!which(tmp=='loose_element')]
-  x
-}
-
-.add.ele<-function(x){
-  tmp<-class(x)
-  class(x)<-c(tmp,'loose_element')
-  x
-}
-
-#make return one code if iterations are messed up, another if chains are messed up
+#make return one code if iterations are messed up, another if chains are messed up --> done
+#returns a list of expanded elements, their dimensions, their dimension names, whether they match, and whether 1st/3rd dim match
 .check.dims.compat<-function(...){
   exps<-lapply(list(...),.expand.element)
   dims<-lapply(exps,dim)
@@ -371,4 +223,25 @@
     out[[4]]<-FALSE
     out
   }
+}
+
+.is.evorates.element<-function(params){
+  check.vec<-c('iterations','quantiles','diagnostics','parameters','chains')
+  any(names(dimnames(params))%in%check.vec)|any(names(attributes(params))%in%check.vec)
+}
+
+.get.element.type<-function(arr){
+  attr(arr,'element')
+}
+
+.strip.ele<-function(x){
+  tmp<-class(x)
+  class(x)<-tmp[!which(tmp=='loose_element')]
+  x
+}
+
+.add.ele<-function(x){
+  tmp<-class(x)
+  class(x)<-c(tmp,'loose_element')
+  x
 }

@@ -1,3 +1,86 @@
+####APE METHODS####
+
+#' @export
+Nedge.evorates_fit<-function(phy){
+  Nedge.phylo(phy$call$tree)
+}
+
+#' @export
+Nedge.evorates<-function(phy){
+  Nedge.phylo(phy$tree)
+}
+
+#' @export
+Nnode.evorates_fit<-function(phy,internal.only=TRUE){
+  Nnode.phylo(phy$call$tree,internal.only)
+}
+
+#' @export
+Nnode.evorates<-function(phy,internal.only=TRUE){
+  Nnode.phylo(phy$tree,internal.only)
+}
+
+#' @export
+Ntip.evorates_fit<-function(phy){
+  Ntip.phylo(phy$call$tree)
+}
+
+#' @export
+Ntip.evorates<-function(phy){
+  Ntip.phylo(phy$tree)
+}
+
+####CUSTOM METHOD: GETTING MATRIX OF EDGE START + END TIMES####
+
+#' @export
+edge.ranges<-function(phy){
+  UseMethod('edge.ranges')
+}
+
+#' @export
+edge.ranges.phylo<-function(phy){
+  tmp<-node.depth.edgelength(phy)
+  matrix(tmp[phy$edge],ncol=2)
+}
+
+#' @export
+edge.ranges.evorates<-function(phy){
+  edge.ranges.phylo(phy$tree)
+}
+
+#' @export
+edge.ranges.evorates_fit<-function(phy){
+  edge.ranges.phylo(phy$call$tree)
+}
+
+####CUSTOM METHOD: GET ORDERED VECTOR OF TIP EDGES####
+
+#' @export
+tip.edges<-function(phy,include.names=TRUE){
+  UseMethod('tip.edges')
+}
+
+#' @export
+tip.edges.phylo<-function(phy,include.names=TRUE){
+  out<-match(1:Ntip(phy),phy$edge[,2])
+  if(include.names){
+    names(out)<-phy$tip.label
+  }
+  out
+}
+
+#' @export
+tip.edges.evorates_fit<-function(phy,include.names=TRUE){
+  tip.edges(phy$call$tree,include.names)
+}
+
+#' @export
+tip.edges.evorates<-function(phy,include.names=TRUE){
+  tip.edges(phy$tree,include.names)
+}
+
+####CUSTOM METHOD: LADDERIZATION####
+
 #have to check if it's rude to make method out of ladderize and add ape's ladderize to it...
 #change name to ladder for less naming conflicts...but could still be rude?
 
@@ -66,6 +149,7 @@ ladder.evorates_fit<-function(phy,right=TRUE){
   lad.tree<-ape::ladderize(phy$call$tree,right)
   ord<-match(apply(lad.tree$edge,1,paste,collapse=','),apply(phy$call$tree$edge,1,paste,collapse=','))
   phy$call$tree<-lad.tree
+  loop.inds<-c('^R_[1-9][0-9]*|[%\\(]R_[1-9][0-9]*','^Rdev_[1-9][0-9]*|[%\\(]Rdev_[1-9][0-9]*')
   for(i in names(phy)){
     if(!(i%in%c('call','sampler.control','sampler.params'))){
       if(is.null(dim(phy[[i]]))){
@@ -75,12 +159,16 @@ ladder.evorates_fit<-function(phy,right=TRUE){
         isvec<-F
       }
       old.dimnames<-dimnames(phy[[i]])
-      for(j in c('R_[1-9][0-9]*$','R_[1-9][0-9]*_dev$')){
+      param.dim<-which(names(old.dimnames)=='parameters')
+      nparams<-length(old.dimnames[[param.dim]])
+      for(j in loop.inds){
         tmp.inds<-grep(j,old.dimnames[['parameters']])
         if(length(tmp.inds)>0){
           tmp.inds<-tmp.inds[ord]
-          new.inds<-c((1:min(tmp.inds))[-min(tmp.inds)],tmp.inds,(max(tmp.inds):length(old.dimnames[['parameters']]))[-1])
-          phy[[i]]<-.index.element(phy[[i]],new.inds,which(names(old.dimnames)=='parameters'),allow.reorder=T)
+          tmp.min<-min(tmp.inds)
+          tmp.max<-max(tmp.inds)
+          new.inds<-c((1:tmp.min)[-tmp.min],tmp.inds,(tmp.max:nparams)[-1])
+          phy[[i]]<-.index.element(phy[[i]],new.inds,param.dim,allow.reorder=TRUE)
         }
       }
       dimnames(phy[[i]])<-old.dimnames
@@ -91,4 +179,3 @@ ladder.evorates_fit<-function(phy,right=TRUE){
   }
   phy
 }
-

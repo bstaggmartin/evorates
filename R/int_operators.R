@@ -2,11 +2,13 @@
 #would be pretty simple in case of .int.chains and .int.means, I think, but more complex for other things...
 #could get weird with .add.sampler too, but that shouldn't be a concern since all 4D arrays should be loose elements
 
-#maybe make everything skip .int.op when supplied '.' for a decent speed gain?
+#maybe make everything skip .int.op when supplied '.' for a decent speed gain? --> done
 
-#also make it skip quantiles() when extracting from quantiles object (can this be done?)
+#also make it skip quantiles() when extracting from quantiles object (can this be done?) --> yes and done
 
-#stripping double parentheses?
+#stripping double parentheses? --> done
+
+#make it skip over R_dev params by renaming to Rdev_XXX --> I think done--at least from fitting functions' perspective!
 
 .int.chains<-function(fit,select){
   fit[['chains']]<-.coerce.to.3D(fit[['chains']])
@@ -41,12 +43,7 @@
   if(is.list(select)){
     if(length(select)>1){
       if(is.character(select[[2]])){
-        select[[2]]<-as.numeric(gsub('%','',select[[2]]))
-        tmp<-select[[2]]>1
-        tmp[is.na(tmp)]<-FALSE
-        if(any(tmp)){
-          select[[2]]<-select[[2]]/100
-        }
+        select[[2]]<-as.numeric(gsub('%','',select[[2]]))/100
       }else if(!is.numeric(select[[2]])){
         select[[2]]<-numeric(0)
       }
@@ -115,12 +112,12 @@
   }else{
     tmp.inds<-rep(TRUE,length(select[[2]]))
   }
-  if(length(select[[2]])>0){
+  if(length(select[[2]])>0&any(tmp.inds)){
     out[tmp.inds,,]<-apply(tmp,c(2,3),quantile,probs=select[[2]][tmp.inds],na.rm=TRUE)
   }
   out<-.add.ele(out)
-  if(is.null(fit$sampler.control)&length(select)>0){
-    names(out)<-paste0('quantiles(',names(out),')')
+  if(is.null(fit$sampler.control)&is.null(fit$quantiles)&length(select)>0){
+    names(out)<-.mod.names(names(out),'quantiles')
   }
   if(!is.null(sampler.out)){
     names(sampler.out)<-gsub('\\)$','',gsub('^quantiles\\(','',names(sampler.out)))
@@ -149,8 +146,8 @@
     out<-.int.op(fit[['means']],select)
   }
   out<-.add.ele(out)
-  if(is.null(fit$sampler.control)&length(select)>0){
-    names(out)<-paste0('means(',names(out),')')
+  if(is.null(fit$sampler.control)&is.null(fit$means)&length(select)>0){
+    names(out)<-.mod.names(names(out),'means')
   }
   if(!is.null(sampler.out)){
     names(sampler.out)<-gsub('\\)$','',gsub('^means\\(','',names(sampler.out)))
@@ -239,8 +236,12 @@
     dimnames(out)<-c('diagnostics'=select[2],
                      dimnames(tmp)[-1])
     #can never know if chain starts at beginning...
+    # inits.foo<-function(x){
+    #   NA
+    # }
+    #but this will be more convenient...
     inits.foo<-function(x){
-      NA
+      x[1]
     }
     funs<-setNames(list(inits.foo,rstan::ess_bulk,rstan::ess_tail,rstan::Rhat),
                    avail)
@@ -249,8 +250,8 @@
     }
   }
   out<-.add.ele(out)
-  if(is.null(fit$sampler.control)&length(select)>0){
-    names(out)<-paste0('diagnostics(',names(out),')')
+  if(is.null(fit$sampler.control)&is.null(fit$diagnostics)&length(select)>0){
+    names(out)<-.mod.names(names(out),'diagnostics')
   }
   if(!is.null(sampler.out)){
     names(sampler.out)<-gsub('\\)$','',gsub('^diagnostics\\(','',names(sampler.out)))
@@ -281,75 +282,24 @@
   if(is.numeric(select)){
     tmp<-paste0('^R_',select,'$|^R_',select,'[^0-9]',
                 '|[%\\(]R_',select,'$|[%\\(]R',select,'[^0-9]')
-    tmp<-lapply(tmp,function(ii) grep(ii,param.names,perl=T))
-    connect.inds<-NULL
+    tmp<-lapply(tmp,function(ii) grep(ii,param.names))
   }else if(is.character(select)){
-    select<-gsub('\\\\,',paste(rep('~',17),collapse=''),select)
-    select<-gsub('\\\\_',paste(rep('@',17),collapse=''),select)
-    if(any(grepl(',',select))){
-      tmp<-strsplit(select,split=',')
-      if(any(lengths(tmp)==3)){
-        warning('text before and after comma not swapped for ',
-                paste(select[which(lengths(tmp)==3)],collapse=', '),
-                " since more than 1 comma was found: for any commas that are part of trait/tip names, please use '\\,' instead")
-      }
-      if(any(lengths(tmp)==2)){
-        connect.inds<-which(lengths(tmp)==2)
-        connect.inds<-cbind(connect.inds,length(select)+connect.inds)
-        new.select<-tmp[connect.inds[,1]]
-        new.select.l<-sapply(new.select,'[',1)
-        new.select.r<-sapply(new.select,'[',2)
-        new.select.r<-strsplit(new.select.r,'_')
-        new.select<-sapply(1:length(new.select),
-                           function(ii) paste(paste(new.select.r[[ii]][1],new.select.l[[ii]][1],sep=','),
-                                              paste(new.select.r[[ii]][-1],collapse='.'),
-                                              sep=if(length(new.select.r[[ii]])>1) '.' else ''))
-        new.select<-gsub('\\?([\\=\\!])','~~~~~~~~~~~~~~~~~~~\\1',new.select)
-        new.select<-gsub('\\?<([\\=\\!])','@@@@@@@@@@@@@@@@@@@\\1',new.select)
-        new.select<-gsub('~{19}([\\=\\!])','?<\\1',new.select)
-        new.select<-gsub('@{19}([\\=\\!])','?\\1',new.select)
-        select<-gsub('_','.',select)
-        select<-c(select,new.select)
-      }else{
-        connect.inds<-NULL
-      }
+    if(any(select=='.')){
+      tmp<-1:length(param.names)
     }else{
-      connect.inds<-NULL
+      tmp<-lapply(select,function(ii) grep(ii,param.names))
     }
-    select<-gsub('~{17}',',',select)
-    select<-gsub('@{17}','_',select)
-    tmp<-lapply(select,function(ii) grep(ii,param.names,perl=T))
   }else{
     stop("the %",element,"% operator only accepts numeric or character vectors on right hand side")
   }
-  forbidden.inds<-grep('^R_[1-9][0-9]*_dev$',param.names)
-  if(length(forbidden.inds)>0){
-    for(i in grep('dev\\$*$',select,invert=TRUE)){
-      tmp[[i]]<-tmp[[i]][!(tmp[[i]]%in%forbidden.inds)]
-    }
+  problem.select<-which(lengths(tmp)==0)
+  if(length(problem.select)>0){
+    warning("couldn't find parameters corresponding to: ",
+            unique(paste(select[problem.select],collapse=', ')))
   }
-  if(any(lengths(tmp)==0)){
-    problem.select<-which(lengths(tmp)==0)
-    if(!is.null(connect.inds)){
-      for(i in 1:nrow(connect.inds)){
-        if(any(lengths(tmp[connect.inds[i,]])!=0)){
-          problem.select<-problem.select[-which(problem.select%in%connect.inds[i,])]
-        }
-      }
-    }
-    if(length(problem.select)>0){
-      warning("couldn't find parameters corresponding to: ",
-              unique(paste(select[problem.select],collapse=', ')))
-    }
-  }
-  if(!is.numeric(select)){
-    inds<-sort(unique(unlist(tmp)))
-  }else{
-    inds<-unlist(tmp)
-  }
+  inds<-unlist(tmp)
   element[,inds,,drop=FALSE]
 }
-#flip flop any question mark dohickeys...
 
 .select.iterations<-function(element,select){
   if(is.list(select)){
@@ -360,7 +310,7 @@
         if(all.neg|all.pos){
           exceeds<-select[[2]]>dim(element)[1]
           if(all(exceeds)){
-            warning('All specified iterations are out of bounds (i.e., above the number of available iterations in chains): defaulted to including all iterations')
+            warning('All specified iterations are out of bounds (i.e., above the number of iterations in chains): defaulted to including all iterations')
           }else{
             if(any(exceeds)){
               select[[2]]<-select[[2]][!exceeds]
@@ -421,4 +371,20 @@
     select<-list(select,select.extra)
   }
   list(out,select)
+}
+
+.get.sampler.names<-function(){
+  paste(
+    paste0('^',
+           c(paste0(c('accept_stat','stepsize','treedepth','n_leapfrog','divergent','energy'),
+                    '__'),c('prior','lik','post')),
+           '$'),
+    collapse='|')
+}
+
+.mod.names<-function(names,element){
+  pre.parens<-grepl('^\\(',names)&grepl('\\)$',names)
+  names[pre.parens]<-paste0(element,names[pre.parens])
+  names[!pre.parens]<-paste0(element,'(',names[!pre.parens],')')
+  names
 }

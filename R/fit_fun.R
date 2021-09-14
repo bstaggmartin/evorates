@@ -22,6 +22,9 @@
 ##Handle priors with ...?
 ##Technically, standard errors in this context are standard variance --> should probably square given SEs to make this less
 ###confusing.
+
+#for some reason, can't use '~/../' in output directory???
+
 #' @export
 input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend=FALSE,lik.power=1,sampling.scale=FALSE,
                          ...){
@@ -311,8 +314,7 @@ run.evorates<-function(input.evorates.obj,return.as.obj=TRUE,out.file=NULL,check
 #check to see if read_stan_csv checks for compatibility between chains...
 #' @export
 output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL,include.warmup=FALSE,
-                          report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.devs=TRUE,remove.trend=TRUE,
-                          report.MAPs=FALSE){
+                          report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.devs=TRUE,remove.trend=TRUE){
   ##GATHER UP COMPONENTS##
   list.from.input<-list(stanfit=stanfit,call=call,trans.const=trans.const,dat=dat)
   list.from.run<-list(stanfit=NULL,call=NULL,trans.const=NULL,dat=NULL)
@@ -435,6 +437,8 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   sampler.params[,9,]<-sampler.params[,7,]+dat$lik_power*sampler.params[,8,]
   out$sampler.control<-sampler.args[-2]
   out$sampler.params<-sampler.params
+  out$sampler.params<-.add.ele(out$sampler.params)
+  attr(out$sampler.params,'element')<-'chains'
   
   
   ##FORM CHAINS##
@@ -485,69 +489,49 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
     incl.inds<-sort(unique(c(incl.inds,5+1:e)))
   }
   out$chains<-out$chains[,incl.inds,,drop=FALSE]
+  out$chains<-.add.ele(out$chains)
+  attr(out$chains,'element')<-'chains'
+  out$chains<-.simplify.element(out$chains)
   
   
   #add rate deviation chains
   if(report.devs){
-    rate.devs<-aperm(out$chains[,paste0('R_',1:e),,drop=FALSE],c(1,3,2))
+    Rs<-out%chains%1:Nedge(out)
+    el<-out$call$tree$edge.length
     if(trend&remove.trend){
-      edgerans<-call$tree$edge
-      edgerans[,]<-node.depth.edgelength(call$tree)[edgerans]
-      trend.contrib<-rate.devs
-      trend.contrib[,,]<-aperm(out$chains[,'R_mu',,drop=FALSE],c(1,3,2))
-      trend.contrib<-aperm(trend.contrib,c(3,1,2))
-      trend.contrib<-log(abs(trend.contrib))+log(call$tree$edge.length)-
-        log(abs(exp(trend.contrib*edgerans[,2])-exp(trend.contrib*edgerans[,1])))
-      trend.contrib<-aperm(trend.contrib,c(2,3,1))
-      rate.devs<-rate.devs+trend.contrib
+      er<-edge.ranges(out)
+      Rmu<-out%chains%'^R_mu$'
+      Rs<-Rs-(-log(abs(Rmu))-log(el)+log(abs(exp(Rmu*er[,2])-exp(Rmu*er[,1]))))
     }
-    bg.rate<-apply(rate.devs,c(1,2),function(ii) sum(ii*wgts))
-    for(i in 1:dim(rate.devs)[2]){
-      rate.devs[,i,]<-rate.devs[,i,]-bg.rate[,i]
-    }
-    tmp<-dimnames(out$chains)
-    tmp[[2]]<-c(tmp[[2]],paste('R_',1:e,'_dev',sep=''))
-    out$chains<-aperm(array(c(aperm(out$chains,c(1,3,2)),rate.devs),
-                            dim=c(dim(out$chains)[1],nchain,dim(out$chains)[2]+e),
-                            dimnames=tmp[c(1,3,2)]),
-                      c(1,3,2))
+    bg.rate<-sum(el/sum(el)*Rs)
+    Rs<-Rs-bg.rate
+    names(Rs)<-paste0('Rdev_',1:Nedge(out))
+    out$chains<-c(out$chains,Rs)
   }
   
-  
-  ##PARAMETER DIAGNOSTICS TABLE##
-  out$param.diags<-out$chains[1:4,,,drop=FALSE]
-  dimnames(out$param.diags)<-c(diagnostics=list(c('inits','bulk_ess','tail_ess','Rhat')),
-                               dimnames(out$chains)[-1])
-  if(!include.warmup){
-    out$chains<-.index.element(out$chains,1,1,TRUE)
-  }
-  #change to be for multiple chains?
-  out$param.diags[2,,]<-apply(out$chains,c(2,3),rstan::ess_bulk)
-  out$param.diags[3,,]<-apply(out$chains,c(2,3),rstan::ess_tail)
-  out$param.diags[4,,]<-apply(out$chains,c(2,3),rstan::Rhat)
   
   
   ##EXTRA POSTERIOR DISTRIBUTION INFO##
+  #add parameter diagnostics
+  out$param.diags<-out%diagnostics%'.'
+  if(!include.warmup){
+    out$chains<-out$chains%chains%list('.',-1)
+  }
   #add quantiles
   if(!is.null(report.quantiles)){
-    out$quantiles<-.int.quantiles(out,c('.|dev'))
+    out$quantiles<-out%quantiles%'.'
   }
   #add means
   if(report.means){
-    out$means<-.int.means(out,c('.|dev'))
-    out$means<-array(out$means,dim(out$means)[-1],dimnames(out$means)[-1])
-  }
-  #add MAPs
-  if(report.MAPs){
-    out$MAPs<-.int.MAPs(out,c('.|dev'))
-    out$MAPs<-array(out$MAPs,dim(out$MAPs)[-1],dimnames(out$MAPs)[-1])
+    out$means<-out%means%'.'
   }
   #add rate deviation posterior probabilities
   #should never get instances where deviations are perfectly 0...but just in case
   if(report.devs){
-    tmp<-.int.chains(out,'^R_[1-9][0-9]*_dev$')
+    tmp<-out%chains%'^Rdev_[1-9][0-9]*$'
     tmp[tmp==0]<-NA
-    out$post.probs<-apply(tmp,c(2,3),function(ii) sum(ii>0,na.rm=TRUE)/sum(!is.na(ii)))
+    tmp<-tmp>0
+    out$post.probs<-tmp%means%'.'
     out$post.probs[is.infinite(out$post.probs)|is.nan(out$post.probs)]<-0.5
   }
   
@@ -737,7 +721,6 @@ fit.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend
                        return.as.obj=TRUE,out.file=NULL,check.overwrite=TRUE,
                        include.warmup=FALSE,
                        report.quantiles=c(0.025,0.5,0.975),report.means=TRUE,report.devs=TRUE,remove.trend=TRUE,
-                       report.MAPs=FALSE,
                        ...){
   input<-input.evorates(tree,trait.data,trait.se,constrain.Rsig2,trend,lik.power,sampling.scale,...)
   stan.args.list<-list(...)
@@ -787,7 +770,6 @@ fit.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend
   if(return.as.obj){
     run<-c(stanfit=ret,prep$input.evorates.obj)
     output.evorates(run,NULL,NULL,NULL,NULL,include.warmup,
-                    report.quantiles,report.means,report.devs,remove.trend,
-                    report.MAPs)
+                    report.quantiles,report.means,report.devs,remove.trend)
   }
 }

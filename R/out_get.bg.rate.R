@@ -3,16 +3,16 @@
 #add diagnostics?
 #' @export
 get.bg.rate<-function(fit,node=length(fit$call$tree$tip.label)+1,edge.group=NULL,
-                      element=c('chains','quantiles','means','MAPs'),
+                      element=c('chains','quantiles','means','diagnostics'),
                       geometric=TRUE,remove.trend=TRUE,
                       name=NULL,select.extra=NULL,simplify=TRUE){
   if(!inherits(fit,'evorates_fit')){
     stop("fit must be a fitted evolving rates model fit (class 'evorates_fit')")
   }
   tree<-fit$call$tree
-  try.element<-try(match.arg(element,c('chains','quantiles','means','MAPs')),silent=TRUE)
+  try.element<-try(match.arg(element,c('chains','quantiles','means','diagnostics')),silent=TRUE)
   if(inherits(try.element,'try-error')){
-    stop(element," is not an available element to extract from a evolving rates model fit: please specify one of the following: 'chains', 'quantiles', 'means', or 'MAPs'")
+    stop(element," is not an available element to extract from a evolving rates model fit: please specify one of the following: 'chains', 'quantiles', 'means', or 'diagnostics'")
   }
   element<-try.element
   if(element=='quantiles'){

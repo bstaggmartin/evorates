@@ -352,8 +352,45 @@
 #7/27: %quantiles% for whole large_fit array is only longer than a simple apply implementation by
 #~200 milliseconds...
 
+#' @export
+`%c%`<-function(fit,select){
+  is.char<-try(is.character(select),silent=TRUE)
+  if(inherits(is.char,'try-error')){
+    select<-deparse(substitute(select))
+  }
+  fit%chains%select
+}
+
+#' @export
+`%q%`<-function(fit,select){
+  is.char<-try(is.character(select),silent=TRUE)
+  if(inherits(is.char,'try-error')){
+    select<-deparse(substitute(select))
+  }
+  fit%quantiles%select
+}
+
+#' @export
+`%m%`<-function(fit,select){
+  is.char<-try(is.character(select),silent=TRUE)
+  if(inherits(is.char,'try-error')){
+    select<-deparse(substitute(select))
+  }
+  fit%means%select
+}
+
+#' @export
+`%d%`<-function(fit,select){
+  is.char<-try(is.character(select),silent=TRUE)
+  if(inherits(is.char,'try-error')){
+    select<-deparse(substitute(select))
+  }
+  fit%diagnostics%select
+}
+
 #ADDING ability to select along first dimension would be nice, I think...done
 #Allowing for name matching too? Would make things more complicated...
+#I think I need to make a .select.quants function (or something similar) that %diagnostics% and %select% all call (maybe %quantiles% too?)...
 
 #' @export
 `%select%`<-function(element,select){

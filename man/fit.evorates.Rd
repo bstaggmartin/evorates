@@ -20,7 +20,6 @@ fit.evorates(
   report.means = TRUE,
   report.devs = TRUE,
   remove.trend = TRUE,
-  report.MAPs = FALSE,
   ...
 )
 }
@@ -112,9 +111,6 @@ effect of trends in rates over time? This is sometimes helpful since strong tren
 high or low trait evolution rates in certain parts of the tree. Defaults to \code{TRUE}, but has no effect if no trend was
 fitted or if \code{report.devs} is \code{FALSE}.}
 
-\item{report.MAPs}{\code{TRUE} or \code{FALSE}: should maximum a posteriori parameter estimates be returned?
-Defaults to \code{FALSE}.}
-
 \item{...}{Other optional arguments:
 \itemize{
 \item{Prior arguments: priors on \code{R_0} and \code{R_sig2} follow normal distributions, while priors on \code{R_sig2}
@@ -137,6 +133,9 @@ suppressed by setting to 0 or less)}
 See \code{?rstan::sampling} and \code{?rstan::stan} for further details.}
 }}
 }}
+
+\item{report.MAPs}{\code{TRUE} or \code{FALSE}: should maximum a posteriori parameter estimates be returned?
+Defaults to \code{FALSE}.}
 }
 \value{
 An object of class "\code{evorates_fit}" if \code{return.as.obj = TRUE}. Otherwise, nothing, as results

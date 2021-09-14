@@ -2,7 +2,7 @@
 #extra argument to combine chains, if desired?
 #col and border applies to parameters, angle and density apply to chains
 #' @export
-prof.plot<-function(in.x,p=0.05,col=palette(),exp=F,sqrt=F,
+prof.plot<-function(in.x,p=0.05,col=palette(),
                          lower.quant=NULL,upper.quant=NULL,lower.cut=NULL,upper.cut=NULL,smooth=F,add=F,
                          make.legend=T,...){
   plot.args<-c(names(formals(plot.default)),
@@ -20,38 +20,13 @@ prof.plot<-function(in.x,p=0.05,col=palette(),exp=F,sqrt=F,
   }else{
     fit<-NULL
   }
-  if(is.list(in.x)|is.character(in.x)|length(in.x)==1){
-    x<-.combine.elements(in.x,fit,element='chains',simplify=F)
-  }else if(is.numeric(in.x)){
-    #this will break if provided vector is named, but that should be relatively rare, I think
-    if(is.vector(in.x)&is.null(attributes(in.x))){
-      x<-.int.chains(fit,in.x)
-    }else{
-      x<-.expand.element(in.x)
-    }
-  }else{
-    stop('Input not recognized.')
+  if(!is.list(in.x)){
+    x<-list(in.x)
   }
-  if(sqrt){
-    if(any(x<0)){
-      warning()
-    }
-    x<-sqrt(x)
-  }
-  if(exp){
-    x<-exp(x)
-  }
-  param.names<-dimnames(x)[which(names(dimnames(x))=='parameters')]
-  if(length(param.names)>1){
-    param.names<-do.call(paste,
-                         c(lapply(1:length(param.names),function(ii)
-                           rep(rep(param.names[[ii]],prod(lengths(param.names)[(1:length(param.names))[1:length(param.names)>ii]])),
-                               each=prod(lengths(param.names)[(1:length(param.names))[1:length(param.names)<ii]]))),
-                           sep=','))
-  }else{
-    param.names<-param.names[[1]]
-  }
-  param.names<-gsub('%(-|/|\\+|\\*)%',' \\1 ',param.names)
+  x<-do.call(ele.c,c(x,fit=list(fit)))
+  param.names<-names(x) #shouldn't ever be a list since elements were combined...
+  tmp<-paste0('%(\\',paste(.Ops.ls(),collapse='|\\'),')%')
+  param.names<-gsub(tmp,' \\1 ',param.names)
   if(smooth){
     bw<-do.call(density.default,c(x=list(x),
                                   list(...)[!(names(list(...))%in%c('x'))&
