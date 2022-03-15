@@ -4,72 +4,23 @@
 #if NULL, combine chains (with warning if trying to plot inits)
 #god this function, could be SOOOO much nicer and cleaner-->I have to work on it more
 #in particular, think about accomodating non-default rate and post.probs-->I think there's a better system!
+#totally broken right now, but will fix soon
 #' @export
-plot.evorates_fit<-function(fit,
-                            element=c('means','quantiles','chains','MAPs','diagnostics'),
-                            include.post.probs=TRUE,
-                            select.extra=NULL,
-                            chain=NULL,
-                            R=NULL, #use to specify custom rates (deviations, rate residuals, etc.)
-                            post.probs=NULL,
-                            anc.recon=c('summary','sample'),
+plot.evorates_fit<-function(fit,chain=NULL,
+                            type=c('quantiles','chains','means','diagnostics'),extra.select=NULL,
+                            post.probs=TRUE,remove.trend=TRUE,geometric=TRUE,plot.Rdev=FALSE,
+                            recon.type=NULL,recon.extra.select=NULL,
                             ...,
                             post.probs.args=NULL,
                             sim=NULL){
-  if(is.null(sim)){
+  if(is.null(sim)){ #if no evorates object is supplied, coerce to evorates_fit to evorates
+    #check evorates_fit and combine chains, if necessary
     if(!inherits(fit,'evorates_fit')){
-      stop("fit must be a fitted evorates model (class 'evorates_fit')")
+      stop("Fit must be an evorates_fit object")
     }
-    in.fit<-fit
-    try.element<-try(match.arg(element,c('means','quantiles','chains','MAPs','diagnostics')),silent=TRUE)
-    if(inherits(try.element,'try-error')){
-      stop(element," is not an available element to extract from an evorates fit: please specify one of the following: 'means', 'quantiles', 'chains', 'MAPs', or 'diagnostics'")
-    }
-    element<-try.element
-    
     nchains<-fit$sampler.control$chains
     niter<-dim(fit$chains)[1]
-    
-    #for now, only takes chains of R array-->probably should generalize
-    e<-nrow(fit$call$tree$edge)
-    if(!is.null(R)){
-      R<-.expand.element(R)
-      if(any(dim(R)!=c(niter,e,nchains))){
-        stop('mismatch between dimensions of provided R array and expected dimensions: please double-check input')
-      }
-      fit[c('quantiles','means','MAPs')]<-NULL
-      fit$chains<-evorates:::.expand.element(fit$chains)
-      if(any(grepl('R_[1-9]',dimnames(fit$chains)[[2]]))){
-        fit$chains[,paste('R',1:e,sep='_'),]<-R
-      }else{
-        tmp.dims<-dim(fit$chains)
-        tmp.dims[2]<-tmp.dims[2]+e
-        tmp.dimnames<-dimnames(fit$chains)
-        tmp.dimnames[[2]]<-c(tmp.dimnames[[2]],paste('R',1:e,sep='_'))
-        fit$chains<-array(c(aperm(fit$chains,c(1,3,2)),aperm(R,c(1,3,2))),
-                          tmp.dims[c(1,3,2)],
-                          tmp.dimnames[c(1,3,2)])
-        fit$chains<-aperm(fit$chains,c(1,3,2))
-      }
-      tmp.dimnames<-dimnames(fit$param.diags)
-      fit$param.diags<-array(NA,c(4,dim(fit$chains)[2],nchains),
-                             c(tmp.dimnames[1],dimnames(fit$chains)[2],tmp.dimnames[3]))
-      fit$param.diags[2,,]<-apply(fit$chains,c(2,3),rstan::ess_bulk)
-      fit$param.diags[3,,]<-apply(fit$chains,c(2,3),rstan::ess_tail)
-      fit$param.diags[4,,]<-apply(fit$chains,c(2,3),rstan::Rhat)
-    }
-    
-    if(include.post.probs){
-      if(!is.null(post.probs)){
-        post.probs<-.expand.element(post.probs)
-        if(any(dim(post.probs)!=c(1,e,nchains))){
-          stop('mismatch between dimensions of provided post.prob array and expected dimensions: please double-check input')
-        }
-        fit$post.probs<-post.probs[1,,]
-      }
-    }
-    
-    #deal with chain stuff-->remember chain can be of length 2!
+    e<-Nedge(fit)
     if(is.null(chain)&nchains>1){
       fit<-combine.chains(fit)
     }else if(!is.null(chain)){
@@ -77,71 +28,56 @@ plot.evorates_fit<-function(fit,
     }
     niter<-dim(fit$chains)[1]
     
-    if(!is.null(select.extra)){
-      if(length(select.extra)!=1){
-        stop('Can only plot one set of edgewise quantities at a time: please make select.extra is of length 1.')
-      }
+    #process type stuff
+    type<-.match.type(type,choices=c('quantiles','chains','means','diagnostics'))
+    if(!is.null(extra.select)){
+      extra.select<-unlist(extra.select,use.names=FALSE)[1]
     }else{
-      if(element=='chains'){
-        select.extra<-sample(niter,1)
-      }else if(element=='quantiles'){
-        select.extra<-0.5
-      }else if(element=='diagnostics'){
-        select.extra<-'bulk_ess'
-      }
+      extra.select<-switch(type,
+                           chains=sample(niter,1),
+                           quantiles=0.5,
+                           diagnostics='bulk_ess')
     }
     
-    try.R<-try(.int.chains(fit,1),silent=TRUE)
-    if(inherits(try.R,'try-error')){
-      select<-0
+    #process post.prob stuff and get branchwise rates
+    if(post.probs|plot.Rdev){
+      R<-get.bg.rate(fit,simplify=FALSE,keep.R=TRUE,
+                     remove.trend=remove.trend,geometric=geometric)
+      R<-R$R-R$bg_rate
+      if(post.probs){
+        pp<-.call.op('means',list(chains=R>0,sampler.params=1),'.',FALSE)
+      }
+    }
+    if(!plot.Rdev){
+      R<-get.R(fit,type=type,extra.select=extra.select,simplify=FALSE)
     }else{
-      select<-1:e
-    }
-    if(!is.null(select.extra)){
-      select<-list(select,select.extra)
+      R<-.call.op(type,list(chains=R,sampler.params=1),list('.',extra.select),FALSE)
     }
     
-    R<-do.call(paste0('.int.',element),list(fit=fit,select=select))
-    if(inherits(try.R,'try-error')){
-      tmp.dims<-dim(R)
-      tmp.dims[2]<-e
-      tmp.dimnames<-dimnames(R)
-      tmp.dimnames[[2]]<-paste('R',1:e,sep='_')
-      R<-array(aperm(R,c(1,3,2)),tmp.dims[c(1,3,2)],tmp.dimnames[c(1,3,2)])
-      R<-aperm(R,c(1,3,2))
-    }
-    
-    if(is.null(fit$post.probs)){
-      fit$post.probs<-compare.params(params1=remove.trend(fit),
-                                     params2=get.bg.rate(fit))$post.probs
-    }
-    
-    
-    
-    #handle trait stuff! Maybe make a bit more flexible for showing uncertainty?
-    if(element=='chains'){
-      try.anc.recon<-try(match.arg(anc.recon,c('summary','sample')),silent=T)
-      if(inherits(try.element,'try-error')){
-        stop(anc.recon," is not an available method for reconstructing ancestral states given a single iteration: please specify either 'summary' or 'sample")
-      }
-      anc.recon<-try.anc.recon
-      if(anc.recon=='summary'){
-        X<-get.post.traits(in.fit,select.extra=select.extra,stochastic=FALSE)
-        X<-X[1:(length(X)/2)]
+    #trait stuff
+    if(is.null(recon.type)){
+      if(type=='chains'){
+        recon.type<-'chains'
       }else{
-        X<-get.post.traits(in.fit,select.extra=select.extra)
+        recon.type<-'quantiles'
       }
-    }else{
-      X<-apply(get.post.traits(in.fit),2,mean)
     }
+    recon.type<-.match.type(recon.type,c('quantiles','chains','means'))
+    if(is.null(recon.extra.select)){
+      recon.extra.select<-switch(recon.type,
+                                 chains=if(type=='chains') extra.select else sample(niter,1),
+                                 quantiles=0.5)
+    }
+    X<-get.post.traits(fit,type=recon.type,extra.select=recon.extra.select,trait.name='')
     X<-as.matrix(X)
     colnames(X)<-colnames(fit$call$trait.data)
-    rownames(X)<-gsub(paste0('^',colnames(X),'_'),'',rownames(X))
+    rownames(X)<-gsub('^_','',rownames(X))
     
+    #final coercion
     sim<-list('tree'=fit$call$tree,'R'=as.vector(R),
               'X'=X)
-    if(include.post.probs){
-      sim$post.probs<-as.vector(fit$post.probs)
+    if(post.probs){
+      sim$post.probs<-as.vector(pp)
     }
     class(sim)<-'evorates'
   }
@@ -176,9 +112,7 @@ plot.evorates_fit<-function(fit,
                            colvec=NULL,
                            plot.args[!(names(plot.args)%in%c('sim','color.element','colvec'))]))
   
-  
-  
-  if(include.post.probs&!is.null(sim$post.probs)){
+  if(post.probs&!is.null(sim$post.probs)){
     if(is.null(post.probs.args$col)){
       post.probs.args$col<-c('gray80','gray20')
     }

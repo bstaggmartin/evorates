@@ -295,17 +295,18 @@ run.evorates<-function(input.evorates.obj,return.as.obj=TRUE,out.file=NULL,check
   }
   if(!is.null(prep$out.file)){
     saveRDS(prep$input.evorates.obj,prep$file.strings[length(prep$file.strings)])
-    message('MCMC samples were saved as:\n\t',
+    message('HMC samples were saved as:\n\t',
             paste(basename(prep$file.strings[-length(prep$file.strings)]),'\n',collapse='\t'),
             'and input data/transformation constants were saved as:\n\t',
             basename(prep$file.strings[length(prep$file.strings)]),'\n',
             'in ',normalizePath(prep$directory,winslash='/'))
     #return output file basename
-    gsub('_\\d+\\.csv$','',prep$file.strings[1])
+    out<-gsub('_\\d+\\.csv$','',prep$file.strings[1])
   }
   if(return.as.obj){
-    c(stanfit=ret,prep$input.evorates.obj)
+    out<-c(stanfit=ret,prep$input.evorates.obj)
   }
+  out
 }
 
 #corateBM.run can either be a character specifying the name of sampling files or an object (the output from corateBM.run)
@@ -422,13 +423,13 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
     excl.iter<-niter+1
   }else{
     niter<-sampler.args$iter-sampler.args$warmup+1
-    excl.iter<-2:sampler.args$warmup
+    excl.iter<-seq_len(sampler.args$warmup)[-1]
   }
-  sampler.params<-array(NA,c(sampler.args$iter,9,nchain))
-  dimnames(sampler.params)<-list(iterations=NULL,
-                                 parameters=c(names(attr(stanfit@sim$samples[[1]],'sampler_params')),
-                                              'prior','lik','post'),
-                                 chains=paste('chain',1:nchain))
+  sampler.params<-array(NA,c(sampler.args$iter,9,nchain),
+                        list(iterations=NULL,
+                             parameters=c(names(attr(stanfit@sim$samples[[1]],'sampler_params')),
+                                          paste0(c('prior','lik','post'),'__')),
+                             chains=paste('chain',1:nchain)))
   for(i in 1:nchain){
     sampler.params[,1:6,i]<-unlist(attr(stanfit@sim$samples[[i]],'sampler_params'))
   }
@@ -437,8 +438,8 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   sampler.params[,9,]<-sampler.params[,7,]+dat$lik_power*sampler.params[,8,]
   out$sampler.control<-sampler.args[-2]
   out$sampler.params<-sampler.params
-  out$sampler.params<-.add.ele(out$sampler.params)
-  attr(out$sampler.params,'element')<-'chains'
+  out$sampler.params<-.add.par.class(out$sampler.params)
+  attr(out$sampler.params,'param_type')<-'chains'
   
   
   ##FORM CHAINS##
@@ -483,56 +484,52 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
     out$chains[,'bg_rate',]<-bg.rate
     out$chains[,paste0('R_',call$edge.key),]<-aperm(R,c(1,3,2))
   }
-  incl.inds<-which(apply(out$chains[,,1],2,function(ii) !all(is.na(ii))))
+  excl.inds<-apply(out$chains,2,function(ii) all(is.na(ii)))
   #ensure it includes all edge params if rate heterogeneity exists!
   if(!constrain.Rsig2|trend){
-    incl.inds<-sort(unique(c(incl.inds,5+1:e)))
+    excl.inds<-excl.inds&c(rep(TRUE,5),rep(FALSE,e))
   }
-  out$chains<-out$chains[,incl.inds,,drop=FALSE]
-  out$chains<-.add.ele(out$chains)
-  attr(out$chains,'element')<-'chains'
-  out$chains<-.simplify.element(out$chains)
+  out$chains<-out$chains[,!excl.inds,,drop=FALSE]
+  out$chains<-.add.par.class(out$chains)
+  attr(out$chains,'param_type')<-'chains'
   
   
   #add rate deviation chains
   if(report.devs){
-    Rs<-out%chains%1:Nedge(out)
+    e.seq<-seq_len(Nedge(out))
+    Rs<-.call.select(out$chains,paste0('R_',e.seq))
     el<-out$call$tree$edge.length
     if(trend&remove.trend){
       er<-edge.ranges(out)
-      Rmu<-out%chains%'^R_mu$'
+      Rmu<-.call.select(out$chains,'R_mu')
       Rs<-Rs-(-log(abs(Rmu))-log(el)+log(abs(exp(Rmu*er[,2])-exp(Rmu*er[,1]))))
     }
     bg.rate<-sum(el/sum(el)*Rs)
     Rs<-Rs-bg.rate
-    names(Rs)<-paste0('Rdev_',1:Nedge(out))
-    out$chains<-c(out$chains,Rs)
+    names(Rs)<-paste0('Rdev_',e.seq)
+    out$chains<-.combine.par(list(out$chains,Rs))
+    Rs[Rs==0]<-NA
+    Rs<-Rs>0
+    #add rate deviation posterior probabilities
+    #should never get instances where deviations are perfectly 0...but just in case
+    out$post.probs<-.call.op('means',list(chains=Rs),'.',FALSE)
+    out$post.probs[is.infinite(out$post.probs)|is.nan(out$post.probs)]<-0.5
   }
-  
   
   
   ##EXTRA POSTERIOR DISTRIBUTION INFO##
   #add parameter diagnostics
-  out$param.diags<-out%diagnostics%'.'
+  out$diagnostics<-.call.op('diagnostics',out,'.',FALSE)
   if(!include.warmup){
-    out$chains<-out$chains%chains%list('.',-1)
+    out$chains<-.call.select(out$chains,list(NULL,-1))
   }
   #add quantiles
   if(!is.null(report.quantiles)){
-    out$quantiles<-out%quantiles%'.'
+    out$quantiles<-.call.op('quantiles',out,list('.',report.quantiles),FALSE)
   }
   #add means
   if(report.means){
-    out$means<-out%means%'.'
-  }
-  #add rate deviation posterior probabilities
-  #should never get instances where deviations are perfectly 0...but just in case
-  if(report.devs){
-    tmp<-out%chains%'^Rdev_[1-9][0-9]*$'
-    tmp[tmp==0]<-NA
-    tmp<-tmp>0
-    out$post.probs<-tmp%means%'.'
-    out$post.probs[is.infinite(out$post.probs)|is.nan(out$post.probs)]<-0.5
+    out$means<-.call.op('means',out,'.',FALSE)
   }
   
   
@@ -765,11 +762,12 @@ fit.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend
             'and input data/transformation constants were saved as:\n\t',
             basename(prep$file.strings[length(prep$file.strings)]),'\n',
             'in ',normalizePath(prep$directory,winslash='/'))
-    gsub('_\\d+\\.csv$','',prep$file.strings[1])
+    out<-gsub('_\\d+\\.csv$','',prep$file.strings[1])
   }
   if(return.as.obj){
     run<-c(stanfit=ret,prep$input.evorates.obj)
-    output.evorates(run,NULL,NULL,NULL,NULL,include.warmup,
-                    report.quantiles,report.means,report.devs,remove.trend)
+    out<-output.evorates(run,NULL,NULL,NULL,NULL,include.warmup,
+                         report.quantiles,report.means,report.devs,remove.trend)
   }
+  out
 }

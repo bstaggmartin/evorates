@@ -1,32 +1,72 @@
 #get the edge-wise expected variance covariance evolving under BM with branch lengths equal to evolutionary rate
+#now works with polytomies!
+#way faster now using efficient tree-walking functions
+#would break in case of singleton edges, but this should never really happen
 #' @export
 edge.vcv<-function(tree){
   attr(tree,'order')<-NULL
   tree<-reorder(tree,'cladewise')
   tree<-di2multi(tree,tol=0)
   edge.hgts<-node.depth.edgelength(tree)[tree$edge[,2]]
-  #base.hgts<-node.depth.edgelength(tree)[tree$edge[,1]]
   e<-nrow(tree$edge)
   mat<-matrix(0,e,e)
   end.pts<-vector(mode='integer',length=e)
-  for(i in 1:e){
-    sister.edge<-which(tree$edge[,1]==tree$edge[i,1])
-    sister.edge<-suppressWarnings(min(sister.edge[sister.edge>i]))
-    if(!is.infinite(sister.edge)){
-      end.pts[i]<-sister.edge-1
+  anc<-anc.edges(tree)
+  sis<-sis.edges(tree)
+  for(i in seq_len(e)){
+    if(sis[[i]]>i){
+      end.pts[i]<-min(sis[[i]])-1
     }else{
-      anc.edge<-which(tree$edge[,2]==tree$edge[i,1])
-      if(length(anc.edge)==0){
-        end.pts[i]<-e
+      if(length(anc[[i]])){
+        end.pts[i]<-end.pts[anc[[i]]]
       }else{
-        end.pts[i]<-end.pts[anc.edge]
+        end.pts[i]<-e
       }
     }
-    mat[i:end.pts[i],i:end.pts[i]]<-edge.hgts[i]-tree$edge.length[i]/2
-    mat[(i:end.pts[i])[-1],(i:end.pts[i])[-1]]<-edge.hgts[i]
-    mat[i,i]<-edge.hgts[i]-2*tree$edge.length[i]/3
+    inds<-seq.int(i,end.pts[i])
+    tmp<-tree$edge.length[i]/2
+    mat[inds,inds]<-edge.hgts[i]-tmp
+    mat[inds[-1],inds[-1]]<-mat[inds[-1],inds[-1]]+tmp
+    mat[i,i]<-mat[i,i]-tmp/3
   }
   mat
 }
 
-#now works with polytomies!
+# edge.vcv2<-function(tree,zlim){
+#   attr(tree,'order')<-NULL
+#   tree<-reorder(tree,'cladewise')
+#   tree<-di2multi(tree,tol=0)
+#   edge.hgts<-node.depth.edgelength(tree)[tree$edge[,2]]
+#   e<-nrow(tree$edge)
+#   mat<-matrix(0,e,e)
+#   end.pts<-vector(mode='integer',length=e)
+#   anc<-anc.edges(tree)
+#   sis<-sis.edges(tree)
+#   for(i in seq_len(e)){
+#     if(sis[[i]]>i){
+#       end.pts[i]<-min(sis[[i]])-1
+#     }else{
+#       if(length(anc[[i]])){
+#         end.pts[i]<-end.pts[anc[[i]]]
+#       }else{
+#         end.pts[i]<-e
+#       }
+#     }
+#     inds<-seq.int(i,end.pts[i])
+#     tmp<-tree$edge.length[i]/2
+#     mat[inds,inds]<-edge.hgts[i]-tmp
+#     mat[inds[-1],inds[-1]]<-mat[inds[-1],inds[-1]]+tmp
+#     mat[i,i]<-mat[i,i]-tmp/3
+#     png(paste0(i,'.png'),width=98*4,height=98*4)
+#     image(mat,zlim=zlim)
+#     dev.off()
+#   }
+#   mat
+# }
+# #quick  demonstration of algorithm
+# set.seed(123)
+# setwd('~/../Desktop/alg_demonstration')
+# par(oma=c(0,0,0,0),mar=c(0,0,0,0))
+# tree<-pbtree(n=50)
+# zlim<-range(edge.vcv(tree))
+# edge.vcv2(tree,zlim)

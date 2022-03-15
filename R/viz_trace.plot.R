@@ -10,26 +10,33 @@ trace.plot<-function(in.x,p=0.05,col=palette(),
   plot.args<-c(names(formals(plot.default)),
                names(formals(axis)),names(formals(box)),names(formals(plot.window)),names(formals(title)))
   plot.args<-plot.args[-which(plot.args=='...')]
-  gen.args<-graphics:::.Pars
+  gen.args<-names(par())
   if(hasArg(fit)){
     fit<-list(...)$fit
   }else{
     fit<-NULL
   }
-  if(!is.list(in.x)){
-    x<-list(in.x)
+  x<-in.x
+  if(!is.list(x)){
+    x<-list(x)
   }
-  x<-do.call(ele.c,c(x,fit=list(fit)))
+  x<-.expand.element(do.call(ele.c,c(x,fit=list(fit))))
   param.names<-names(x) #shouldn't ever be a list since elements were combined...
   tmp<-paste0('%(\\',paste(.Ops.ls(),collapse='|\\'),')%')
   param.names<-gsub(tmp,' \\1 ',param.names)
+  if(hasArg(overwrite.param.names)){
+    overwrite.param.names<-list(...)$overwrite.param.names
+    if(length(overwrite.param.names)==length(param.names)){
+      param.names<-overwrite.param.names
+    }
+  }
   if(!hasArg(xlim)){
     xlim<-c(0,dim(x)[1])
   }else{
     xlim<-list(...)$xlim
   }
   if(!hasArg(ylim)){
-    ylim<-range(x,na.rm=T)
+    ylim<-range(.strip.ele(x),na.rm=T)
   }else{
     ylim<-list(...)$ylim
   }
@@ -42,7 +49,11 @@ trace.plot<-function(in.x,p=0.05,col=palette(),
     if(length(param.names)>5){
       ylab<-deparse(substitute(in.x))
     }else{
-      ylab<-paste(param.names,collapse='; ')
+      tmp.nms<-param.names
+      modes<-unlist(lapply(tmp.nms,mode))
+      not.expr<-modes=='numeric'|modes=='character'
+      tmp.nms[not.expr]<-lapply(tmp.nms[not.expr],function(ii) paste0('"',ii,'"'))
+      ylab<-str2expression(paste(as.character(tmp.nms),collapse="*'; '*"))
     }
   }else{
     ylab<-list(...)$ylab
@@ -138,7 +149,7 @@ trace.plot<-function(in.x,p=0.05,col=palette(),
     legend.args$lwd<-NULL
     legend.args$lty<-NULL
     if(length(param.names)>1){
-      legend.args$legend<-param.names
+      legend.args$legend<-as.expression(param.names)
       legend.args$col<-col
       legend.args$lwd<-lwd
       legend.args$lty<-rep(lty[1],length(param.names))

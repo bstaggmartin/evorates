@@ -1,8 +1,7 @@
 def.color.scheme<-function(){
-  alter.cols(c('royalblue4','plum4','brown1'),
-             mod.val=c(-0.2,-0.2,-0.05,
-                       0,0,0,
-                       0.2,0.2,0.2))
+  rgb(c(0.000,0.545,1.000),
+      c(0.051,0.400,0.451),
+      c(0.495,0.545,0.451))
 }
 
 #plot an autocorrelated Brownian motion simulation
@@ -10,17 +9,17 @@ def.color.scheme<-function(){
 #really need to clean these functions up-->chunks of code identical between plot.evorates and pairs, also many of this code
 #should just be internal functions, rather than explicit
 #' @export
-plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram','cladogram','fan','unrooted','radial'),
+plot.evorates<-function(sim,traits=1:ncol(sim$X),style=c('phenogram','phylogram','cladogram','fan','unrooted','radial'),
                         col=def.color.scheme(),na.col='gray90',val.range=NULL,res=100,
                         alpha=NA,breaks=NULL,colvec=NULL,lwd=1,lty=1,
                         xlab=NULL,ylab=NULL,add=F,color.element='R',exp=FALSE,exp.txt=TRUE,...,
                         legend=T,legend.args=NULL){
   tree<-sim$tree
-  try.type<-try(match.arg(type,c('phenogram','phylogram','cladogram','fan','unrooted','radial')))
-  if(inherits(try.type,'try-error')){
-    stop(try.type," is not an available plotting type: please specify one of the following: 'phenogram', 'phylogram', 'cladogram', 'fan', 'unrooted', or 'radial'")
+  try.style<-try(match.arg(style,c('phenogram','phylogram','cladogram','fan','unrooted','radial')))
+  if(inherits(try.style,'try-error')){
+    stop(try.style," is not an available plotting style: please specify one of the following: 'phenogram', 'phylogram', 'cladogram', 'fan', 'unrooted', or 'radial'")
   }
-  type<-try.type
+  style<-try.style
   plot.args<-c(names(formals(plot.default)),
                names(formals(axis)),names(formals(box)),names(formals(plot.window)),names(formals(title)))
   plot.args<-plot.args[-which(plot.args=='...')]
@@ -60,7 +59,7 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
   if(exp){
     sim[[color.element]]<-exp(sim[[color.element]])
   }
-  if(length(traits)>2&type=='phenogram'){
+  if(length(traits)>2&style=='phenogram'){
     pairs(sim,traits=traits,col=col,val.range=val.range,res=res,alpha=alpha,breaks=breaks,colvec=colvec,lwd=lwd,lty=lty,
           color.element=color.element,exp=exp,exp.txt=exp.txt,...,
           legend=legend,legend.args=legend.args)
@@ -115,7 +114,7 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
     }
     lwdvec<-rep(lwd,length.out=nrow(tree$edge))
     ltyvec<-rep(lty,length.out=nrow(tree$edge))
-    if(type=='phenogram'){
+    if(style=='phenogram'){
       n<-length(tree$tip.label)
       if(nrow(sim$X)==n){
         #will need to be updated to handle multivariate stuff
@@ -194,7 +193,7 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
       if(!add){
         do.call(plot,
                 c(x=list(tree),
-                  type=type,
+                  type=style,
                   edge.color=rgb(0,0,0,0),
                   list(...)[!(names(list(...))%in%c('type','edge.color'))]))
       }
@@ -205,10 +204,10 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
         pdf(tmpf)
         do.call(plot,
                 c(x=list(tree),
-                  type=type,
+                  type=style,
                   edge.color=list(colvec),
-                  edge.width=if(length(lwd)>1) list(lwd) else lwd,
-                  edge.lty=if(length(lwd)>1) list(lty) else lty,
+                  edge.width=list(lwd),
+                  edge.lty=list(lty),
                   list(...)[!(names(list(...))%in%c('type','edge.color','edge.width','edge.lty'))]))
         dev.off()
         unlink(tmpf)
@@ -216,7 +215,7 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
       }
       tree.plot$type<-tree.plot$type
       if(tree.plot$type=='phylogram'){
-        if(tree.plot$direction%in%c('leftwards','rightwards')){
+        if(tree.plot$direction=='leftwards'|tree.plot$direction=='rightwards'){
           coords.list<-c(y0=list(tree.plot$yy[as.vector(t(tree$edge))]),y1=list(tree.plot$yy[rep(tree$edge[,2],each=2)]),
                          x0=list(tree.plot$xx[rep(tree$edge[,1],each=2)]),x1=list(tree.plot$xx[as.vector(t(tree$edge))]))
         }else{
@@ -229,55 +228,51 @@ plot.evorates<-function(sim,traits=1:ncol(sim$X),type=c('phenogram','phylogram',
       }else if(tree.plot$type=='fan'){
         r<-sqrt(tree.plot$xx^2+tree.plot$yy^2)
         theta<-atan(tree.plot$yy/tree.plot$xx)
-        theta[tree.plot$xx<0]<-theta[tree.plot$xx<0]+pi
-        theta[is.nan(theta)]<-0
-        theta[theta<theta[1]]<-theta[theta<theta[1]]+2*pi
-        theta[theta<0]<-2*pi+theta[theta<0]
-        theta0<-theta[as.vector(t(tree$edge))]
+        probs<-tree.plot$xx<0
+        theta[probs]<-theta[probs]+pi
+        tmp<-tree$edge[,2]
+        base<-theta[tmp[tmp<=Ntip(tree)][1]]
+        theta[is.nan(theta)]<-base
+        probs<-theta<base
+        theta[probs]<-theta[probs]+2*pi
+        tmp<-as.vector(t(tree$edge))
+        theta0<-theta[tmp]
         theta1<-theta[rep(tree$edge[,2],each=2)]
+        theta1[1]<-theta0[1]
         r0<-r[rep(tree$edge[,1],each=2)]
-        r1<-r[as.vector(t(tree$edge))]
+        r1<-r[tmp]
         colvec<-rep(colvec,each=2)
         lwdvec<-rep(lwdvec,each=2)
         ltyvec<-rep(ltyvec,each=2)
+        #interpolation
         if(hasArg(ang.res)){
-          ang<-seq(0,2*pi,length.out=list(...)$ang.res)
+          const<-2*pi/(list(...)$ang.res+1)
         }else{
-          ang<-seq(0,2*pi,length.out=100)
+          const<-2*pi/100
         }
-        new.theta0<-new.theta1<-new.r0<-new.r1<-new.colvec<-new.lwdvec<-new.ltyvec<-NULL
-        for(i in 1:length(theta0)){
-          tmp<-c(theta0[i],theta1[i])
-          int.ang<-ang[ang>min(tmp)&ang<max(tmp)]
-          if(r0[i]==0|theta0[i]==theta1[i]|length(int.ang)==0){
-            new.theta0<-c(new.theta0,theta0[i])
-            new.theta1<-c(new.theta1,theta1[i])
-            new.r0<-c(new.r0,r0[i])
-            new.r1<-c(new.r1,r1[i])
-            new.colvec<-c(new.colvec,colvec[i])
-            new.lwdvec<-c(new.lwdvec,lwdvec[i])
-            new.ltyvec<-c(new.ltyvec,ltyvec[i])
-            next
-          }else{
-            if(tmp[1]>tmp[2]){
-              int.ang<-rev(int.ang)
-            }
-            new.theta0<-c(new.theta0,theta0[i],int.ang)
-            new.theta1<-c(new.theta1,int.ang,theta1[i])
-            new.r0<-c(new.r0,rep(r0[i],length(int.ang)+1))
-            new.r1<-c(new.r1,rep(r1[i],length(int.ang)+1))
-            new.colvec<-c(new.colvec,rep(colvec[i],length(int.ang)+1))
-            new.lwdvec<-c(new.lwdvec,rep(lwdvec[i],length(int.ang)+1))
-            new.ltyvec<-c(new.ltyvec,rep(ltyvec[i],length(int.ang)+1))
-          }
-        }
-        colvec<-new.colvec
-        lwdvec<-new.lwdvec
-        ltyvec<-new.ltyvec
-        coords.list<-c(x0=list(new.r0*cos(new.theta0)),
-                       x1=list(new.r1*cos(new.theta1)),
-                       y0=list(new.r0*sin(new.theta0)),
-                       y1=list(new.r1*sin(new.theta1)))
+        odds<-seq.int(1,length(theta0),2)
+        tmp.seq<-seq_along(odds)
+        signs<-sign(theta1[odds]-theta0[odds])
+        const<-signs*const
+        interp0<-lapply(tmp.seq,function(ii) seq(theta0[odds[ii]],theta1[odds[ii]],const[ii]))
+        interp1<-lapply(tmp.seq,function(ii) c(interp0[[ii]][-1],theta1[odds[ii]]))
+        theta0<-as.list(theta0)
+        theta0[odds]<-interp0
+        theta1<-as.list(theta1)
+        theta1[odds]<-interp1
+        #replicating everything appropriately
+        lens<-lengths(theta0)
+        theta0<-unlist(theta0,use.names=FALSE)
+        theta1<-unlist(theta1,use.names=FALSE)
+        r0<-rep(r0,lens)
+        r1<-rep(r1,lens)
+        colvec<-rep(colvec,lens)
+        lwdvec<-rep(lwdvec,lens)
+        ltyvec<-rep(ltyvec,lens)
+        coords.list<-c(x0=list(r0*cos(theta0)),
+                       x1=list(r1*cos(theta1)),
+                       y0=list(r0*sin(theta0)),
+                       y1=list(r1*sin(theta1)))
       }else{
         coords.list<-c(y0=list(tree.plot$yy[tree$edge[,1]]),y1=list(tree.plot$yy[tree$edge[,2]]),
                        x0=list(tree.plot$xx[tree$edge[,1]]),x1=list(tree.plot$xx[tree$edge[,2]]))

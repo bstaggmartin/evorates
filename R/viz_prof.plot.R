@@ -1,269 +1,202 @@
-#make an argument for where to cap off legend/plot title for a given number of parameters
-#extra argument to combine chains, if desired?
-#col and border applies to parameters, angle and density apply to chains
+#notes
+
+##p, quant, and cut can all be vectors
+###all are recycled to proper length
+###non-NA cut entries will override quant entries, and non-NA quant entries will override p entries in turn
+
+##"inheritance" system--makes the whole thing a bit more cumbersome, but more flexible in the long run
+###woot! All seems to work. Only hiccup is you might want to "hardwire" the param.args, chain.args, and inpar.args in
+###it could be really easy to break things otherwise! but maybe keep it in for advanced users...
+
+##add.lines corresponds to x-values if quant.lines is FALSE, and quantiles otherwise
+###specifying NA for add.lines defaults to mean, regardless of quant.lines
+
+
+#(low priority) future things:
+
+##make an argument for where to cap off legend/plot title for a given number of parameters
+
+##extra argument to combine chains, if desired?
+
+##it might be good to include lines in legend, but I don't see a simple way to do this if different numbers of lines are allowed per
+###profile
+
+##allow lines to vary across parameters, like cuts? but how to do this efficiently? matrices/lists?
+###maybe lists to allow varying numbers of lines... (see below)--will complicate recycling and indexing, but not by much
+####marking divergent transitions using add.lines feature?
+###or not--will be same number of divergences regardless of parameter! Keeping same number of lines per profile will be much easier
+
+##on that note, allow quant.lines to be a vector recycled so lines corresponding to quantiles and cuts can be efficiently added?
+###wait, same number per parameter, but NOT per chain, so it will have to allow different numbers...
+
+#' Plot profiles of posterior samples from fitted 
+#'
+#'
+#' This function processes tree and trait data, runs a Stan-based Hamiltonian Monte Carlo (HMC) sampler to fit
+#' these data to an evorates model, and returns the output of this sampler in a (relatively) user-friendly format.
+#'
+#'
+#' @param tree An object of class "\code{phylo}"
+#' 
+#' 
+#' @return 
+#' 
+#' 
+#' @details 
+#' PARAMETER DEFINITIONS HERE
+#' 
+#' 
+#' @family evorates plotting functions
+#' 
+#' 
+#' @examples
+#' 
+#' 
 #' @export
-prof.plot<-function(in.x,p=0.05,col=palette(),
-                         lower.quant=NULL,upper.quant=NULL,lower.cut=NULL,upper.cut=NULL,smooth=F,add=F,
-                         make.legend=T,...){
-  plot.args<-c(names(formals(plot.default)),
-               names(formals(axis)),names(formals(box)),names(formals(plot.window)),names(formals(title)))
-  plot.args<-plot.args[-which(plot.args=='...')]
-  gen.args<-graphics:::.Pars
-  dens.args<-names(formals(density.default))
-  dens.args<-dens.args[-which(dens.args=='...')]
-  hist.args<-names(formals(hist.default))
-  hist.args<-hist.args[-which(hist.args=='...')]
-  poly.args<-names(formals(polygon))
-  poly.args<-poly.args[-which(poly.args=='...')]
-  if(hasArg(fit)){
-    fit<-list(...)$fit
-  }else{
-    fit<-NULL
-  }
-  if(!is.list(in.x)){
-    x<-list(in.x)
-  }
-  x<-do.call(ele.c,c(x,fit=list(fit)))
-  param.names<-names(x) #shouldn't ever be a list since elements were combined...
-  tmp<-paste0('%(\\',paste(.Ops.ls(),collapse='|\\'),')%')
-  param.names<-gsub(tmp,' \\1 ',param.names)
-  if(smooth){
-    bw<-do.call(density.default,c(x=list(x),
-                                  list(...)[!(names(list(...))%in%c('x'))&
-                                              names(list(...))%in%dens.args]))$bw
-    tmp<-apply(x,(1:length(dim(x)))[-1],function(ii)
-      do.call(density.default,c(x=list(ii),
-                                bw=bw,
-                                list(...)[!(names(list(...))%in%c('x','bw'))&
-                                            names(list(...))%in%dens.args])))
-  }else{
-    breaks<-do.call(hist,c(x=list(x),
-                           plot=F,
-                           warn.unused=F,
-                           list(...)[!(names(list(...))%in%c('x','plot','warn.unused'))&
-                                       names(list(...))%in%hist.args]))$breaks
-    tmp<-apply(x,(1:length(dim(x)))[-1],function(ii)
-      do.call(hist,c(x=list(ii),
-                     breaks=list(breaks),
-                     plot=F,
-                     warn.unused=F,
-                     list(...)[!(names(list(...))%in%c('x','breaks','plot','warn.unused'))&
-                                 names(list(...))%in%hist.args])))
-    for(i in 1:length(tmp)){
-      tmp[[i]]$x<-tmp[[i]]$breaks
-      tmp[[i]]$y<-tmp[[i]]$counts
-    }
-  }
-  if(!hasArg(xlim)){
-    xlim<-range(unlist(lapply(tmp,'[[','x')),na.rm=T)
-  }else{
-    xlim<-list(...)$xlim
-  }
-  if(!hasArg(ylim)){
-    ylim<-c(0,max(unlist(lapply(tmp,'[[','y')),na.rm=T))
-  }else{
-    ylim<-list(...)$ylim
-  }
-  if(!hasArg(xlab)){
-    if(length(param.names)>5){
-      xlab<-deparse(substitute(in.x))
-    }else{
-      xlab<-paste(param.names,collapse='; ')
-    }
-  }else{
-    xlab<-list(...)$xlab
-  }
-  if(!hasArg(ylab)){
-    ylab<-if(smooth) 'Density' else 'Frequency'
-  }else{
-    ylab<-list(...)$ylab
-  }
-  if(!add){
-    do.call(plot,
-            c(x=list(0),
-              col=list('white'),
-              xlim=list(xlim),
-              ylim=list(ylim),
-              xlab=list(xlab),
-              ylab=list(ylab),
-              list(...)[!(names(list(...))%in%c('x','col','xlim','ylim','xlab','ylab'))&
-                          names(list(...))%in%c(plot.args,gen.args)]))
-  }
-  if(is.null(p)){
-    probs<-rep(NA,length.out=length(param.names))
-    probs<-cbind(probs,probs)
-  }else{
-    p<-rep(p,length.out=length(param.names))
-    probs<-matrix(c(0,1)+c(1,-1)*rep(p,each=2)/2,length(param.names),2,byrow=T)
-  }
-  if(!is.null(lower.quant)){
-    lower.quant<-rep(lower.quant,length.out=length(param.names))
-    probs[!is.na(lower.quant),1]<-lower.quant[!is.na(lower.quant)]
-  }
-  if(!is.null(upper.quant)){
-    upper.quant<-rep(upper.quant,length.out=length(param.names))
-    probs[!is.na(upper.quant),2]<-upper.quant[!is.na(upper.quant)]
-  }
-  cuts<-t(mapply(quantile,x=asplit(x,(1:length(dim(x)))[-1]),probs=asplit(probs,1),na.rm=T))
-  if(!is.null(lower.cut)){
-    lower.cut<-rep(lower.cut,length.out=length(param.names))
-    cuts[!is.na(lower.cut),1]<-lower.cut[!is.na(lower.cut)]
-  }
-  if(!is.null(upper.cut)){
-    upper.cut<-rep(upper.cut,length.out=length(param.names))
-    cuts[!is.na(upper.cut),2]<-upper.cut[!is.na(upper.cut)]
-  }
-  cuts[is.na(cuts[,1]),1]<-xlim[1]
-  cuts[is.na(cuts[,2]),2]<-xlim[2]
-  cuts<-asplit(cuts,1)
-  col<-rep(rep(col,length.out=length(param.names)),length.out=length(tmp))
-  if(hasArg(alpha)){
-    alpha<-rep(rep(list(...)$alpha,length.out=length(param.names)),length.out=length(tmp))
-    col<-alter.cols(col,alpha=alpha)
-  }
-  if(!hasArg(border)){
-    border<-col
-  }else{
-    border<-list(...)$border
-    border<-rep(rep(border,length.out=length(param.names)),length.out=length(tmp))
-  }
-  if(length(tmp)/length(param.names)>1){
-    chain.names<-dimnames(x)[[which(names(dimnames(x))=='chains')]]
-    if(!hasArg(density)){
-      density<-rep(20,length(tmp))
-    }else{
-      density<-rep(rep(list(...)$density,length.out=length(chain.names)),each=length(param.names))
-    }
-    if(!hasArg(angle)){
-      angle<-rep(rep(seq(0,180,length.out=length(chain.names)+2)[-c(1,length(chain.names)+2)],
-                     each=length(param.names)),length.out=length(tmp))
-    }else{
-      angle<-rep(rep(list(...)$angle,length.out=length(chain.names)),each=length(param.names))
-    }
-  }else{
-    if(!hasArg(density)){
-      density<-rep(-1,length(tmp))
-    }else{
-      density<-rep(list(...)$density[1],length(tmp))
-    }
-    if(!hasArg(angle)){
-      angle<-rep(0,length(tmp))
-    }else{
-      angle<-rep(list(...)$angle[1],length(tmp))
-    }
-  }
-  for(i in 1:length(tmp)){
-    if(min(tmp[[i]]$x)<=cuts[[i]][1]&max(tmp[[i]]$x)>=cuts[[i]][2]){
-      cut.pts<-which(tmp[[i]]$x>=cuts[[i]][1]&tmp[[i]]$x<=cuts[[i]][2])
-      if(length(cut.pts)==length(tmp[[i]]$x)){
-        do.call(polygon,
-                c(x=if(smooth) list(tmp[[i]]$x) else list(rep(tmp[[i]]$x,each=2)),
-                  y=if(smooth) list(tmp[[i]]$y) else list(c(0,rep(tmp[[i]]$y,each=2),0)),
-                  col=list(col[i]),
-                  border=list(border[i]),
-                  density=list(density[i]),
-                  angle=list(angle[i]),
-                  list(...)[!(names(list(...))%in%c('x','y','col','border','density','angle'))&
-                              names(list(...))%in%c(poly.args,gen.args)]))
+prof.plot<-function(x,smooth=FALSE,p=0.05,
+                    lower.quant=NULL,upper.quant=NULL,
+                    lower.cut=NULL,upper.cut=NULL,
+                    add.lines=NULL,quant.lines=TRUE,
+                    add=FALSE,make.legend=TRUE,...,
+                    param.args=c('col','border','lines.col',
+                                 'alpha','border.alpha','lines.alpha'),
+                    chain.args=c('angle','density'),
+                    inpar.args=c('lines.lty','lines.lwd')){
+  
+  ####getting arguments####
+  
+  .check.args(param.args,chain.args,inpar.args)
+  .x<-.proc.x(x,list(...)[['fit']])
+  nms<-dimnames(.x)
+  param.names<-.get.param.names(nms[[2]],list(...)[['overwrite.param.names']])
+  chain.names<-nms[[3]]
+  n.params<-length(param.names)
+  n.chains<-length(chain.names)
+  n.tot<-n.params*n.chains
+  n.inpar<-length(add.lines)
+  i<-which(unlist(lapply(list(param.args,chain.args,inpar.args),
+                         function(ii) 'angle'%in%ii)))
+  if(!length(i)) i<-0
+  foo<-function(n){
+    if(length(n)){
+      if(n==1){
+        NULL
       }else{
-        if(length(cut.pts)==0){
-          cut.pts<-mean(c(min(which(tmp[[i]]$x>cuts[[i]][2])),max(which(tmp[[i]]$x<cuts[[i]][1]))))
-        }
-        if(smooth){
-          if(length(cut.pts)==1&round(cut.pts[1])!=cut.pts[1]){
-            tmp.x<-c(cuts[[i]][c(1,1)],cuts[[i]][c(2,2)])
-          }else{
-            tmp.x<-c(cuts[[i]][c(1,1)],tmp[[i]]$x[cut.pts],cuts[[i]][c(2,2)])
-          }
-          if(min(cut.pts)==1){
-            end.y1<-0
-          }else{
-            end.y1<-diff(tmp[[i]]$y[ceiling(min(cut.pts))-c(1,0)])/diff(tmp[[i]]$x[ceiling(min(cut.pts))-c(1,0)])*
-              (cuts[[i]][1]-tmp[[i]]$x[ceiling(min(cut.pts))-1])+
-              tmp[[i]]$y[ceiling(min(cut.pts))-1]
-          }
-          if(max(cut.pts)==length(cut.pts)){
-            end.y2<-0
-          }else{
-            end.y2<-diff(tmp[[i]]$y[floor(max(cut.pts))+c(0,1)])/diff(tmp[[i]]$x[floor(max(cut.pts))+c(0,1)])*
-              (cuts[[i]][2]-tmp[[i]]$x[floor(max(cut.pts))])+
-              tmp[[i]]$y[floor(max(cut.pts))]
-          }
-          if(length(cut.pts)==1&round(cut.pts[1])!=cut.pts[1]){
-            tmp.y<-c(0,end.y1,end.y2,0)
-          }else{
-            tmp.y<-c(0,end.y1,tmp[[i]]$y[cut.pts],end.y2,0)
-          }
-        }else{
-          if(length(cut.pts)==1&round(cut.pts[1])!=cut.pts[1]){
-            tmp.x<-rep(cuts[[i]],each=2)
-            tmp.y<-c(0,rep(tmp[[i]]$y[floor(cut.pts)],2),0)
-          }else{
-            tmp.x<-rep(c(cuts[[i]][1],tmp[[i]]$x[cut.pts],cuts[[i]][2]),each=2)
-            tmp.y<-c(0,tmp[[i]]$y)[c(cut.pts,max(cut.pts)+1)]
-            tmp.y[is.na(tmp.y)]<-0
-            tmp.y<-c(0,rep(tmp.y,each=2),0)
-          }
-        }
-        do.call(polygon,
-                c(x=list(tmp.x),
-                  y=list(tmp.y),
-                  col=list(col[i]),
-                  border=NA,
-                  density=list(density[i]),
-                  angle=list(angle[i]),
-                  list(...)[!(names(list(...))%in%c('x','y','col','border','density','angle'))&
-                              names(list(...))%in%c(poly.args,gen.args)]))
+        180/(n+1)*seq_len(n)
       }
     }
-    do.call(polygon,
-            c(x=if(smooth) list(c(tmp[[i]]$x[1],tmp[[i]]$x,tmp[[i]]$x[length(tmp[[i]]$x)])) else list(rep(tmp[[i]]$x,each=2)),
-              y=if(smooth) list(c(0,tmp[[i]]$y,0)) else list(c(0,rep(tmp[[i]]$y,each=2),0)),
-              col=rgb(0,0,0,0),
-              density=0,
-              border=list(border[i]),
-              list(...)[!(names(list(...))%in%c('x','y','col','density','border'))&
-                          names(list(...))%in%c(poly.args,gen.args)]))
   }
+  def.angle<-foo(switch(i,n.params,n.chains,n.inpar))
+  def.density<-if(!is.null(def.angle)) 20 else NULL
+  get.args<-.make.args.fxn(...,
+                           param.args=param.args,
+                           chain.args=chain.args,
+                           inpar.args=inpar.args,
+                           n.params=n.params,
+                           n.chains=n.chains,
+                           n.inpar=n.inpar,
+                           inheritance=list(lines='gen',legend=NULL),
+                           defaults=list(col=palette(),
+                                         border=expression(col),
+                                         lines.col=expression(border),
+                                         alpha=1,
+                                         border.alpha=1,
+                                         lines.alpha=expression(border.alpha),
+                                         angle=def.angle,
+                                         density=def.density))
+  
+  ####getting profiles####
+  
+  if(smooth){
+    foo<-density.default
+    nm<-'bw'
+    tmp.args<-get.args(~dens&!recyc)
+  }else{
+    foo<-hist
+    nm<-'breaks'
+    tmp.args<-c(plot=FALSE,
+                warn.unused=FALSE,
+                get.args(~hist&!recyc))
+  }
+  tmp<-do.call(foo,c(x=list(.x),tmp.args))[[nm]]
+  tmp.args[[nm]]<-tmp
+  tmp<-apply(.x,c(2,3),function(ii)
+    do.call(foo,c(x=list(ii),tmp.args)))
+  if(!smooth){
+    for(i in seq_len(n.tot)){
+      names(tmp[[i]])<-gsub('counts','y',gsub('breaks','x',names(tmp[[i]])))
+    }
+  }
+  
+  ####plotting window####
+  
+  if(!add){
+    tmp.args<-get.args(~(plot|gen)&!recyc)
+    do.call(.make.param.plot,
+            c(x=list(tmp),
+              param.names=list(param.names),n.params=list(n.params),
+              def.xlab=list(deparse(substitute(x))),
+              smooth=list(smooth),
+              tmp.args))
+  }
+  
+  ####getting cuts/lines####
+  
+  lines<-.get.lines(.x,add.lines,quant.lines,n.tot) #not "vectorized" like cuts
+  cuts<-.get.cuts(.x,p,
+                  lower.quant,upper.quant,
+                  lower.cut,upper.cut,
+                  n.params,n.chains)
+  
+  ####plotting profiles####
+  
+  yran<-diff(par()$usr[c(3,4)])
+  for(i in seq_len(n.tot)){
+    ii<-if(n.inpar) n.inpar*(i-1)+1 else i
+    prof<-tmp[[i]]
+    full.xy<-.trim.prof(prof$x,prof$y,smooth,
+                        range(.x[,(i-1)%%n.params+1,(i-1)%/%n.params+1]),
+                        yran)
+    part.xy<-.cut.prof(full.xy[[1]],cuts[[i]],smooth)
+    tmp.args<-get.args(~(poly|gen)&nonborder&!recyc)
+    tmp.recyc.args<-get.args(~(poly|gen)&nonborder&recyc,ii)
+    do.call(polygon,
+            c(x=part.xy[1],
+              y=part.xy[2],
+              border=NA,
+              tmp.args,
+              tmp.recyc.args))
+    tmp.args<-get.args(~(poly|gen)&noncol&!recyc)
+    tmp.recyc.args<-get.args(~(poly|gen)&noncol&recyc,ii)
+    do.call(polygon,
+            c(x=full.xy[[2]][1],
+              y=full.xy[[2]][2],
+              col=list(rgb(0,0,0,0)),
+              tmp.args,
+              tmp.recyc.args))
+    ##NEED TO ADD SUPPORT FOR LINES OUT OF BOUNDARIES!--done by modifying .get.y, I believe
+    if(n.inpar){
+      ii<-seq.int(ii,ii+n.inpar-1)
+      x0<-lines[[i]]
+      y0<-0
+      line.pt<-findInterval(x0,full.xy[[1]][[1]])
+      y1<-.get.y(line.pt+1,full.xy[[1]][[1]],full.xy[[1]][[2]],x0,smooth)
+      tmp.args<-get.args(~lines&!recyc)
+      tmp.recyc.args<-get.args(~lines&recyc,ii)
+      do.call(segments,
+              c(x0=list(x0),
+                y0=list(y0),
+                y1=list(y1),
+                tmp.args,
+                tmp.recyc.args))
+    }
+  }
+  
+  ####plotting legend####
+  
   if(make.legend){
-    legend.args<-list(...)[names(list(...))%in%paste0('legend.',names(formals(legend)))]
-    names(legend.args)<-sub('^legend.','',names(legend.args))
-    if(is.null(legend.args$x)){
-      legend.args$x<-'topright'
-    }
-    legend.args$legend<-NULL
-    legend.args$fill<-NULL
-    legend.args$border<-NULL
-    legend.args$density<-NULL
-    legend.args$angle<-NULL
-    if(length(param.names)>1){
-      legend.args$legend<-param.names
-      legend.args$fill<-col[1:length(param.names)]
-      legend.args$border<-border[1:length(param.names)]
-      legend.args$density<-rep(density[1],length(param.names))
-      legend.args$angle<-rep(angle[1],length(param.names))
-    }
-    if(length(tmp)/length(param.names)>1){
-      legend.args$legend<-c(legend.args$legend,chain.names)
-      legend.args$fill<-c(legend.args$fill,rep(col[1],length(chain.names)))
-      legend.args$border<-c(legend.args$border,rep(border[1],length(chain.names)))
-      legend.args$density<-c(legend.args$density,density[(1:length(chain.names)-1)*length(param.names)+1])
-      legend.args$angle<-c(legend.args$angle,angle[(1:length(chain.names)-1)*length(param.names)+1])
-    }
-    if(!is.null(legend.args$legend)){
-      do.call(legend,legend.args)
-    }
+    .make.param.plot.legend(param.names,chain.names,
+                            n.params,n.chains,
+                            get.args)
   }
 }
-
-#breaks where there's only one histogram bar!
-#fix when there are no cutpoints, but polygon still falls within bounds...
-# 
-# #works for getting variances
-# apply(get.cov.mat(fit),c(3,4),diag)
-# apply(get.cov.mat(fit),c(3,4),function(ii) ii[lower.tri(ii)])
-# tmp<-get.cov.mat(combine.chains(fit),c('fr_width','lipid_wet'))
-# hmm<-array(unlist(lapply(asplit(get.cov.mat(combine.chains(fit),c('fr_width','lipid_wet')),3),cov2cor)),dim(tmp),dimnames(tmp))
-# part.fill.hist(hmm,make.legend=T)
-# #add support for getting correlation matrices from get.cov.mat
-# #as well as support for getting variances and covariances only

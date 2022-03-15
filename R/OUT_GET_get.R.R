@@ -1,0 +1,25 @@
+#' @export
+get.R<-function(fit,
+                select=seq_len(Nedge(fit)),
+                type=c('chains','quantiles','means','diagnostics'),
+                extra.select=NULL,
+                simplify=TRUE){
+  select<-.check.edge.indices(select,
+                              deparse(substitute(select)),
+                              Nedges=Nedge(fit))
+  type<-.match.type(type)
+  no.Rs<-fit$call$constrain.Rsig2&!fit$call$trend
+  if(no.Rs){
+    in.select<-select
+    select<-'^R_0$'
+  }
+  out<-.call.op(type,fit,list(select,extra.select),FALSE)
+  if(no.Rs){
+    out<-.call.select(out,rep(1,length(in.select)))
+    names(out)<-paste0('R_',in.select)
+  }
+  if(simplify){
+    out<-.simplify.par(out)
+  }
+  out
+}

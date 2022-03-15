@@ -1,3 +1,5 @@
+#these could use some cleaning up...eventually
+
 #' @export
 check.mix<-function(fit){
   if(fit$sampler.control$chains>1){
@@ -9,12 +11,12 @@ check.mix<-function(fit){
   rhats<-list(names(which(rhats<=1.01)),
               names(which(rhats<=1.05&rhats>1.01)),
               names(which(rhats>1.05)))
-  lens<-sapply(rhats,length)
+  lens<-lengths(rhats)
   check<-which(lens==len.check)
   if(length(check)>0){
     cat(' - all Rhats look ',c('good','okay','bad')[check],'\n')
   }else{
-    for(i in 1:3){
+    for(i in seq_len(3)){
       if(lens[i]>0){
         cat(' - ',
             if(lens[i]<=5)'the following ',
@@ -50,12 +52,12 @@ check.ess<-function(fit){
   bulks<-list(names(which(bulk.ess>=400)),
               names(which(bulk.ess>=100&bulk.ess<400)),
               names(which(bulk.ess<100)))
-  lens<-sapply(bulks,length)
+  lens<-lengths(bulks)
   check<-which(lens==len.check)
   if(length(check)>0){
     cat(' - all bulk effective sample sizes look ',c('good','okay','bad')[check],'\n')
   }else{
-    for(i in 1:3){
+    for(i in seq_len(3)){
       if(lens[i]>0){
         cat(' - ',
             if(lens[i]<=5) 'the following ',
@@ -70,21 +72,21 @@ check.ess<-function(fit){
     }
   }
   if(lens[3]>0){
-    cat('...\nParameter estimates unreliable! Run the chain for longer\n\n\n')
+    cat('...\nParameter estimates unreliable! Run the chain for longer\n')
   }else if(lens[2]>0){
-    cat('...\nConsider running the chain for longer for better parameter estimates\n\n\n')
+    cat('...\nConsider running the chain for longer for better parameter estimates\n')
   }else{
-    cat('\n\n\n\n')
+    cat('\n\n')
   }
   tails<-list(names(which(tail.ess>=400)),
               names(which(tail.ess>=100&tail.ess<400)),
               names(which(tail.ess<100)))
-  lens<-sapply(tails,length)
+  lens<-lengths(tails)
   check<-which(lens==len.check)
   if(length(check)>0){
     cat(' - all tail effective sample sizes look ',c('good','okay','bad')[check],'\n')
   }else{
-    for(i in 1:3){
+    for(i in seq_len(3)){
       if(lens[i]>0){
         cat(' - ',
             if(lens[i]<=5) 'the following ',

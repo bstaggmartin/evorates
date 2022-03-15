@@ -1,3 +1,5 @@
+#almost certainly needs cleaning up
+
 #' Select chains in a fitted evolving rates model
 #' 
 #' 
@@ -28,41 +30,37 @@
 #' 
 #' 
 #' @export
-select.chains<-function(fit,chains,simplify=T){
+select.chains<-function(fit,chains,simplify=TRUE){
   #input processing
-  if(length(dim(fit$chains))==2){
-    if(simplify){
-      return(fit)
-    }else{
-      for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-        fit[[i]]<-.expand.element(fit[[i]],simplify=T)
-      }
-    }
+  par.inds<-which(names(fit)!='call'&names(fit)!='sampler.control')
+  for(i in par.inds){
+    fit[[i]]<-.expand.par(fit[[i]])
   }
+  chain.nms<-dimnames(fit$chains)[[3]]
   if(is.numeric(chains)){
-    chains<-paste('chain',chains)
+    chains<-chain.nms[chains]
   }
-  chains.exist<-chains%in%dimnames(fit$chains)[[3]]
-  if(all(!chains.exist)){
-    stop('none of the specified chains found')
-  }
-  if(any(!chains.exist)){
-    warning(paste(chains[which(!chains.exist)],collapse=', '),' not found')
-    chains<-chains[which(chains.exist)]
+  inds<-pmatch(chains,chain.nms)
+  probs<-is.na(inds)
+  if(any(probs)){
+    inds<-inds[!probs]
+    warning('Some chain selections were out of bounds and ignored')
   }
   fit$sampler.control$chains<-length(chains)
-  inds<-match(chains,dimnames(fit$chains)[[3]])
   #subset chains
-  for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-    fit[[i]]<-.index.element(fit[[i]],inds,length(dim(fit[[i]])))
+  for(i in par.inds){
+    type<-.get.par.type(fit[[i]])
+    fit[[i]]<-.add.par.class(fit[[i]][,,inds,drop=FALSE])
+    attr(fit[[i]],'param_type')<-type
     if(simplify){
-      fit[[i]]<-.simplify.element(fit[[i]])
+      fit[[i]]<-.simplify.par(fit[[i]])
     }
   }
   fit
 }
 
 #automatically excludes iterations not included in chains and inits--doesn't make sense anymore
+#would break for a BM fit with 1 parameter--need to work on this
 #' Combine chains in a fitted evolving rates model
 #' 
 #' 
@@ -105,69 +103,81 @@ select.chains<-function(fit,chains,simplify=T){
 #' 
 #' 
 #' @export
-combine.chains<-function(fit,simplify=T){
-  #process input
-  if(length(dim(fit$chains))==2){
-    if(simplify){
-      return(fit)
-    }else{
-      for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-        fit[[i]]<-.expand.element(fit[[i]],simplify=simplify)
+combine.chains<-function(fit,simplify=TRUE){
+  #input processing
+  par.inds<-which(names(fit)!='call'&names(fit)!='sampler.control')
+  nchains<-fit$sampler.control$chains
+  niter<-fit$sampler.control$iter
+  fit$sampler.control$chains<-1
+  fit$sampler.control$warmup<-0
+  fit$sampler.control$iter<-nchains*niter
+  
+  if(nchains==1){ #handle cases where there's only 1 chain already
+    #trim sampler.params if sampler.params still includes warmup iterations not in chains
+    sampler.params<-.make.par.3D(fit[['sampler.params']])
+    diag.len<-dim(sampler.params)[1]
+    targ.len<-dim(.make.par.3D(fit[['chains']]))[1]
+    diff.len<-diag.len-targ.len
+    if(diff.len){
+      sampler.params<-.add.par.class(sampler.params[-seq_len(diff.len),,,drop=FALSE])
+      attr(sampler.params,'param_type')<-'chains'
+      if(simplify){
+        sampler.params<-.simplify.par(sampler.params)
       }
-      chains.len<-dim(fit$chains)[1]
-      diags.len<-dim(fit$sampler.params)[1]
-      if(diags.len-chains.len>0){
-        fit$sampler.params<-.index.element(fit$sampler.params,1:(diags.len-chains.len),1,T)
-      }
-      fit$sampler.control$warmup<-0
-      fit$sampler.control$iter<-chains.len
-      return(fit)
+      fit[['sampler.params']]<-sampler.params
     }
-  }else{
-    fit$sampler.control$chains<-1
-    #trim sampler.params to iterations included in chains
-    chains.len<-dim(fit$chains)[1]
-    diags.len<-dim(fit$sampler.params)[1]
-    if(diags.len-chains.len>0){
-      fit$sampler.params<-.index.element(fit$sampler.params,1:(diags.len-chains.len),1,T)
-    }
-    #combine chains, sampler.params, and param.diags
-    out.chains<-paste(dimnames(fit$chains)[[3]],collapse=', ')
-    for(i in c('chains','sampler.params')){
-      tmp<-do.call(rbind,asplit(fit[[i]],3))
-      fit[[i]]<-array(tmp,c(dim(tmp),1),c(dimnames(fit[[i]])[-3],chains=out.chains))
-    }
-    fit$param.diags<-.index.element(fit$chains,1:4,1)
-    dimnames(fit$param.diags)<-c(diagnostics=list(c('inits','bulk_ess','tail_ess','Rhat')),
-                                 dimnames(fit$chains)[-1])
-    fit$param.diags[1,,]<-NA
-    fit$param.diags[2,,]<-apply(fit$chains,c(2,3),rstan::ess_bulk)
-    fit$param.diags[3,,]<-apply(fit$chains,c(2,3),rstan::ess_tail)
-    fit$param.diags[4,,]<-apply(fit$chains,c(2,3),rstan::Rhat)
-    #redo any other elements
-    for(i in names(fit)[names(fit)%in%c('quantiles','means','MAPs')]){
-      fit[[i]]<-NULL
-      fit[[i]]<-do.call(paste('.int.',i,sep=''),list(fit=fit,select='.|dev'))
-      if(i=='means'|i=='MAPs'){
-        fit[[i]]<-array(fit[[i]],dim(fit[[i]])[-1],dimnames(fit[[i]])[-1])
+    #expand as necessary
+    if(!simplify){
+      for(i in par.inds){
+        fit[[i]]<-.expand.par(fit[[i]])
       }
     }
-    if(!is.null(fit$post.probs)){
-      fit$post.probs<-apply(fit$post.probs,1,mean) #equivalent
-      attr(fit$post.probs,'chains')<-dimnames(fit$chains)[[3]]
-      fit$post.probs<-.expand.element(fit$post.probs)
-      # fit$post.probs<-apply(.int.chains(fit,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
-    }
-    #simplify as needed
-    if(simplify){
-      for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-        fit[[i]]<-.simplify.element(fit[[i]])
+  }else{ #handle cases where chains do need to be combined
+    full<-.call.op('chains',fit,c('.',names(fit$sampler.params)))
+    outdims<-dim(full)
+    outdims[1]<-outdims[1]*outdims[3]
+    outdims[3]<-1
+    outnames<-dimnames(full)
+    outnames[[3]]<-paste(outnames[[3]],collapse=', ')
+    outdims<-outdims[c(1,3,2)]
+    outnames<-outnames[c(1,3,2)]
+    full<-aperm(array((aperm(full,c(1,3,2))),outdims,outnames),c(1,3,2))
+    break.ind<-outdims[3]-9
+    fit$chains<-.add.par.class(full[,seq_len(break.ind),,drop=FALSE])
+    fit$sampler.params<-.add.par.class(full[,seq_len(9)+break.ind,,drop=FALSE])
+    attr(fit$chains,'param_type')<-attr(fit$sampler.params,'param_type')<-'chains'
+    for(i in c('quantiles','diagnostics')){
+      if(!is.null(fit[[i]])){
+        extra.select<-dimnames(.make.par.3D(fit[[i]]))[[1]]
+        fit[[i]]<-NULL
+        fit[[i]]<-.call.op(i,fit,list('.',extra.select),FALSE)
+        if(i=='diagnostics'){
+          fit[[i]][extra.select=='inits',,]<-NA
+        }
       }
     }
-    fit$sampler.control$warmup<-0
-    fit$sampler.control$iter<-chains.len
-    fit
+    #just use averaging for mean-based param_blocks...
+    outnames<-outnames[c(1,3,2)]
+    for(i in c('means','post.probs')){
+      if(!is.null(fit[[i]])){
+        nms<-names(fit[[i]])
+        outdims<-c(1,length(nms),1)
+        outnames[[2]]<-nms
+        fit[[i]]<-.add.par.class(array(.rowMeans(fit[[i]],outdims[2],nchains),outdims,outnames))
+        attr(fit[[i]],'param_type')<-'means'
+      }
+    }
   }
+  
+  #simplify as needed
+  if(simplify){
+    for(i in par.inds){
+      fit[[i]]<-.simplify.par(fit[[i]])
+    }
+  }
+  
+  #output
+  fit
 }
 
 #for getting rid of warmup in chains and related elements
@@ -208,64 +218,25 @@ combine.chains<-function(fit,simplify=T){
 #' 
 #' 
 #' @export
-exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
+exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=TRUE,simplify=TRUE){
   #process input
-  if(length(dim(fit$chains))==2){
-    simplified<-T
-  }else{
-    simplified<-F
-  }
-  if(simplified){
-    for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-      fit[[i]]<-.expand.element(fit[[i]],simplify=T)
-    }
-  }
-  target.len<-fit$sampler.control$iter-warmup
-  diags.len<-dim(fit$sampler.params)[1]
-  #trim sampler as needed if desired
+  fit$sampler.control$warmup<-warmup
+  niter<-fit$sampler.control$iter
+  targ.len<-niter-warmup
+  par.inds<-match('chains',names(fit))
   if(sampler){
-    if(diags.len-target.len>0){
-      fit$sampler.params<-.index.element(fit$sampler.params,1:(diags.len-target.len),1,T)
-    }else if(diags.len-target.len<0){
-      warning('desired number of iterations (',target.len,') is longer than number of available iterations (',diags.len,') in sampler.params element: no iterations excluded from sampler.params')
-    }
+    fit$sampler.control$warmup<-0
+    fit$sampler.control$iter<-targ.len
+    par.inds<-c(par.inds,match('sampler.params',names(fit)))
   }
-  #trim chains as needed if desired
-  chains.len<-dim(fit$chains)[1]
-  if(chains.len-target.len<=0){
-    if(chains.len-target.len<0){
-      warning('desired number of iterations (',target.len,') is longer than number of available iterations (',chains.len,') in chains element: no iterations excluded from chains')
-    }
-    if(!simplified){
-      return(fit)
-    }else{
-      for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-        fit[[i]]<-.simplify.element(fit[[i]])
-      }
-      return(fit)
-    }
-  }else{
-    fit$chains<-.index.element(fit$chains,1:(chains.len-target.len),1,TRUE)
-  }
-  #redo parameter diagnostics (other than inits)
-  fit$param.diags[2,,]<-apply(fit$chains,c(2,3),rstan::ess_bulk)
-  fit$param.diags[3,,]<-apply(fit$chains,c(2,3),rstan::ess_tail)
-  fit$param.diags[4,,]<-apply(fit$chains,c(2,3),rstan::Rhat)
-  #redo any other elements
-  for(i in names(fit)[names(fit)%in%c('quantiles','means','MAPs')]){
-    fit[[i]]<-NULL
-    fit[[i]]<-do.call(paste('.int.',i,sep=''),list(fit=fit,select='.|dev'))
-    if(i=='means'|i=='MAPs'){
-      fit[[i]]<-array(fit[[i]],dim(fit[[i]])[-1],dimnames(fit[[i]])[-1])
-    }
-  }
-  if(!is.null(fit$post.probs)){
-    fit$post.probs<-apply(.int.chains(fit,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
-  }
+  
+  fit<-.proc.dim1.mods(fit,par.inds,targ.len,NULL,NULL)
+  
   #simplify as needed
-  if(simplified){
-    for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-      fit[[i]]<-.simplify.element(fit[[i]])
+  if(simplify){
+    par.inds<-which(names(fit)!='call'&names(fit)!='sampler.control')
+    for(i in par.inds){
+      fit[[i]]<-.simplify.par(fit[[i]])
     }
   }
   fit
@@ -302,56 +273,68 @@ exclude.warmup<-function(fit,warmup=fit$sampler.control$warmup,sampler=T){
 #' 
 #' 
 #' @export
-thin.chains<-function(fit,thin=2){
+thin.chains<-function(fit,thin=2,simplify=TRUE){
   #process input
-  if(thin<=1){
-    return(fit)
-  }
-  if(length(dim(fit$chains))==2){
-    simplified<-T
-  }else{
-    simplified<-F
-  }
-  if(simplified){
-    for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-      fit[[i]]<-.expand.element(fit[[i]],simplify=T)
-    }
-  }
-  #get indices of iterations to be included, modify sampler.control element accordingly
   niter<-fit$sampler.control$iter
-  incl.inds<-setNames(rep(list(seq(1,niter,thin)),2),c('chains','sampler.params'))
-  chains.len<-dim(fit$chains)[1]
-  diags.len<-dim(fit$sampler.params)[1]
-  incl.inds$chains<-incl.inds$chains-niter+chains.len
-  incl.inds$sampler.params<-incl.inds$sampler.params-niter+diags.len
-  incl.inds<-lapply(incl.inds,function(ii) ii[ii>0])
+  thin<-round(thin[1])
+  thin.inds<-seq.int(1,niter,thin)
   fit$sampler.control$iter<-floor(fit$sampler.control$iter/thin)
   fit$sampler.control$warmup<-floor(fit$sampler.control$warmup/thin)
   fit$sampler.control$thin<-fit$sampler.control$thin*thin
-  #thin the chains
-  for(i in c('chains','sampler.params')){
-    fit[[i]]<-.index.element(fit[[i]],incl.inds[[i]],1)
+  par.inds<-match(c('chains','sampler.params'),names(fit))
+  
+  fit<-.proc.dim1.mods(fit,par.inds,NULL,thin.inds,niter)
+  
+  #simplify as needed
+  if(simplify){
+    par.inds<-which(names(fit)!='call'&names(fit)!='sampler.control')
+    for(i in par.inds){
+      fit[[i]]<-.simplify.par(fit[[i]])
+    }
   }
-  #redo parameter diagnostics (other than inits)
-  fit$param.diags[2,,]<-apply(fit$chains,c(2,3),rstan::ess_bulk)
-  fit$param.diags[3,,]<-apply(fit$chains,c(2,3),rstan::ess_tail)
-  fit$param.diags[4,,]<-apply(fit$chains,c(2,3),rstan::Rhat)
-  #redo any other elements
-  for(i in names(fit)[names(fit)%in%c('quantiles','means','MAPs')]){
-    fit[[i]]<-NULL
-    fit[[i]]<-do.call(paste('.int.',i,sep=''),list(fit=fit,select='.|dev'))
-    if(i=='means'|i=='MAPs'){
-      fit[[i]]<-array(fit[[i]],dim(fit[[i]])[-1],dimnames(fit[[i]])[-1])
+  fit
+}
+
+.proc.dim1.mods<-function(fit,par.inds,targ.len,thin.inds,niter){
+  for(i in par.inds){
+    fit[[i]]<-.make.par.3D(fit[[i]])
+    diag.len<-dim(fit[[i]])[1]
+    if(is.null(thin.inds)){
+      diff.len<-diag.len-targ.len
+      if(diff.len<0){
+        stop('Number of iterations to exclude exceeds the total number of iterations in ',
+             if(i==1) 'chains' else 'sampling parameters')
+      }
+      inds<-if(diff.len) -seq_len(diff.len) else substitute()
+    }else{
+      tmp<-niter-diag.len
+      inds<-thin.inds[thin.inds>tmp]-tmp
+    }
+    fit[[i]]<-.add.par.class(fit[[i]][inds,,,drop=FALSE])
+    attr(fit[[i]],'param_type')<-'chains'
+  }
+  for(i in c('quantiles','means','diagnostics')){
+    if(!is.null(fit[[i]])){
+      extra.select<-dimnames(.make.par.3D(fit[[i]]))[[1]]
+      if(i=='diagnostics'){
+        tmp.inds<-extra.select=='inits'
+        inits.save<-fit[[i]][tmp.inds,,,drop=FALSE]
+      }
+      fit[[i]]<-NULL
+      fit[[i]]<-.call.op(i,fit,list('.',extra.select),FALSE)
+      if(i=='diagnostics'){
+        fit[[i]][tmp.inds,,]<-inits.save
+      }
     }
   }
   if(!is.null(fit$post.probs)){
-    fit$post.probs<-apply(.int.chains(fit,'R_\\d+_dev'),c(2,3),function(ii) sum(ii>0)/length(ii))
-  }
-  #simplify as needed
-  if(simplified){
-    for(i in names(fit)[!(names(fit)%in%c('sampler.control','call'))]){
-      fit[[i]]<-.simplify.element(fit[[i]])
-    }
+    Rdevs<-.call.op('chains',fit,'^Rdev_[1-9][0-9]*$|Rdev_[1-9][0-9]*$')
+    Rdevs[Rdevs==0]<-NA
+    Rdevs<-Rdevs>0
+    #add rate deviation posterior probabilities
+    #should never get instances where deviations are perfectly 0...but just in case
+    fit$post.probs<-.call.op('means',list(chains=Rdevs),'.',FALSE)
+    fit$post.probs[is.infinite(fit$post.probs)|is.nan(fit$post.probs)]<-0.5
   }
   fit
 }

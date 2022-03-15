@@ -53,7 +53,9 @@ edge.ranges.evorates_fit<-function(phy){
   edge.ranges.phylo(phy$call$tree)
 }
 
-####CUSTOM METHOD: GET ORDERED VECTOR OF TIP EDGES####
+####CUSTOM METHODs FOR GETTING VARIOUS EDGE INDICES####
+#"tree-walkers" now avoid for loops for the most part and work with polytomies/non-cladwise trees
+#they are SUPER fast and scale well to large trees!
 
 #' @export
 tip.edges<-function(phy,include.names=TRUE){
@@ -77,6 +79,128 @@ tip.edges.evorates_fit<-function(phy,include.names=TRUE){
 #' @export
 tip.edges.evorates<-function(phy,include.names=TRUE){
   tip.edges(phy$tree,include.names)
+}
+
+#' @export
+sis.edges<-function(phy){
+  UseMethod('sis.edges')
+}
+
+#' @export
+sis.edges.phylo<-function(phy){
+  anc<-anc.edges.phylo(phy,commonformat=FALSE)
+  len<-length(anc)
+  out<-rep(list(integer(0)),len)
+  inds<-!is.na(anc)
+  anc2<-anc[inds]
+  tmp<-seq_len(len)
+  des<-c(list(which(!inds)),split(tmp[inds],anc2))
+  ndes<-lengths(des)
+  di<-ndes==2
+  di.des<-unlist(des[di])
+  if(length(di.des)>0){
+    odds<-seq.int(1,length(di.des),2)
+    evens<-odds+1
+    odds<-di.des[odds]
+    evens<-di.des[evens]
+    out[odds]<-evens
+    out[evens]<-odds
+  }
+  poly.des<-des[!di]
+  if(length(poly.des)>0){
+    ndes<-ndes[!di]
+    unlist.poly.des<-unlist(poly.des,use.names=FALSE)
+    out[unlist.poly.des]<-rep(poly.des,ndes)
+    foo<-function(x){
+      tmp<-out[[x]]
+      tmp[tmp!=x]
+    }
+    out[unlist.poly.des]<-lapply(unlist.poly.des,foo)
+  }
+  out
+}
+
+#' @export
+sis.edges.evorates<-function(phy){
+  sis.edges(phy$tree)
+}
+
+#' @export
+sis.edges.evorates_fit<-function(phy){
+  sis.edges(phy$call$tree)
+}
+
+#' @export
+anc.edges<-function(phy){
+  UseMethod('anc.edges')
+}
+
+#' @export
+anc.edges.phylo<-function(phy,commonformat=TRUE){
+  out<-match(phy$edge[,1],phy$edge[,2])
+  if(commonformat){
+    nulls<-is.na(out)
+    out<-as.list(out)
+    out[nulls]<-list(integer(0))
+  }
+  out
+}
+
+#' @export
+anc.edges.evorates<-function(phy){
+  anc.edges(phy$tree)
+}
+
+#' @export
+anc.edges.evorates_fit<-function(phy){
+  anc.edges(phy$call$tree)
+}
+
+#' @export
+des.edges<-function(phy){
+  UseMethod('des.edges')
+}
+
+#' @export
+des.edges.phylo<-function(phy){
+  anc<-anc.edges.phylo(phy,commonformat=FALSE)
+  len<-length(anc)
+  out<-rep(list(integer(0)),len)
+  inds<-!is.na(anc)
+  anc<-anc[inds]
+  tmp<-split(seq_len(len)[inds],anc)
+  out[as.numeric(names(tmp))]<-tmp
+  out
+}
+
+#' @export
+des.edges.evorates<-function(phy){
+  des.edges(phy$tree)
+}
+
+#' @export
+des.edges.evorates_fit<-function(phy){
+  des.edges(phy$call$tree)
+}
+
+#' @export
+root_edges<-function(phy){
+  UseMethod('root_edges')
+}
+
+#' @export
+root_edges.phylo<-function(phy){
+  which(phy$edge[,1]==Ntip(phy)+1)
+}
+
+#' @export
+root_edges.evorates<-function(phy){
+  root_edges(phy$tree)
+}
+
+#' @export
+root_edges.evorates_fit<-function(phy){
+  root_edges(phy$call$tree)
 }
 
 ####CUSTOM METHOD: LADDERIZATION####
@@ -150,30 +274,15 @@ ladder.evorates_fit<-function(phy,right=TRUE){
   ord<-match(apply(lad.tree$edge,1,paste,collapse=','),apply(phy$call$tree$edge,1,paste,collapse=','))
   phy$call$tree<-lad.tree
   loop.inds<-c('^R_[1-9][0-9]*|[%\\(]R_[1-9][0-9]*','^Rdev_[1-9][0-9]*|[%\\(]Rdev_[1-9][0-9]*')
-  for(i in names(phy)){
-    if(!(i%in%c('call','sampler.control','sampler.params'))){
-      if(is.null(dim(phy[[i]]))){
-        isvec<-T
-        phy[[i]]<-.expand.element(phy[[i]])
-      }else{
-        isvec<-F
-      }
-      old.dimnames<-dimnames(phy[[i]])
-      param.dim<-which(names(old.dimnames)=='parameters')
-      nparams<-length(old.dimnames[[param.dim]])
-      for(j in loop.inds){
-        tmp.inds<-grep(j,old.dimnames[['parameters']])
-        if(length(tmp.inds)>0){
-          tmp.inds<-tmp.inds[ord]
-          tmp.min<-min(tmp.inds)
-          tmp.max<-max(tmp.inds)
-          new.inds<-c((1:tmp.min)[-tmp.min],tmp.inds,(tmp.max:nparams)[-1])
-          phy[[i]]<-.index.element(phy[[i]],new.inds,param.dim,allow.reorder=TRUE)
-        }
-      }
-      dimnames(phy[[i]])<-old.dimnames
-      if(isvec){
-        phy[[i]]<-.simplify.element(phy[[i]])
+  par.inds<-which(names(phy)!='call'&names(phy)!='sampler.control'&names(phy)!='sampler.params')
+  for(i in par.inds){
+    phy[[i]]<-.expand.par(phy[[i]])
+    param.nms<-names(phy[[i]])
+    #WILL BREAK with 4D arrays...but not really a worry for now
+    for(j in loop.inds){
+      tmp.inds<-grep(j,param.nms)
+      if(length(tmp.inds)>0){
+        phy[[i]][,tmp.inds,]<-phy[[i]][,tmp.inds[ord],,drop=FALSE]
       }
     }
   }

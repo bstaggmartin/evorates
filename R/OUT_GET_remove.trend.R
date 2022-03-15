@@ -1,0 +1,37 @@
+#' @export
+remove.trend<-function(fit,
+                       select=seq_len(Nedge(fit)),
+                       type=c('chains','quantiles','means','diagnostics'),
+                       extra.select=NULL,
+                       simplify=TRUE){
+  select<-.check.edge.indices(select,
+                              deparse(substitute(select)),
+                              Nedge(fit))
+  type<-.match.type(type)
+  if(fit$call$trend){
+    if(!fit$call$constrain.Rsig2){
+      Rmu<-fit$chains%select%'R_mu'
+      er<-edge.ranges(fit)[select,,drop=FALSE]
+      el<-fit$call$tree$edge.length[select]
+      out<-get.R(fit,type='chains',select=select,simplify=FALSE)-
+        (-log(abs(Rmu))-log(el)+log(abs(exp(Rmu*er[,2])-exp(Rmu*er[,1]))))
+    }else{
+      fit$call$trend<-FALSE
+    }
+  }
+  if(!fit$call$trend){
+    out<-get.R(fit,
+               select=select,
+               type=type,
+               extra.select=extra.select,
+               simplify=FALSE)
+  }else{
+    out<-list(chains=out,sampler.params=1) #"cheating"--just so sampler.params isn't NULL
+    out<-.call.op(type,out,list('.',extra.select),FALSE)
+  }
+  names(out)<-paste0('uncent_Rdev_',select)
+  if(simplify){
+    out<-.simplify.par(out)
+  }
+  out
+}
