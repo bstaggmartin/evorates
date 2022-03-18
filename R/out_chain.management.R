@@ -107,10 +107,11 @@ combine.chains<-function(fit,simplify=TRUE){
   #input processing
   par.inds<-which(names(fit)!='call'&names(fit)!='sampler.control')
   nchains<-fit$sampler.control$chains
-  niter<-fit$sampler.control$iter
   fit$sampler.control$chains<-1
   fit$sampler.control$warmup<-0
-  fit$sampler.control$iter<-nchains*niter
+  #warmup won'ts always be excluded...below is safer
+  fit$chains<-.expand.par(fit$chains)
+  fit$sampler.control$iter<-dim(fit$chains)[1]*nchains
   
   if(nchains==1){ #handle cases where there's only 1 chain already
     #trim sampler.params if sampler.params still includes warmup iterations not in chains

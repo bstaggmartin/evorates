@@ -324,7 +324,7 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
     simple.name<-gsub('_\\d+\\.csv$|\\.csv$|_info$','',run.evorates.obj)
     directory<-dirname(simple.name)
     file.list<-list.files(directory)
-    file.strings<-grep(paste0(basename(simple.name),'_\\d+\\.csv'),file.list,value=TRUE)
+    file.strings<-grep(paste0('^',basename(simple.name),'_\\d+\\.csv'),file.list,value=TRUE)
     if(length(file.strings)>0){
       file.strings<-paste0(simple.name,
                            substr(file.strings,regexpr('_\\d+\\.csv',file.strings),nchar(file.strings)))

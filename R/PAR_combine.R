@@ -50,7 +50,7 @@ c.param_block<-function(...,fit=NULL){
   if(length(type.par)==1){
     type.par<-list(.expand.par(type.par[[1]]))
   }else if(length(type.par)>1){
-    check<-do.call(.check.dims.compat,type.par)
+    check<-do.call(.compatible.dims.check,type.par)
     if(!check[[4]]){
       if(!check[[5]][2]){
         stop('only param_blocks with the same chains can be combined')
@@ -88,7 +88,7 @@ c.param_block<-function(...,fit=NULL){
   if(length(chain.par)==1){
     chain.par<-list(.expand.par(chain.par[[1]]))
   }else if(length(chain.par)>1){
-    check<-do.call(.check.dims.compat,chain.par)
+    check<-do.call(.compatible.dims.check,chain.par)
     if(!check[[4]]){
       if(!check[[5]][2]){
         stop('only param_blocks with the same chains can be combined')
