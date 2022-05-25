@@ -426,7 +426,7 @@
     tmp.args<-tmp.args[names(tmp.args)%in%.recyclables()]
     names(tmp.args)[names(tmp.args)=='col']<-'fill'
     names(tmp.args)[names(tmp.args)=='lty']<-'fill.lty'
-    names(tmp.args)[names(tmp.args)=='lty']<-'fill.lwd'
+    names(tmp.args)[names(tmp.args)=='lwd']<-'fill.lwd'
     #overwrites
     tmp.args<-tmp.args[!(names(tmp.args)%in%names(legend.args))]
     legend.args<-c(legend.args,tmp.args)
@@ -445,13 +445,17 @@
     x<-x[!nas]
     n<-n-sum(nas)
   }
-  x<-c(x,0)
-  p[p>1]<-1
-  p[p<0]<-0
-  tmp<-p*(n-1)+1
-  j<-floor(tmp)
-  g<-tmp-j
-  (1-g)*x[j]+g*x[j+1]
+  if(!n){
+    NA
+  }else{
+    x<-c(x,0)
+    p[p>1]<-1
+    p[p<0]<-0
+    tmp<-p*(n-1)+1
+    j<-floor(tmp)
+    g<-tmp-j
+    (1-g)*x[j]+g*x[j+1]
+  }
 }
 
 .get.windows<-function(w){

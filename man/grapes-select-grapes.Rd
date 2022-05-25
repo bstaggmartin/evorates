@@ -2,10 +2,87 @@
 % Please edit documentation in R/OUT_OPS_main.R
 \name{\%select\%}
 \alias{\%select\%}
+\alias{\%s\%}
 \title{Extract subsets from a parameter block}
 \usage{
 x \%select\% select
+
+x \%s\% select
+}
+\arguments{
+\item{x}{An object of class "\code{param_block}" with any \code{param_type}.}
+
+\item{select}{A list with two elements (2nd element is optional):
+\itemize{
+\item{A character or numeric vector for selecting parameters. If a character vector, entries are
+matched to parameter names using partial matching. If a numeric vector, a number \code{i} will
+select the \code{i}th parameter in \code{x}.}
+\item{A numeric or character vector for specifying samples, quantiles, or diagnostics
+based on the \code{param_type} of \code{x}. This is ignored if \code{x} is of \code{param_type}
+"\code{means}". If unsupplied, defaults to including all samples/quantiles/diagnostics. If a
+numeric vector, a number \code{i} will select the \code{i}th sample/quantile/diagnostic in
+\code{x}. If a character vector, entries are matched to sample/quantile/diagnostic names using
+partial matching. Note that samples don't have names in the case \code{chains param_block}
+arrays--in this case, character vectors are automatically converted to numeric vectors.}
+}}
+}
+\value{
+An array of class "\code{param_block}" with the same \code{param_type} as \code{x}.
+The dimension of these arrays will generally go in the order of samples/quantiles/diagnostics,
+then parameters, then chains. Any dimensions of length 1 are collapsed and stored as attributes.
 }
 \description{
-Extract subsets from a parameter block
+This operator extracts particular parameter quantities from a \code{param_block} array.
 }
+\details{
+This function can be used instead of the other \code{param_block} operators to emulate
+a more "traditional" means of subsetting arrays comparable to \code{data.frame} objects. Since it
+relies on partial matching, rather than regular expressions, any name will extract either 0 or 1
+parameters, samples, quantiles, or diagnostics, depending on whether the name had a clear match
+or not. Furthermore, any number \code{i} will extract that \code{i}th parameter, sample,
+quantile, or diagnostic, rather than using "special" rules (branchwise rate searching, etc.).
+Note that out of bound numbers are ignored, rather than returning \code{NA}s. Other
+\code{param_block} conventionsare still enforced: collapsed dimensions have their information
+stored as attributes and specific chains cannot be selected. You still have to use
+\link{select.chains} on \emph{entire} \code{evorates_fit} objects for selecting particular chains.
+}
+\examples{
+#get whale/dolphin evorates fit
+data("cet_fit")
+
+#get a chains param_block array
+par <- cet_fit \%chains\% "R"
+#note partial match vs. regular expressions behavior
+par \%select\% "R_1"
+par \%select\% list(NULL)
+#note numeric index selection behavior change too
+par \%select\% 1
+
+#get a quantiles param_block array
+par <- cet_fit \%quantiles\% "R"
+#note numeric index selection behavior change for quantiles
+par \%select\% list(1, 1)
+
+#get a means param_block array
+par <- cet_fit \%means\% "R"
+#note 2nd element of list is ignored
+par \%select\% list(1, 2)
+
+#get a diangostics param_block array
+par <- cet_fit \%diagnostics\% "R"
+#note partial vs. regular expressions behavior for selecting diagnostics
+par \%select\% list(1, "bulk")
+par \%select\% list(1, "ess") #returns empty array with warning
+
+
+}
+\seealso{
+This function relies on \link{pmatch} for partial matching.
+
+Other param_block operators: 
+\code{\link{\%chains\%}()},
+\code{\link{\%diagnostics\%}()},
+\code{\link{\%means\%}()},
+\code{\link{\%quantiles\%}()}
+}
+\concept{param_block operators}

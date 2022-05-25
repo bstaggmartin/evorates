@@ -45,8 +45,8 @@ labeled (see \code{trait.data}). Alternatively, a single, unlabeled number that 
 (the default), standard error is estimated for all tips in the tree while fitting the model. There are several
 things to note here: 
 \itemize{
-\item{unlike \code{trait.data}, there can only be 1 trait standard error per tip.}
-\item{you can use \code{NA} to specify tips that you want to estimate standard error for and \code{Inf} to
+\item{Unlike \code{trait.data}, there can only be 1 trait standard error per tip.}
+\item{You can use \code{NA} to specify tips that you want to estimate standard error for and \code{Inf} to
 specify tips that have missing trait values.}
 \item{Generally, tips with multiple observations and no observations are automatically assigned standard errors
 of \code{NA} and \code{Inf}, respectively.}
@@ -54,12 +54,12 @@ of \code{NA} and \code{Inf}, respectively.}
 }
 Any conflicting/impossible standard error specifications are corrected and return warnings.}
 
-\item{constrain.Rsig2}{\code{TRUE} or \code{FALSE}: should the \code{R_sig2} parameter be constrained to 0,
-resulting in a simple Brownian Motion or Early/Late Burst model? Defaults to \code{FALSE}. See Details for a
+\item{constrain.Rsig2}{\code{TRUE} or \code{FALSE}: should the rate varinace (\code{R_sig2}) parameter be constrained to 0,
+resulting in a simple Brownian Motion or early/late burst model? Defaults to \code{FALSE}. See Details for a
 definition of model parameters.}
 
-\item{trend}{\code{TRUE} or \code{FALSE}: should a trend in rates over time (\code{R_mu})  be estimated,
-resulting in an Early/Late Burst or trended evorates model? Defaults to \code{FALSE}.}
+\item{trend}{\code{TRUE} or \code{FALSE}: should a trend in rates over time (\code{R_mu}) be estimated,
+resulting in an early/late burst or trended evorates model? Defaults to \code{FALSE}.}
 
 \item{lik.power}{A single number between 0 and 1 specifying what power to raise the likelihood function to.
 This is useful for sampling from "power posteriors" that shift the posterior to look more like the prior (indeed,
@@ -69,12 +69,12 @@ this is not beneficial for evorates models and we don't recommend it.}
 
 \item{sampling.scale}{\code{TRUE} or \code{FALSE}: should provided prior parameters (see \code{...}) be
 interpreted on the raw scale of the data or on the transformed scale? All data passed to the Stan-based HMC
-sampler are transformed such that \code{tree}'s total height is 1 and the standard deviation of the trait data
-is 1. Defaults to \code{FALSE}, such prior parameters are interpreted on the untransformed scale.}
+sampler are transformed such that \code{tree}'s total height is 1 and the variance of the trait data
+is 1. Defaults to \code{FALSE}, such that prior parameters are interpreted on the untransformed scale.}
 
 \item{return.as.obj}{\code{TRUE}or \code{FALSE}: should results be passed back to the R
 environment as a \code{evorates_fit} object? Defaults to \code{TRUE}. If \code{FALSE}, results are saved to files
-instead with an automatically generated names (see below).}
+with automatically generated names instead (see below).}
 
 \item{out.file}{A directory to save results to. If unspecified, an automatic directory is
 generated based on the current date and time and R's working directory. The function will generate csv files
@@ -92,34 +92,46 @@ a long time for folders with many files, so some users may wish to just switch i
 always included for parameters used to tune the HMC chain, but warmup may be included or excluded for actual
 estimated parameters. Defaults to \code{FALSE}.}
 
-\item{report.quantiles}{A vecotr posterior distribution quantiles to return (should be between 0 and 1). Set to
+\item{report.quantiles}{A vector of posterior distribution quantiles to return (should be between 0 and 1). Set to
 \code{NULL} to not return any quantiles. Defaults to 2.5\%, 50\%, and 97.5\% quantiles.}
 
 \item{report.means}{\code{TRUE} or \code{FALSE}: should posterior distribution means be returned? Defaults to
 \code{TRUE}.}
 
-\item{report.devs}{\code{TRUE} or \code{FALSE}: should the difference between time-averaged rates along each
-branch of \code{tree} and the overall average rate on the natural log scale ("rate deviations") be returned?
-If \code{TRUE}, also
-calculates the posterior probability a particular time-averaged rate is greater than the overall average. These
-additional parameters help give a sense of which branches in \code{tree} exhibit anomalous trait evolution rates
-under the model. Defaults to \code{TRUE}, but is automatically switched to \code{FALSE} when fitting a Brownian
+\item{report.devs}{\code{TRUE} or \code{FALSE}: should the difference between branchwise rates 
+and the overall "background rate" on the natural log scale ("rate deviations") be returned?
+The background rate is simply the mean branchwise rate, weighted by each branch's respective length.
+If \code{TRUE}, also calculates the posterior probability rate deviations are greater than 0. These
+additional parameters help give a sense of which branches in \code{tree} exhibit anomalous trait evolution rates.
+Defaults to \code{TRUE}, but is automatically switched to \code{FALSE} when fitting a Brownian
 Motion model (\code{constrain.Rsig2 = FALSE & trend = FALSE}).}
 
 \item{remove.trend}{\code{TRUE} or \code{FALSE}: should the rate deviation calculations remove (i.e., "account for") the
-effect of trends in rates over time? This is sometimes helpful since strong trends in rates can mask otherwise anomalously
+effect of trends in rates over time? This may be helpful since strong trends in rates can mask otherwise anomalously
 high or low trait evolution rates in certain parts of the tree. Defaults to \code{TRUE}, but has no effect if no trend was
-fitted or if \code{report.devs} is \code{FALSE}.}
+fitted or if \code{report.devs} is \code{FALSE}. If \code{TRUE}, note that \code{report.devs} will be switched to \code{FALSE}
+if fitting early/late burst model (\code{constrain.Rsig2 = FALSE & trend = TRUE}).}
 
 \item{...}{Other optional arguments:
 \itemize{
-\item{Prior arguments: priors on \code{R_0} and \code{R_sig2} follow normal distributions, while priors on \code{R_sig2}
-and \code{Y_sig2} follow half-Cauchy distributions, which are basically half-normal distributions with extremely fat tails.
-Both the mean and standard deviation of \code{R_0}/\code{R_sig2} priors can be tweaked, while only the standard deviation of
-\code{R_sig2}/\code{Y_sig2} can be tweaked. See Details for definitions of what these parameters
-mean. To specify a prior mean, pass an argument named "\code{<parameter name>_mean}" (e.g., "\code{R_0_mean}"),
-and to specify a prior standard deviation, pass an argument named "\code{<parameter name>_sd}" (e.g.,
-"\code{R_mu_sd}").}
+\item{Prior arguments (see details for further information on what parameters mean):
+\itemize{
+\item{In general, prior standard deviations and, in some cases, means, can be tweaked by passing arguments
+      named "<parameter_name>_sd" and "<parameter_name>_mean", respectively. For example:
+      \code{R_mu_mean = 1} or \code{R_sig2_sd = 1}.}
+\item{Prior on rate variance (\code{R_sig2}): Follows a half-Cauchy distribution (basically a half-normal distribution 
+      with extremely fat tails) with adjustable standard deviation. By default, standard deviation is set to 5 divided
+      by the maximum height of \code{tree} (i.e., 5 on the sampling scale).}
+\item{Prior on trend (\code{R_mu}): Follows a normal distribution with adjustable mean and standard deviation. By
+      default, mean is set to 0 (also 0 on sampling scale), and standard deviation is set to 10 divided by the
+      maximum height of \code{tree} (i.e., 10 on the sampling scale).}
+\item{Prior on rate at the root (\code{R_0}): Follows a normal distribution with adjustable mean and standard deviation.
+      By default, mean is set to variance of \code{trait.data} divided by the maximum height of \code{tree} on the
+      natural log scale (i.e., 0 on sampling scale), and standard deviation is set to 10 (also 10 on sampling scale).}
+\item{Prior on tip error variance (\code{Y_sig2}): Follows a half-Cauchy distribution (basically a half-normal
+      distribution with extremely fat tails) with adjustable standard deviation. By default, standard deviation is set
+      to 2 times the variance \code{trait.data} (i.e., 2 on the sampling scale).}
+}}
 \item{Additional arguments to pass to \code{rstan::sampling()}, most commonly:
 \itemize{
 \item{\code{chains} to specify the number of HMC chains (defaults to 4)}
@@ -133,13 +145,10 @@ suppressed by setting to 0 or less)}
 See \code{?rstan::sampling} and \code{?rstan::stan} for further details.}
 }}
 }}
-
-\item{report.MAPs}{\code{TRUE} or \code{FALSE}: should maximum a posteriori parameter estimates be returned?
-Defaults to \code{FALSE}.}
 }
 \value{
-An object of class "\code{evorates_fit}" if \code{return.as.obj = TRUE}. Otherwise, nothing, as results
-are saved to file instead (see \code{out.file} for details). An \code{evorates_fit} object is a list of at least
+An object of class "\code{evorates_fit}" if \code{return.as.obj = TRUE}. Otherwise, the directory
+results were saved to (see \code{out.file} for details). An \code{evorates_fit} object is a list of at least
 5 components:
 \itemize{
 \item{\code{call}, which contains information on the final tree, trait values, trait standard errors, and prior
@@ -147,34 +156,110 @@ parameters passed to Stan's HMC sampling algorithm (on untransformed scale for b
 see \code{sampling.scale}).}
 \item{\code{sampler.control}, which contains various information on the HMC run, including the number of chains,
 iterations, warmup, thinning rate, etc.}
-\item{\code{sampler.params}, an array of parameters/diagnostics that were used to tune the behavior of the HMC
-while Stan ran it, as well as the (log) prior (\code{prior}), likelihood (\code{lik}), and posterior probability
-(\code{post}) of each iteration in the HMC. See Stan manual for more information on what the parameters mean.
-The likelihood is not raised to \code{lik.power} here, but the log posterior probability is calculated while
-accounting for \code{lik.power}. This always includes warmup iterations, though these can be discarded using
-\code{exclude.warmup()} or \code{combine.chains()}.}
-\item{\code{param.diags}, an array of diagnostics for each parameter estimated during the fit, including the
+\item{\code{sampler.params}, an array of class "\code{param_block}", containing parameters/diagnostics that were used to tune
+the behavior of the HMC while Stan ran it, as well as the (log) prior (\code{prior__}), likelihood (\code{lik__}),
+and posterior probability (\code{post__}) of each iteration in the HMC. See Stan manual for more information on
+what the parameters mean. The likelihood is not raised to \code{lik.power} here, but the log posterior probability
+is calculated while accounting for \code{lik.power}. This always includes warmup iterations, though these can be
+discarded using \code{exclude.warmup()} or \code{combine.chains()}.}
+\item{\code{param.diags}, a \code{param_block} array, containing diagnostics for each parameter
+estimated during the fit, including the
 initial value of the HMC chain (\code{init}), the bulk effective sample size (\code{bulk_ess}), the tail
 effective sample size (\code{tail_ess}), and the Rhat (\code{Rhat}). See \code{?rstan::Rhat} for more details
-on what these diagnostics mean. Generally, you want effective sample sizes to be greater than 100 and Rhat to be
-less than 1.05.}
-\item{\code{chains}, an array of sampled parameter values for each parameter estimated during the fit. See
+on what these diagnostics mean. Generally, you want effective sample sizes to be greater than 400ish and Rhat to be
+less than 1.01ish. The functions \code{check.ess()} and \code{check.mix()} will check these thresholds for you
+automatically.}
+\item{\code{chains}, another \code{param_block} array containing sampled parameter values for each parameter estimated during the fit. See
 details for further information on what each parameter means.}
-\item{The object optionally contains arrays of posterior distribution quantiles (\code{quantiles}) and means
-(\code{means}), posterior probabilities (\code{post.prob}, see \code{report.devs} and \code{remove.trend}),
-and maximum a posteriori parameter estimates (\code{MAPs}).}
+\item{The object optionally contains more \code{param_block} arrays of posterior distribution quantiles (\code{quantiles})
+and means (\code{means}), and posterior probabilities (\code{post.prob}, see \code{report.devs} and \code{remove.trend}).}
 }
-All arrays' dimensions go in the order of iterations/diagnostics/quantiles, then parameters, then chains.
+All \code{param_block} arrays' dimensions go in the order of iterations/diagnostics/quantiles, then parameters, then chains.
 }
 \description{
 This function processes tree and trait data, runs a Stan-based Hamiltonian Monte Carlo (HMC) sampler to fit
 these data to an evorates model, and returns the output of this sampler in a (relatively) user-friendly format.
 }
 \details{
-PARAMETER DEFINITIONS HERE
+Parameter definitions:
+\itemize{
+\item{Rate variance (\code{R_sig2}, also denoted \eqn{\sigma^2_{\sigma^2}}{\sigma^2[\sigma^2]}): Determines how much random variation
+      accumulates in rates over time. Specifically, independent lineages evolving for a length of time \code{t} would exhibit log-normally
+      distributed rates with standard deviation \code{sqrt(t * R_sig2)}. Another way to think about this is that the 95\% credible interval 
+      for fold-changes in rates over 1 unit of time is given by \code{exp(c(-1,1) * 1.96 * sqrt(R_sig2))}, assuming \code{R_mu = 0.}}
+\item{Trend (\code{R_mu}, also denoted \eqn{\mu_{\sigma^2}}{\mu[\sigma^2]}): Determines whether median rates tend to decrease (if
+      negative) or increase (if positive) over time. Specifically, the median fold-change in rate for a given lineage is 
+      \code{exp(t * R_mu)} over a length of time \code{t}. This is distinct from changes in average rates, which depends on both
+      \code{R_mu} and \code{R_sig2}.}
+\item{Note on combining rate variance and trend parameters: The 95\% credible interval 
+      for fold-changes in rates over 1 unit of time, given a trend, is simply
+      \code{exp(R_mu) * exp(c(-1,1) * 1.96 * sqrt(R_sig2))} or equivalently \code{exp(R_mu + c(-1,1) * 1.96 * sqrt(R_sig2))}.
+      This distribution of rate change is right-skewed due to the \code{exp()} function. Because of this, median changes in rates
+      over time will always be lower than average changes. The "average change" parameter, denoted \code{R_del} or
+      \eqn{\delta_{\sigma^2}}{\delta[\sigma^2]}, is given by \code{R_mu + R_sig2 / 2}. Accordingly, the average fold-change in rate
+      for a given lineage is \code{exp(t * R_del)} over a length of time \code{t}.}
+\item{Tip error variance (\code{Y_sig2}, also denoted \eqn{\sigma^2_y}{\sigma^2[y]}): Determines the among of "error" around observed
+      trait values for tips without fixed standard errors. Specifically, raw observations for a given tip are sampled from a normal
+      distribution centered at that tip's "true trait value" with standard deviation \code{sqrt(Y_sig2)}.}
+\item{Rate at the root (\code{R_0}, also denoted \eqn{\sigma^2_0}{\sigma^2[0]}): The natural log of the rate at the root of the entire phylogeny.}
+\item{Branchwise rates (\code{R_i}, also denoted \eqn{ln \bar{\sigma^2_i}}{ln \sigma^2[i]}, where i is the index of an edge in \code{tree}): 
+      The natural log of the average rate along branches of the phylogeny. Note that rates are always shifting over time under this model,
+      and these quantities are thus averages. The true rate value at any particular time point along a branch is a related, but separate,
+      quantity. These will be NA for branches of length 0.}
+\item{Background rate (\code{bg_rate}): The natural log of the average trait evolution rate for the entire phylogeny, given by the average of
+      \code{exp(R_i)}, with each entry weighted by its respective branch length. NAs are ignored in this calculation since they correspond
+      to branches of length 0.}
+\item{Branchwise rate deviations (\code{Rdev_i}, also denoted ln \eqn{\bar{\sigma^2_{dev,i}}}{ln \sigma^2[dev,i]}): Determines whether a
+      branches exhibit relatively "fast" (if positive) or "slow" rates (if negative). Generally, these are the differences
+      between the branchwise rates and \emph{geometric} background rate on the natural log scale,
+      though this depends on \code{remove.trend)}. Here, the geometric background rate is defined as the weighted average of \code{R_i},
+      with weights corresponding to branch lengths. This helps prevent some issues with comparing highly right-skewed distributions.
+      If \code{remove.trend = TRUE}, then branchwise rates are first "detrended" prior to calculating background rates and deviations
+      (\code{R_i - (-log(abs(R_mu)) - log(l_i) + log(abs(exp(R_mu * t1_i) - exp(R_mu * t0_i))))}, where \code{l} is a vector of
+      branch lengths and \code{t0}/\code{t1} are vectors of start and end times of each branch). This basically make branchwise rate deviations
+      determine whether branches exhibit slow/fast rates \emph{given} the overall trend in rates through time. Otherwise, branchwise rate
+      deviations will simmply indicate slow/fast branches occur at the root/tips of a tree in the presence of a strong trend.}
+}
 }
 \examples{
+#get whale/dolphin tree/trait data
+data("cet_fit")
+tree <- cet_fit$call$tree
+X <- cet_fit$call$trait.data
+
+#fit data to evorates model (takes a couple minutes)
+fit <- fit.evorates(tree = tree, trait.data = X, chains = 1)
+
+#specifying parameter constraints
+#add trend parameter
+trend.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+                          trend = TRUE)
+#only trend parameter (early burst model)
+EB.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+                       trend = TRUE, constrain.Rsig2 = TRUE)
+#no Rsig2 or trend (Brownian Motion model)
+BM.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+                       constrain.Rsig2 = TRUE)
+
+#specifying trait standard error
+#by default, estimates standard error, but you can set all tips to have no standard error
+noSE.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+                         trait.se = 0)
+#or even set it for specific tips
+SE.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1
+                       trait.se = setNames(c(1, 2), c("Orcinus_orca", "Balaenoptera_musculus")))
+                       
+#specifying priors
+#make Rsig2 prior tighter (normally it's 5)
+Risg2.fit <- fit.evorates(tree  = tree, trait.data = X, chains = 1,
+                          R_sig2_prior_sd = 1, sampling.scale = TRUE)
+#maybe you REALLY believe rates should decrease by ~1\% every million years?
+Rmu.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+                        trend = TRUE,
+                        R_mu_prior_mean = log(1 - 0.01), R_mu_prior_sd = log(1 + 0.005))
 
 
 }
-\concept{evorates fitting functions}
+\seealso{
+\link{fit.evorates} is a convenient wrapper for \link{input.evorates}, \link{run.evorates}, and \link{output.evorates}
+}

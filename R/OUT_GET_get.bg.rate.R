@@ -16,7 +16,7 @@ get.bg.rate<-function(fit,
   type<-.match.type(type)
   #computational speed-ups possible by not defaulting to chain selection than coercing later...but this is much cleaner code
   FUN<-if(remove.trend) evorates::remove.trend else evorates::get.R
-  Rs<-lapply(edge.groups,FUN,fit=fit,type="chains",simplify=simplify)
+  Rs<-lapply(edge.groups,FUN,fit=fit,type="chains",simplify=FALSE)
   foo<-function(x){
     els<-tree$edge.length[x]
     els/sum(els)
@@ -25,6 +25,11 @@ get.bg.rate<-function(fit,
   bg.Rs<-if(geometric) Rs else lapply(Rs,exp)
   nms<-names(bg.Rs[[1]])[1]
   bg.Rs<-lapply(seq_along(edge.groups),function(ii) sum(bg.Rs[[ii]]*wgts[[ii]]))
+  if(type=='diagnostics'){
+    inits.Rs<-lapply(edge.groups,FUN,fit=fit,type='diagnostics',extra.select='inits',simplify=FALSE)
+    inits.bg.Rs<-if(geometric) inits.Rs else lapply(inits.Rs,exp)
+    inits.bg.Rs<-lapply(seq_along(edge.groups),function(ii) sum(inits.bg.Rs[[ii]]*wgts[[ii]]))
+  }
   
   #name making
   tmp<-regexpr('R_\\d+|Rdev_\\d+',nms)
@@ -71,10 +76,24 @@ get.bg.rate<-function(fit,
     if(!is.null(final.fun)){
       x<-do.call(final.fun,list(x))
     }
-    tmp<-list(chains=x,sampler.params=1) #"cheating"--just so sampler.params isn't NULL
+    tmp<-list(chains=x,sampler.control=1) #"cheating"--just so sampler.params isn't NULL
     out<-.call.op(type,tmp,list('.',extra.select),FALSE)
   }
   out<-lapply(bg.Rs,foo)
+  if(type=='diagnostics'){
+    inds<-dimnames(out[[1]])[[1]]=='inits'
+    n.inds<-sum(inds)
+    if(n.inds){
+      for(i in seq_along(out)){
+        if(!is.null(final.fun)){
+          tmp<-do.call(final.fun,inits.bg.Rs[i])
+        }else{
+          tmp<-inits.bg.Rs[[i]]
+        }
+        out[[i]][inds,,]<-rep(tmp,each=n.inds)
+      }
+    }
+  }
   if(keep.R){
     if(!log){
       final.fun<-'exp'
@@ -82,6 +101,18 @@ get.bg.rate<-function(fit,
       final.fun<-NULL
     }
     Rs<-lapply(Rs,foo)
+    if(type=='diagnostics'){
+      if(n.inds){
+        for(i in seq_along(Rs)){
+          if(!is.null(final.fun)){
+            tmp<-do.call(final.fun,inits.Rs[i])
+          }else{
+            tmp<-inits.Rs[[i]]
+          }
+          Rs[[i]][inds,,]<-rep(tmp,each=n.inds)
+        }
+      }
+    }
     if(simplify){
       out<-lapply(out,.simplify.par)
       Rs<-lapply(Rs,.simplify.par)

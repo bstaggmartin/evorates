@@ -28,8 +28,15 @@ get.post.traits<-function(fit,
     tmp.extra.select<-NULL
   }
   R<-get.R(fit,type='chains',extra.select=tmp.extra.select,simplify=FALSE)
-  R<-exp(R)*tree$edge.length
   niter<-dim(R)[1]
+  #add in inits
+  if(type=='diagnostics'){
+    inds<-c(1,seq_len(niter))
+    R<-.call.select(R,list(NULL,inds))
+    R[1,,]<-get.R(fit,type='diagnostics',extra.select='inits',simplify=FALSE)
+    niter<-niter+1
+  }
+  R<-exp(R)*tree$edge.length
   
   #trait.data code, mainly taken from FIT_main--might be good to consolidate...
   trait.data<-fit$call$trait.data
@@ -48,6 +55,10 @@ get.post.traits<-function(fit,
   trait.se<-as.vector(fit$call$trait.se)
   if(!is.null(fit$call$Ysig2_prior_sig)){
     Ysig2<-.call.op('chains',fit,list('^Y_sig2$',tmp.extra.select),FALSE)
+    if(type=='diagnostics'){
+      Ysig2<-.call.select(Ysig2,list(NULL,inds))
+      Ysig2[1,,]<-.call.select(fit$diagnostics,list('Y_sig2','inits'))
+    }
     Ysig2<-Ysig2/n_obs
     names(Ysig2)<-tree$tip.label
     Ysig2<-.strip.par.class(Ysig2)
@@ -134,7 +145,15 @@ get.post.traits<-function(fit,
   }
   
   #output
+  if(type=='diagnostics'){
+    inits.XX<-XX[1,,,drop=FALSE]
+    XX<-.make.par(XX[-1,,,drop=FALSE])
+  }
   XX<-.call.op(type,list(chains=XX,sampler.control=1),list(select,extra.select),FALSE)
+  if(type=='diagnostics'){
+    inds<-dimnames(XX)[[1]]=='inits'
+    XX[inds,,]<-rep(inits.XX,each=sum(inds))
+  }
   if(simplify){
     XX<-.simplify.par(XX)
   }

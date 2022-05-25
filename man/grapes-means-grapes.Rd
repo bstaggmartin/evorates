@@ -2,10 +2,115 @@
 % Please edit documentation in R/OUT_OPS_main.R
 \name{\%means\%}
 \alias{\%means\%}
+\alias{\%m\%}
 \title{Extract posterior distribution means from a fitted evorates model}
 \usage{
 fit \%means\% select
+
+fit \%m\% select
+}
+\arguments{
+\item{fit}{An object of class "\code{evorates_fit}" or "\code{param_block}". If \code{fit} is a
+\code{param_block} array, it must have a \code{param_type} of "\code{chains}" or
+"\code{means}".}
+
+\item{select}{A character or numeric vector for selecting parameters. If a character vector, entries are
+matched to parameter names using regular expressions, with one key exception: if any entries are
+\emph{exact} matches to sampling parameter names, these will be used to select parameters from
+the \code{sampler.params} element of \code{fit} instead, if it exists (see details). If a 
+numeric vector, entries are matched to edge indices to select branchwise rate parameters;
+these can be negative to instead \emph{exclude} branchwise rates. If no branchwise rate parameters
+are found, a number \code{i} will instead select the \code{i}th parameter in \code{fit}.}
+}
+\value{
+An array of class "\code{param_block}" with a \code{param_type} of "\code{means}".
+The dimension of these arrays will generally go in the order of means, then parameters,
+then chains. Any dimensions of length 1 are collapsed and stored as attributes. While
+the means dimension is always of length 1 and will be collapsed in most cases, it is
+sometimes kept and labelled as an iterations dimension for compatibility reasons.
+If \code{fit} is a \code{chains param_block} array, parameters are automatically renamed
+"\code{means(<parameter name>)}" to help keep track of parameter manipulations.
 }
 \description{
-Extract posterior distribution means from a fitted evorates model
+This operator extracts means from the posterior distributions for particular parameters from
+an \code{evorates_fit} object or \code{param_block} array. This can be used to, for example, get
+a point estimate for a parameter or posterior probabilities.
 }
+\details{
+In the case that a numeric vector is provided to select parameters and no parameters
+with names following the pattern "\code{R_i}" are found, the function then looks for the pattern
+"\code{Rdev_i}", then "\code{uncent_Rdev_i}". If neither of these are found, then it finally
+defaults to selecting the \code{i}th parameters. If a single parameter name involves multiple
+"\code{R_i}" patterns, the first pattern is always used (e.g., \code{R_1\%-\%R_2} would correspond
+to \code{1}). Similarly, if multiple parameters match to a single number, the first parameter is
+always used (similar to behavior of \link{match}).
+
+The \code{sampler.params} element of \code{fit} always includes 9 parameters, named:
+"\code{accept_stat__}", "\code{treedepth__}", "\code{stepsize__}", "\code{divergent__}",
+"\code{n_leapfrog__}", "\code{energy__}", "\code{prior__}", "\code{lik__}", and "\code{post__}".
+This tends to include both warmup and non-warmup samples, but warmup samples are
+automatically excluded if both sampler parameters and normal parameters are selected by this
+function. Most of these parameters are rather technical quantities used to tune the
+Hamiltonian Monte Carlo sampler run by Stan (see Stan manual for further details on what they
+mean). Generally, users will only want to look at the last 3 parameters, which give the
+(log) prior probability, likelihood, and posterior probability, respectively, of sampled
+parameters. Note that these are on the sampling scale and will differ from those for the
+originally-scaled data by a constant. Also, the posterior probability will be affected
+by what \code{lik.power} was set to for fitting the model. In some cases, users may also
+wish to look at what parameter values are associated with divergent transitions (i.e.,
+iterations where \code{divergent__ = 1}), which indicate regions of parameter space where
+the sampler got "stuck", yielding potentially misleading posterior distribution estimates.
+
+\code{NA}s are always ignored when estimating means, unless all samples for a parameter
+are \code{NA}, in which case all mean estimates will also be \code{NA}.
+
+Technically, \code{select} can be a list of two elements for compatibility reasons, but
+the second element is always ignored.
+}
+\examples{
+#get whale/dolphin evorates fit
+data("cet_fit")
+
+#extracting directly from evorates fit
+cet_fit \%means\% "R_mu"
+#regular expressions
+cet_fit \%means\% "R"
+#using . is a quick way to extract ALL parameters!
+cet_fit \%means\% "."
+#numeric index-based selection
+cet_fit \%means\% 1
+cet_fit \%means\% -1
+#getting sampler parameters
+cet_fit \%means\% "lik__"
+#note warmup samples automatically excluded from "lik__" if combined with "R_mu"
+cet_fit \%means\% c("R_mu", "lik__")
+
+#extracting from a param_block array
+par <- get.bg.rate(fit = cet_fit,
+                   node.groups = setNames(list('Mesoplodon','Orcinus',c('Pseudorca','Feresa')),
+                                          c('Mesoplodon','Orca','Globicephalinae')),
+                   )
+par \%means\% "Mesopldon"
+#note change in numeric index behavior
+par \%means\% 1
+
+#getting posterior probabilities
+#basically, we can transform a parameter to consist of 0s or 1s, based on some logic statement
+#for example, we can recode R_mu to be 1 if it's above 0 (positive trend/late burst) and 0 otherwise (negative trend/early burst)
+Rmu <- cet_fit \%chains\% "R_mu" > 0
+#note that 1s are indicated by TRUE and 0s by FALSE
+Rmu
+#now, if we take the average of these 0s and 1s, we actually get the proportion of 1s in this transformed parameter
+#in other words, this is a way of calculating the probability that R_mu is greater than 0 in the posterior distribution
+Rmu \%means\% "."
+
+
+}
+\seealso{
+Other param_block operators: 
+\code{\link{\%chains\%}()},
+\code{\link{\%diagnostics\%}()},
+\code{\link{\%quantiles\%}()},
+\code{\link{\%select\%}()}
+}
+\concept{param_block operators}

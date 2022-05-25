@@ -39,6 +39,7 @@
     sampler.tmp<-.add.sampler.select(type,fit,select)
     sampler.out<-sampler.tmp[[1]]
     select<-sampler.tmp[[2]]
+    sampler.pos<-sampler.tmp[[3]]
   }else{
     sampler.out<-NULL
   }
@@ -46,6 +47,8 @@
     fit[[type]]<-.make.par.3D(fit[[type]])
   }
   out<-do.call(paste0('.int.',type),list(fit=fit,select=select))
+  pos<-out[[2]]
+  out<-out[[1]]
   out<-.add.par.class(out)
   attr(out,'param_type')<-type
   if(type!='chains'){
@@ -58,20 +61,27 @@
     }
   }
   if(!is.null(sampler.out)){
+    #new pos system to ensure sampler.params are "spliced" in the appropriate order!
     out<-.combine.par(list(out,sampler.out))
+    ord<-order(c(pos,sampler.pos))
+    out<-out[,ord,,drop=FALSE]
+    out<-.add.par.class(out)
+    attr(out,'param_type')<-type
   }
   out
 }
 
 ####SAMPLER STUFF####
 
-#might be nice, for consistency's sake, to figure out a way to rearrange param_block to reflect order of inputs better...
-#right now, sampler and non-sampler are split, and sampler is grafted onto the end of non-sampler portion...
 .add.sampler.select<-function(type,fit,select){
   avail<-paste0(c('accept_stat','stepsize','treedepth','n_leapfrog','divergent','energy','prior','lik','post'),'__')
-  sampler.params<-.make.par.3D(fit[['sampler.params']])
+  pos<-NULL
   if(is.list(select)){
-    extra.select<-select[[2]]
+    if(length(select)>1){
+      extra.select<-select[[2]]
+    }else{
+      extra.select<-NULL
+    }
     select<-select[[1]]
   }else{
     extra.select<-NULL
@@ -79,33 +89,45 @@
   sampler.matches<-match(select,avail)
   did.match<-!is.na(sampler.matches)
   if(any(did.match)){
+    sampler.params<-.make.par.3D(fit[['sampler.params']])
     sampler.select<-sampler.matches[did.match]
+    #inits diagnostics now return NA when being extracted from param_block for safety reasons; need inits.save
+    if(type=='diagnostics'){
+      inits.save<-sampler.params[1,sampler.select,,drop=FALSE]
+    }else{
+      inits.save<-NULL
+    }
     if(is.null(extra.select)&(type=='quantiles'|type=='diagnostics')&!is.null(fit[[type]])){
       extra.select<-dimnames(.make.par.3D(fit[[type]]))[[1]]
     }
     select<-list(select[!did.match],extra.select)
+    #getting pos vector to properly order things later
+    n<-sum(!did.match)
+    tmp<-vector('integer',length(did.match))
+    tmp[!did.match]<-seq_len(n)
+    tmp<-rle(tmp)
+    tmp.matches<-which(!tmp$values)
+    tmp$values[tmp.matches]<-c(if(tmp.matches[1]==1) 0 else NULL,tmp$values[tmp.matches-1])
+    pos<-inverse.rle(tmp)[did.match]
     if(any(!did.match)){
       diags.len<-dim(sampler.params)[1]
       target.len<-dim(.make.par.3D(fit[['chains']]))[1] #should never get here with param_block on left hand side...
       tmp<-diags.len-target.len
       if(tmp){
-        if(type=='diagnostics'){
-          inits.save<-sampler.params[1,sampler.select,,drop=FALSE]
-        }
         sampler.params<-sampler.params[-seq_len(diags.len-target.len),sampler.select,,drop=FALSE]
-      }else if(type=='diagnostics'){
-        inits.save<-NULL
       }
     }else{
       sampler.params<-sampler.params[,sampler.select,,drop=FALSE]
     }
     attr(sampler.params,'param_type')<-'chains'
     if(type!='chains'){
-      sampler.params<-.call.op(type,list(chains=sampler.params,sampler.control=1),list('.',extra.select),FALSE) #"cheating" to have non-null sampler.params
+      sampler.params<-.call.op(type,list(chains=sampler.params,sampler.control=1),list('.',extra.select),FALSE) #"cheating" to have non-null sampler.control so parentheses are stripped from automatically generated names
+    }else if(!is.null(extra.select)){
+      sampler.params<-sampler.params[extra.select,,,drop=FALSE]
     }
     if(type=='diagnostics'){
       if(!is.null(inits.save)){
-        inds<-dimmnames(out)[[1]]=='inits'
+        inds<-dimnames(sampler.params)[[1]]=='inits'
         sampler.params[inds,,]<-rep(inits.save,each=sum(inds))
       }
     }
@@ -113,7 +135,7 @@
     select<-list(select,extra.select)
     sampler.params<-NULL
   }
-  list(sampler.params,select)
+  list(sampler.params,select,pos)
 }
 
 ####WORKHORSES####
@@ -129,9 +151,13 @@
     if(is.null(out.type)){
       extra.select<-NULL
     }else{
-      extra.select<-select[[2]]
-      select<-select[[1]]
+      if(length(select)>1){
+        extra.select<-select[[2]]
+      }else{
+        extra.select<-NULL
+      }
     }
+    select<-select[[1]]
     if(!is.null(extra.select)){
       if(length(extra.select)){
         probs<-is.na(extra.select)|is.infinite(extra.select)
@@ -141,14 +167,16 @@
         }
         probs<-FALSE
         if(is.character(extra.select)){
-          extra.select<-match(extra.select,dimnames(x)[[1]])
-          probs<-is.na(matches)
+          if(out.type=='iteration'){
+            extra.select<-as.numeric(extra.select)
+          }else{
+            extra.select<-pmatch(extra.select,dimnames(x)[[1]])
+            probs<-is.na(extra.select)
+          }
         }
         if(!is.numeric(extra.select)){
           extra.select<-NULL
-          warning("The format of ",out.type,' selections was not recognized and ignored: this should be a numeric ',
-                  if(out.type=='iteration') '' else 'or character ',
-                  'vector')
+          warning("The format of ",out.type,' selections was not recognized and ignored: this should be a numeric or character vector')
         }else{
           probs<-(extra.select>dim(x)[1])|probs #only remaining NAs will have probs=TRUE, so this will capture them
           if(any(probs)){
@@ -172,7 +200,8 @@
 #now s.flag causes this to exhibit "normal R" conventions of numeric indexing and no regexpr-based matching
 #the various %m%, %c%, etc. operators can be called to do regexpr stuff
 .subset.dim2<-function(type,x,select,s.flag=FALSE){
-  select<-unlist(select,use.names=TRUE)
+  select<-unlist(select,use.names=FALSE)
+  pos<-NULL
   out<-numeric(0)
   if(length(select)){
     probs<-is.na(select)|is.infinite(select)
@@ -226,7 +255,7 @@
         }
       }else if(is.character(select)){
         if(s.flag){
-          out<-match(select,param.names)
+          out<-pmatch(select,param.names)
           probs<-is.na(out)
           if(any(probs)){
             out<-out[!probs]
@@ -234,6 +263,7 @@
           }
         }else{
           out<-lapply(select,grep,x=param.names)
+          pos<-rep(seq_along(out),lengths(out))
           probs<-lengths(out)==0
           if(any(probs)){
             warning("Couldn't find parameters corresponding to ",
@@ -246,7 +276,7 @@
       }
     }
   }
-  out
+  list(out,pos)
 }
 
 ####SPECIFIC STUFF####
@@ -260,11 +290,14 @@
   tmp<-.subset.dim1('chains',out,select)
   extra.select<-tmp[[1]]
   select<-.subset.dim2('chains',out,tmp[[2]])
+  pos<-select[[2]]
+  select<-select[[1]]
   if(!is.null(extra.select)){
-    out[extra.select,select,,drop=FALSE]
+    out<-out[extra.select,select,,drop=FALSE]
   }else{
-    out[,select,,drop=FALSE]
+    out<-out[,select,,drop=FALSE]
   }
+  list(out,pos)
 }
 
 .int.quantiles<-function(fit,select){
@@ -280,7 +313,11 @@
   #process extra.select
   #no need to worry about less than 0s/greater than 1s--these are handled by .int.quant now
   if(is.list(select)){
-    extra.select<-select[[2]]
+    if(length(select)>1){
+      extra.select<-select[[2]]
+    }else{
+      extra.select<-NULL
+    }
     select<-select[[1]]
     if(!is.null(extra.select)){
       if(length(extra.select)){
@@ -318,7 +355,7 @@
         matches<-matches[!probs]
         warning('Some quantile selections were out of bounds and ignored')
       }
-      extra.select<-extra.select[matches]
+      extra.select<-def.quantiles[matches]
       probs<-rep(FALSE,length(extra.select))
     }else{
       matches<-match(extra.select,def.quantiles)
@@ -343,10 +380,17 @@
     dimnms<-dimnames(fit[['chains']])
     select<-.subset.dim2('quantiles',fit[['chains']],select)
   }
+  pos<-select[[2]]
+  select<-select[[1]]
   
   #initialize output array
   if(length(extra.select)){
+    #have to do this, unfortunately, since it messes up names otherwise
+    extra.select[extra.select<0]<-0
+    extra.select[extra.select>1]<-1
     dimnms[[1]]<-paste0(extra.select*100,'%')
+  }else{
+    dimnms[1]<-list(NULL)
   }
   dimnms[[2]]<-dimnms[[2]][select]
   names(dimnms)[1]<-'quantiles'
@@ -370,7 +414,7 @@
                           sorted=FALSE)
     }
   }
-  out
+  list(out,pos)
 }
 
 .int.means<-function(fit,select){
@@ -382,16 +426,21 @@
     dimnms<-dimnames(fit[['chains']])
     niter<-dim(fit[['chains']])[1]
     select<-.subset.dim2('means',fit[['chains']],select)
+    pos<-select[[2]]
+    select<-select[[1]]
     dimnms[[2]]<-dimnms[[2]][select]
     names(dimnms)[1]<-'iterations'
     dims<-lengths(dimnms)
     dims[1]<-1
     out<-array(apply(fit[['chains']][,select,,drop=FALSE],3,.colMeans,m=niter,n=dims[2],na.rm=TRUE),dims,dimnms)
+    out[is.nan(out)]<-NA
   }else{
     select<-.subset.dim2('means',fit[['means']],select)
+    pos<-select[[2]]
+    select<-select[[1]]
     out<-fit[['means']][,select,,drop=FALSE]
   }
-  out
+  list(out,pos)
 }
 
 #use grep here, but still use match in .subset.dim1 --> makes %s% behavior complementary to %d% behavior
@@ -407,7 +456,11 @@
   
   #process extra.select
   if(is.list(select)){
-    extra.select<-select[[2]]
+    if(length(select)>1){
+      extra.select<-select[[2]]
+    }else{
+      extra.select<-NULL
+    }
     select<-select[[1]]
     if(!is.null(extra.select)){
       if(length(extra.select)){
@@ -426,7 +479,7 @@
             }
             extra.select<-unlist(tmp,use.names=FALSE)
           }else if(is.numeric(extra.select)){
-            extra.select<-match(def.diags[extra.select],avail)
+            extra.select<-def.diags[extra.select]
             probs<-is.na(extra.select)
             if(any(probs)){
               extra.select<-extra.select[!probs]
@@ -472,6 +525,8 @@
     dimnms<-dimnames(fit[['chains']])
     select<-.subset.dim2('diagnostics',fit[['chains']],select)
   }
+  pos<-select[[2]]
+  select<-select[[1]]
   
   #initialize output array
   dimnms[[1]]<-avail[extra.select]
@@ -490,9 +545,9 @@
   if(!is.null(fit[['chains']])){
     if(any(probs)){
       fit[['chains']]<-fit[['chains']][,select,,drop=FALSE]
-      #most convenient, but will give wrong answer most of the time
       inits.foo<-function(x){
-        x[1]
+        # x[1] #can never know if first iteration is the init; better to use an "inits.save"-like mechanism
+        NA
       }
       funs<-list(inits.foo,rstan::ess_bulk,rstan::ess_tail,rstan::Rhat)
       for(i in seq_len(4)){
@@ -503,7 +558,7 @@
       }
     }
   }
-  out
+  list(out,pos)
 }
 
 ####SELECT####
@@ -528,7 +583,7 @@
   select<-tmp[[2]]
   null.select<-is.null(select)
   if(!null.select){
-    select<-.subset.dim2(type,x,select,s.flag=TRUE)
+    select<-.subset.dim2(type,x,select,s.flag=TRUE)[[1]]
   }
   if(!null.select){
     if(!null.extra.select){

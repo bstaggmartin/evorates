@@ -2,10 +2,143 @@
 % Please edit documentation in R/OUT_OPS_main.R
 \name{\%diagnostics\%}
 \alias{\%diagnostics\%}
+\alias{\%d\%}
 \title{Extract posterior distribution diagnostics from a fitted evorates model}
 \usage{
 fit \%diagnostics\% select
+
+fit \%d\% select
+}
+\arguments{
+\item{fit}{An object of class "\code{evorates_fit}" or "\code{param_block}". If \code{fit} is a
+\code{param_block} array, it must have a \code{param_type} of "\code{chains}" or
+"\code{diagnostics}".}
+
+\item{select}{A list with two elements (2nd element is optional):
+\itemize{
+\item{A character or numeric vector for selecting parameters. If a character vector, entries are
+matched to parameter names using regular expressions, with one key exception: if any entries are
+\emph{exact} matches to sampling parameter names, these will be used to select parameters from
+the \code{sampler.params} element of \code{fit} instead, if it exists (see details). If a 
+numeric vector, entries are matched to edge indices to select branchwise rate parameters;
+these can be negative to instead \emph{exclude} branchwise rates. If no branchwise rate parameters
+are found, a number \code{i} will instead select the \code{i}th parameter in \code{fit}.}
+\item{A character or numeric vector for specifying diagnostics. If unsupplied, default diagnostics
+are selected. Default diagnostics are are set to the diagnostics already stored in \code{fit}, if they exist,
+otherwise they are set to initial values ("\code{inits}"), bulk effective sample sizes ("\code{bulk_ess}"),
+tail effective samples sizes ("\code{tail_ess}"), and Rhat's ("\code{Rhats}") (see details for what these
+quantities mean). If a character vector, entries are matched to diagnostic names using regular expressions.
+If a numeric vector, a number \code{i} extract the \code{i}th default diagnostic.}
+}}
+}
+\value{
+An array of class "\code{param_block}" with a \code{param_type} of "\code{diagnostics}".
+The dimension of these arrays will generally go in the order of diagnostics, then parameters,
+then chains. Any dimensions of length 1 are collapsed and stored as attributes. If \code{fit}
+is a \code{chains param_block} array, parameters are automatically renamed
+"\code{diagnostics(<parameter name>)}" to help keep track of parameter manipulations.
 }
 \description{
-Extract posterior distribution diagnostics from a fitted evorates model
+This operator extracts diagnostic summaries of the posterior distributions for particular
+parameters from an \code{evorates_fit} object or \code{param_block} array. This can be used to
+check that a posterior distribution was sampled thoroughly.
 }
+\details{
+In the case that a numeric vector is provided to select parameters and no parameters
+with names following the pattern "\code{R_i}" are found, the function then looks for the pattern
+"\code{Rdev_i}", then "\code{uncent_Rdev_i}". If neither of these are found, then it finally
+defaults to selecting the \code{i}th parameters. If a single parameter name involves multiple
+"\code{R_i}" patterns, the first pattern is always used (e.g., \code{R_1\%-\%R_2} would correspond
+to \code{1}). Similarly, if multiple parameters match to a single number, the first parameter is
+always used (similar to behavior of \link{match}).
+
+The \code{sampler.params} element of \code{fit} always includes 9 parameters, named:
+"\code{accept_stat__}", "\code{treedepth__}", "\code{stepsize__}", "\code{divergent__}",
+"\code{n_leapfrog__}", "\code{energy__}", "\code{prior__}", "\code{lik__}", and "\code{post__}".
+This tends to include both warmup and non-warmup samples, but warmup samples are
+automatically excluded if both sampler parameters and normal parameters are selected by this
+function. Most of these parameters are rather technical quantities used to tune the
+Hamiltonian Monte Carlo sampler run by Stan (see Stan manual for further details on what they
+mean). Generally, users will only want to look at the last 3 parameters, which give the
+(log) prior probability, likelihood, and posterior probability, respectively, of sampled
+parameters. Note that these are on the sampling scale and will differ from those for the
+originally-scaled data by a constant. Also, the posterior probability will be affected
+by what \code{lik.power} was set to for fitting the model. In some cases, users may also
+wish to look at what parameter values are associated with divergent transitions (i.e.,
+iterations where \code{divergent__ = 1}), which indicate regions of parameter space where
+the sampler got "stuck", yielding potentially misleading posterior distribution estimates.
+
+Initial values are simply the starting values for each parameter. If fit is a 
+\code{chains param_block} array, the initial values will always be \code{NA} since it
+is generally unknown if a \code{chains param_block} array contains all warmup
+iterations (and they generally do not, in any case). Bulk and tail effective sample
+sizes (ESS) measure how well the centers and tails of posterior
+distributions are sampled, respectively. A high enough bulk ESS (~100 or more, but ideally
+100 times the number of chains) indicates that posterior median/mean estimates are reliable,
+while a high enough tail ESS (again, ~100 or 100 times the number of chains) indicates that
+posterior credible interval estimates are reliable. Rhat measures how well a chain
+samples "all" parts of a posterior distribution, so to speak, acting as a
+measure of "mixing" (i.e., the sampler converging on the actual posterior distribution).
+In this case, lower Rhat's are better, with ~1 being the "best" (a good cutoff is 
+1.05 or lower, with 1.01 being ideal). This function calculates ESS and Rhat using
+functions from the \code{rstan} package, and more details about these quantities can
+be found in the Stan manual.
+
+Notably, this function calculates ESS and Rhat's afor \emph{each chain}. This
+is helpful for diagnosing problematic behavior in individual chains/parameters, but may not
+reflect the "healthiness" of the entire fit. To check the ESS and Rhat's for all chains
+combined, you can use \link{check.ess} and \link{check.mix}. You should consider your fit
+"good to go" if the \emph{highest} combined Rhat doesn't exceed 1.01/1.05 and the
+\emph{lowest} combined ESS doesn't drop below 100/100 times the number of chains. Also,
+\link{combine.chains} should only be used if chains properly converged, as indicated
+by a low enough maximum Rhat.
+}
+\examples{
+#get whale/dolphin evorates fit
+data("cet_fit")
+
+#extracting directly from evorates fit
+cet_fit \%diagnostics\% "R_mu"
+#regular expressions
+cet_fit \%diagnostics\% "R"
+#using . is a quick way to extract ALL parameters!
+cet_fit \%diagnostics\% "."
+#numeric index-based selection
+cet_fit \%diagnostics\% 1
+cet_fit \%diagnostics\% -1
+#select particular diagnostics
+cet_fit \%diagnostics\% list("R_mu", "ess")
+cet_fit \%diagnostics\% list("R_mu", 1)
+cet_fit \%diagnostics\% list("R_mu", -1)
+#getting sampler parameters
+cet_fit \%diagnostics\% "lik__"
+#warmup samples are still automatically excluded from "lik__" if combined with "R_mu"
+#BUT this only affects bulk_ess, tail_ess, and Rhat
+#the function DOES extract the actual initial value of the likelihood!
+cet_fit \%diagnostics\% c("R_mu", "lik__")
+
+#extracting from a param_block array
+par <- get.bg.rate(fit = cet_fit,
+                   node.groups = setNames(list('Mesoplodon','Orcinus',c('Pseudorca','Feresa')),
+                                          c('Mesoplodon','Orca','Globicephalinae')),
+                   )
+par \%diagnostics\% list("Mesoplodon", -1)
+#note that inits returns NA
+par \%diagnostics\% list("Mesoplodon", "inits")
+#note change in numeric index behavior
+par \%diagnostics\% 1
+
+
+}
+\seealso{
+See \link{check.ess} and \link{check.mix} for functions tailored toward
+diagnosing the "healthiness" of a fit as a whole. For the \code{rstan} functions
+this function relies on, see \link{Rhat}.
+
+Other param_block operators: 
+\code{\link{\%chains\%}()},
+\code{\link{\%means\%}()},
+\code{\link{\%quantiles\%}()},
+\code{\link{\%select\%}()}
+}
+\concept{param_block operators}
