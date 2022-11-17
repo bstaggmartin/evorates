@@ -4,7 +4,7 @@
 # tmp$lty<-quote(fill.lty)
 # tmp$lwd<-quote(fill.lwd)
 # body(legend2)[[42]][[3]][[2]][[3]][[3]]<-tmp
-#not sure if it's appropriate since the namespace remain graphics...
+#not sure if it's appropriate since the namespace remains graphics...
 
 #' @export
 legend2<-function (x, y = NULL, legend, fill = NULL, col = par("col"), 

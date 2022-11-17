@@ -43,8 +43,13 @@
 #'       Will also use rownames if no string/factor column is found, but this limits data to consist of only 0-1
 #'       observations per tip.}
 #' }
-#' In all cases, the associated names must match the tip labels found in \code{tree} (\code{tree$tip.label})
-#' exactly. Both multiple observations for a single tip and missing observations are allowed.
+#' Both multiple observations for a single tip and missing observations are allowed.
+#' In all cases, the associated names must generally match the tip labels found in \code{tree} (\code{tree$tip.label})
+#' exactly. The only exception are numbers corresponding to internal node indices (these can be viewed by running:
+#' \code{plot(tree); nodelabels()}), which are used to assign trait values to internal nodes. As of now, the function
+#' actually completely ignores \code{tree$node.label}--I should probably fix that and plan to in the future. Be aware
+#' that this feature slightly alters \code{tree} because it works by grafting extra tips of length 0 to the appropriate
+#' nodes.
 #' @param trait.se A vector, matrix, or data.frame of trait value standard errors which must be unambiguously 
 #' labeled (see \code{trait.data}). Alternatively, a single, unlabeled number that will be applied to all tips in
 #' \code{tree} (e.g., you could set it to 0 to specify all trait values are known without error). If \code{NULL}
@@ -496,7 +501,7 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
 #' #get whale/dolphin tree/trait data
 #' data("cet_fit")
 #' tree <- cet_fit$call$tree
-#' X <- cet_fit$call$trait.data
+#' trait.data <- cet_fit$call$trait.data
 #' 
 #' #prepare data for evorates model
 #' input <- input.evorates(tree = tree, trait.data = trait.data)
@@ -680,7 +685,7 @@ run.evorates<-function(input.evorates.obj,return.as.obj=TRUE,out.file=NULL,check
 #' #get whale/dolphin tree/trait data
 #' data("cet_fit")
 #' tree <- cet_fit$call$tree
-#' X <- cet_fit$call$trait.data
+#' trait.data <- cet_fit$call$trait.data
 #' 
 #' #prepare data for evorates model
 #' input <- input.evorates(tree = tree, trait.data = trait.data)
@@ -817,7 +822,7 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   sampler.params[,7,]<-extract(stanfit,"prior",permute=FALSE,inc_warmup=TRUE)
   sampler.params[,8,]<-extract(stanfit,"lik",permute=FALSE,inc_warmup=TRUE)
   sampler.params[,9,]<-sampler.params[,7,]+dat$lik_power*sampler.params[,8,]
-  out$sampler.control<-sampler.args[-2]
+  out$sampler.control<-sampler.args[-2] #I think this is excluding a bunch of things somehow...
   out$sampler.params<-sampler.params
   out$sampler.params<-.add.par.class(out$sampler.params)
   attr(out$sampler.params,'param_type')<-'chains'
@@ -900,10 +905,13 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
   
   ##EXTRA POSTERIOR DISTRIBUTION INFO##
   #add parameter diagnostics
-  out$diagnostics<-.call.op('diagnostics',out,'.',FALSE)
+  inits<-out$chains[1,,,drop=FALSE]
   if(!include.warmup){
     out$chains<-.call.select(out$chains,list(NULL,-1))
   }
+  out$diagnostics<-.call.op('diagnostics',out,'.',FALSE)
+  out$diagnostics['inits',,]<-inits
+
   #add quantiles
   if(!is.null(report.quantiles)){
     out$quantiles<-.call.op('quantiles',out,list('.',report.quantiles),FALSE)
@@ -935,8 +943,13 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' Will also use rownames if no string/factor column is found, but this limits data to consist of only 0-1
 #' observations per tip.}
 #' }
-#' In all cases, the associated names must match the tip labels found in \code{tree} (\code{tree$tip.label})
-#' exactly. Both multiple observations for a single tip and missing observations are allowed.
+#' Both multiple observations for a single tip and missing observations are allowed.
+#' In all cases, the associated names must generally match the tip labels found in \code{tree} (\code{tree$tip.label})
+#' exactly. The only exception are numbers corresponding to internal node indices (these can be viewed by running:
+#' \code{plot(tree); nodelabels()}), which are used to assign trait values to internal nodes. As of now, the function
+#' actually completely ignores \code{tree$node.label}--I should probably fix that and plan to in the future. Be aware
+#' that this feature slightly alters \code{tree} because it works by grafting extra tips of length 0 to the appropriate
+#' nodes.
 #' @param trait.se A vector, matrix, or data.frame of trait value standard errors which must be unambiguously 
 #' labeled (see \code{trait.data}). Alternatively, a single, unlabeled number that will be applied to all tips in
 #' \code{tree} (e.g., you could set it to 0 to specify all trait values are known without error). If \code{NULL}
@@ -1050,9 +1063,9 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' \item{\code{param.diags}, a \code{param_block} array, containing diagnostics for each parameter
 #' estimated during the fit, including the
 #' initial value of the HMC chain (\code{init}), the bulk effective sample size (\code{bulk_ess}), the tail
-#' effective sample size (\code{tail_ess}), and the Rhat (\code{Rhat}). See \code{?rstan::Rhat} for more details
-#' on what these diagnostics mean. Generally, you want effective sample sizes to be greater than 400ish and Rhat to be
-#' less than 1.01ish. The functions \code{check.ess()} and \code{check.mix()} will check these thresholds for you
+#' effective sample size (\code{tail_ess}), and the Rhat (\code{Rhat}). See \link[rstan]{Rhat} for more details
+#' on what these diagnostics mean. Generally, you want effective sample sizes to be greater than 100 times the number of
+#' chains and Rhat to be less than 1.01. The functions \code{check.ess()} and \code{check.mix()} will check these thresholds for you
 #' automatically.}
 #' \item{\code{chains}, another \code{param_block} array containing sampled parameter values for each parameter estimated during the fit. See
 #' details for further information on what each parameter means.}
@@ -1110,36 +1123,36 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' #get whale/dolphin tree/trait data
 #' data("cet_fit")
 #' tree <- cet_fit$call$tree
-#' X <- cet_fit$call$trait.data
+#' trait.data <- cet_fit$call$trait.data
 #' 
 #' #fit data to evorates model (takes a couple minutes)
-#' fit <- fit.evorates(tree = tree, trait.data = X, chains = 1)
+#' fit <- fit.evorates(tree = tree, trait.data = trait.data, chains = 1)
 #' 
 #' #specifying parameter constraints
 #' #add trend parameter
-#' trend.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+#' trend.fit <- fit.evorates(tree = tree, trait.data = trait.data, chains = 1,
 #'                           trend = TRUE)
 #' #only trend parameter (early burst model)
-#' EB.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+#' EB.fit <- fit.evorates(tree = tree, trait.data = trait.data, chains = 1,
 #'                        trend = TRUE, constrain.Rsig2 = TRUE)
 #' #no Rsig2 or trend (Brownian Motion model)
-#' BM.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+#' BM.fit <- fit.evorates(tree = tree, trait.data = trait.data, chains = 1,
 #'                        constrain.Rsig2 = TRUE)
 #' 
 #' #specifying trait standard error
 #' #by default, estimates standard error, but you can set all tips to have no standard error
-#' noSE.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+#' noSE.fit <- fit.evorates(tree = tree, trait.data = trait.data, chains = 1,
 #'                          trait.se = 0)
 #' #or even set it for specific tips
-#' SE.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1
+#' SE.fit <- fit.evorates(tree = tree, trait.data = trait.data, chains = 1
 #'                        trait.se = setNames(c(1, 2), c("Orcinus_orca", "Balaenoptera_musculus")))
 #'                        
 #' #specifying priors
 #' #make Rsig2 prior tighter (normally it's 5)
-#' Risg2.fit <- fit.evorates(tree  = tree, trait.data = X, chains = 1,
+#' Risg2.fit <- fit.evorates(tree  = tree, trait.data = trait.data, chains = 1,
 #'                           R_sig2_prior_sd = 1, sampling.scale = TRUE)
 #' #maybe you REALLY believe rates should decrease by ~1% every million years?
-#' Rmu.fit <- fit.evorates(tree = tree, trait.data = X, chains = 1,
+#' Rmu.fit <- fit.evorates(tree = tree, trait.data = trait.data, chains = 1,
 #'                         trend = TRUE,
 #'                         R_mu_prior_mean = log(1 - 0.01), R_mu_prior_sd = log(1 + 0.005))
 #' 

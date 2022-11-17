@@ -1,5 +1,22 @@
 #simulate trait and rate data under an EvoRates model
 #get rid of intravar, set default intracov to 0
+
+#' Simulate data under an evorates model
+#' 
+#' 
+#' This function simulates trait data evolving on a given phylogeny under a model
+#' whereby rates also gradually "evolve" over time.
+#' 
+#' 
+#' @param tree An object of class "\code{phylo}".
+#' @param R0 The starting rate at the root of the phylogeny (on natural log scale!).
+#' @param Rsig2 The rate variance parameter, which controls the magnitude of random
+#' changes in rates over time.
+#' @param Rmu The trend parameter, which controls whether rates tend to decrease
+#' or increase over time.
+#' @param Xsig2 You probably shouldn't alter this unless you know what
+#' 
+#' 
 #' @export
 sim.evorates<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,trait.names=NULL,
                        n.obs=rep(1,length(tree$tip.label)),Ysig2=0,percent=FALSE,

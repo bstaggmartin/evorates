@@ -8,8 +8,8 @@
 #' 
 #' @param fit An object of class "\code{evorates_fit}".
 #' @param select A numeric vector specifying edge indices in \code{fit$call$tree} for  which
-#' to extract branchwise rate parameters. These can be negative to exclude edges as well. All
-#' edges indices are extracted by default.
+#' to extract dtrended branchwise rate parameters. These can be negative to exclude edges as well.
+#' All edges indices are extracted by default.
 #' @param type A string specifying whether to extract posterior samples ("\code{chains}"),
 #' quantiles ("\code{quantiles}"), means ("\code{means}"), or diagnostics ("\code{diagnostics}").
 #' Can be any unambiguous abbreviation of these strings as well. Defaults to extracting
@@ -36,7 +36,17 @@
 #' @details The edge indices of \code{fit$call$tree} can be viewed by running:
 #' \code{plot(fit$call$tree); edgelabels()}.
 #' 
-#' In the case of a \code{fit} without 
+#' In the case of a \code{fit} with constrained rate variance (\code{R_sig2}) parameters, the
+#' detrended branchwise rate parameters are all equivalent to the rate at the root (\code{R_0}). 
+#' As such, this function just creates a \code{param_block} array of \code{R_0} replicated the
+#' appropriate number of times, with parameters renamed with the appropriate \code{uncent_Rdev_i}'s 
+#' (i.e., an "uncentered rate deviations"), where \code{i} is the index of the corresponding edge
+#' in \code{fit$call$tree}.
+#' 
+#' 
+#' @seealso more information on detrending is available in the documentation for \link{fit.evorates},
+#' \link{input.evorates}, \link{run.evorates}, and \link{output.evorates}, particularly in the section
+#' on parameter definitions
 #' 
 #' 
 #' @family parameter extraction functions
@@ -46,39 +56,39 @@
 #' #get whale/dolphin evorates fit
 #' data("cet_fit")
 #' 
-#' #get posterior samples of branchwise rates
-#' Rs <- get.R(cet_fit)
-#' #let's say we want to get some of the edges towards the root
+#' #get posterior samples of detrended branchwise rates
+#' uncent.Rdevs <- remove.trend(cet_fit)
+#' #let's say we want to get detrended rates for some of the edges towards the root
 #' plot(cet_fit$call$tree); edgelabels()
 #' #select particular edges
-#' Rs <- get.R(cet_fit, select = c(1, 2, 9, 28, 29, 30))
+#' uncent.Rdevs <- remove.trend(cet_fit, select = c(1, 2, 9, 28, 29, 30))
 #' #maybe specific samples too?
-#' Rs <- get.R(cet_fit, select = c(1, 2, 9, 28, 29, 30),
-#'             extra.select=c(1, 23, 47))
+#' uncent.Rdevs <- remove.trend(cet_fit, select = c(1, 2, 9, 28, 29, 30),
+#'                              extra.select=c(1, 23, 47))
 #' 
-#' #this may be a more common way to get edge indices; say we want to look at the genus Mesoplodon
+#' #this may be a more common way to get edge indices; say we want to look at detrended rates in the genus Mesoplodon
 #' edges <- get.clade.edges(cet_fit$call$tree, "Mesoplodon")
-#' Meso.Rs <- get.R(cet_fit, select = edges)
+#' Meso.uncent.Rdevs <- remove.trend(cet_fit, select = edges)
 #' #or at everything EXCEPT Mesoplodon
-#' notMeso.Rs <- get.R(cet_fit, select = -edges)
+#' notMeso.uncent.Rdevs <- remove.trend(cet_fit, select = -edges)
 #' 
 #' #could also look at quantiles, means, or diagnostics
-#' med.Rs <- get.R(cet_fit, select = edges,
-#'                 type = "quantiles",
-#'                 extra.select = 0.5)
-#' mean.Rs <- get.R(cet_fit, select = edges,
-#'                  type = "means")
-#' init.Rs <- get.R(cet_fit, select = edges,
-#'                  type = "diagnostics",
-#'                  extra.select = c("inits", "ess"))
+#' med.uncent.Rdevs <- remove.trend(cet_fit, select = edges,
+#'                                  type = "quantiles",
+#'                                  extra.select = 0.5)
+#' mean.uncent.Rdevs <- remove.trend(cet_fit, select = edges,
+#'                                   type = "means")
+#' init.uncent.Rdevs <- remove.trend(cet_fit, select = edges,
+#'                                   type = "diagnostics",
+#'                                   extra.select = c("inits", "ess"))
 #'                  
 #' #here's an example of what happens when you don't simplify the result
-#' med.Rs <- get.R(cet_fit, select = edges,
-#'                 type = "quantiles",
-#'                 extra.select = 0.5,
-#'                 simplify = FALSE)
+#' med.uncent.Rdevs <- remove.trend(cet_fit, select = edges,
+#'                                  type = "quantiles",
+#'                                  extra.select = 0.5,
+#'                                  simplify = FALSE)
 #'                  
-#' #note that all this is pretty much equivalent to running <fit> %<type>% list(<select>, <extra.select>)
+#' #note that all this equivalent to detrending <fit> %<type>% list(<select>, <extra.select>)
 #' #at least when <fit> includes branchwise rate parameters
 #' 
 #' 

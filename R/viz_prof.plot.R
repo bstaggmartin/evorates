@@ -29,27 +29,153 @@
 ##on that note, allow quant.lines to be a vector recycled so lines corresponding to quantiles and cuts can be efficiently added?
 ###wait, same number per parameter, but NOT per chain, so it will have to allow different numbers...
 
-#' Plot profiles of posterior samples from fitted 
+#' Plot profiles of posterior samples from a fitted evorates model
 #'
 #'
-#' This function processes tree and trait data, runs a Stan-based Hamiltonian Monte Carlo (HMC) sampler to fit
-#' these data to an evorates model, and returns the output of this sampler in a (relatively) user-friendly format.
+#' This function plots histograms/densities ("profiles") of posterior samples for particular parameters from an \code{evorates_fit}
+#' object or \code{param_block} array.
 #'
 #'
-#' @param tree An object of class "\code{phylo}"
+#' @param x The parameters to be plotted. Typically, this is a \code{param_block} array extracted from an \code{evorates_fit} object,
+#' though it can also be a character or numeric vector specifying parameters to extract from an \code{evorates_fit} object passed to
+#' the \code{fit} argument (see \code{...}). For details on how parameters are extracted, see \link{grapes-chains-grapes}. Multiple
+#' \code{param_block} arrays and character/numeric selections can be combined as lists.
+#' @param smooth \code{TRUE}or \code{FALSE}: should profiles be plotted as histograms or "smoothed" density plots? By default, set to
+#' \code{FALSE} such that profiles are plotted as histograms. Densities are estimated via R's built-in \code{density()} function.
+#' @param p A numeric vector controlling the widths of the shaded portions of profiles for each parameter. Specifically, the shaded
+#' region is the \code{(1-p)}\% credible interval (so 95\% credible interval by default). The vector is recycled as necessary,
+#' \code{NA}'s result in shading in the
+#' entire profile (technically the 100\% credible interval), and entries below 0 or above 1 are rounded up and down to 0 and 1,
+#' respectively. Overwritten by \code{lower.quant}, \code{upper.quant}, \code{lower.cut}, and \code{upper.cut}, which may be used to
+#' provide finer control over the bounds of the shaded regions.
+#' @param lower.quant,upper.quant Numeric vectors specifying the boundaries of the shaded portions of profiles for each
+#' parameter based on posterior quantiles. Set to \code{NULL} (the default) to just use all boundaries specified by \code{p} (see above).
+#' The vectors are recycled as necessary, \code{NA}'s also default to boundaries specified by \code{p}, and entries
+#' below 0 or above 1 are rounded up and down to 0 and 1, respectively. Overwritten by \code{lower.cut} and \code{upper.cut}, which may
+#' be used to provide finer control over the bounds of the shaded regions.
+#' @param lower.cut,upper.cut Numeric vectors specifying the boundaries of the shaded portions of profiles for each
+#' parameter (on the x-axis scale, rather than quantile-based). Notably, these can be used plot credible intervals based on the
+#' highest posterior density regions, rather than quantiles as is done by default (see examples below). Set to \code{NULL}
+#' (the default) to just use all boundaries specified by \code{p}, \code{lower.quant}, and/or \code{upper.quant} (see above).
+#' The vectors are recycled as necessary and \code{NA}'s also default to boundaries specified by \code{p}, \code{lower.quant},
+#' and/or \code{upper.quant}.
+#' @param add.lines A numeric vector specifying where to plot lines over profiles. This is not yet "vectorized", and will plot the same lines
+#' for all profiles (though I hope to change this in the future)! Can be specified via posterior quantiles if \code{quant.lines} is
+#' \code{TRUE}, or via actual positions along x-axis otherwise. \code{NA}'s result in plotting lines at posterior means.
+#' @param quant.lines \code{TRUE}or \code{FALSE}: should line positions (see above) correspond to posterior quantiles or positions along
+#' the x-axis? Defaults to \code{TRUE}, meaning that \code{add.lines} corresponds to posterior quantiles; in this case entries of
+#' \code{add.lines} below 0 or above 1 are rounded up and down to 0 and 1, respectively. This does not affect \code{NA} entries of
+#' \code{add.lines}, which always result in plotting lines at posterior means.
+#' @param add \code{TRUE}or \code{FALSE}: should profiles be plotted in an open plotting window, or should a new plot window be opened?
+#' Defaults to \code{FALSE}, meaning that a new plot window is started.
+#' @param make.legend \code{TRUE}or \code{FALSE}: should a legend be automatically generated for the plotted profiles? Defaults to
+#' \code{TRUE}, but automatically suppressed when only a single profile is plotted.
+#' @param ... Other arguments, such as graphical parameters or arguments to pass to \code{hist()}/\code{density()} for profile
+#' construction. Here are the some commonly-used ones:
+#' \itemize{
+#' \item \code{fit} to specify an \code{evorates_fit} object from which to extract parameters (if \code{x} includes character or numeric
+#' selections).
+#' \item \code{overwrite.param.names} to specify alternate names for parameters in the automatically generated x-axis title and legend.
+#' This is helpful if you want to include otherwise forbidden characters in parameter names, like greek symbols.
+#' \item \code{breaks} to specify the number of breaks in histograms if \code{smooth} is \code{FALSE}.
+#' \item \code{bw} and/or \code{adjust} to specify the width of kernels used to estimate density if \code{smooth} is \code{TRUE}.
+#' \item Most base R graphical parameters should work, along with a few extras:
+#' \itemize{
+#' \item{\code{col} by default specifies the color of the profiles for each parameter. Defaults to \code{palette()}.}
+#' \item{\code{border} by default specifies the color of the profile borders for each parameter. Inherits from \code{col} if not
+#'       specified.}
+#' \item{\code{alpha} by default controls the transparency of profile colors for each parameter, with 0, 1, and \code{NA} corresponding to
+#'       completely transparent, opaque, and no modification, respectively. Defaults to \code{NA}.}
+#' \item{\code{lwd},\code{lty} by default specify the line width and style for all profiles (you could mess with \code{param.args},
+#'       etc. to change this--see below).}
+#' \item{\code{angle} by default controls the angle of the lines used to shade profiles for each chain if \code{density} is a positive number.
+#'       Defaults to a range of angles between 0 and 180 if profiles for multiple chains are plotted.}
+#' \item{\code{density} by default controls the density of lines used to shade profiles for each chain, with \code{NULL} and \code{NA}
+#'       resulting in solid shading (the default if profiles are plotted for a single chain). Defaults to 20 if profiles for multiple
+#'       chains are plotted.}
+#' \item{Some arguments like \code{col}, \code{alpha}, \code{lwd}, etc. can be modified with "\code{lines.}" or "\code{border.}" at the
+#'       beginning to make them only affect certain elements of the plot. Perhaps most importantly, "\code{legend.}" can be used to 
+#'       make arguments affect the automatically generated legend if \code{make.legend} is \code{TRUE}.}
+#' }}
+#' @param param.args,chain.args,inpar.args Generally, these should not be altered, but are exposed here for the curious to play around
+#' with. These are vectors of argument names for graphical parameters that control whether the graphical parameters vary by the
+#' parameter the profile corresponds to (\code{param.args}), the chain the profile corresponds to (\code{chain.args}), or within
+#' profiles (\code{inpar.args}). Notably, default graphical parameters are tailored to the defaults for these arguments, and messing
+#' with these will often result in ugly plots without a lot of extra customization!
 #' 
 #' 
-#' @return 
-#' 
-#' 
-#' @details 
-#' PARAMETER DEFINITIONS HERE
+#' @return Nothing as of now--this function just makes a plot!
 #' 
 #' 
 #' @family evorates plotting functions
 #' 
 #' 
 #' @examples
+#' #get whale/dolphin evorates fit
+#' data("cet_fit")
+#' 
+#' #plot some parameters
+#' prof.plot(cet_fit %chains% c("R_0", "R_mu"), alpha = 0.5)
+#' #the above is equivalent to:
+#' prof.plot(c("R_0", "R_mu"), alpha = 0.5, fit = cet_fit)
+#' #could also something like this:
+#' par <- get.bg.rate(fit = cet_fit,
+#'                    node.groups = setNames(list('Mesoplodon','Orcinus',c('Pseudorca','Feresa')),
+#'                                           c('Mesoplodon','Orca','Globicephalinae')),
+#'                    )
+#' prof.plot(par, alpha = 0.5)
+#' #or even:
+#' prof.plot(list(par, "R_0"), alpha = 0.5, fit = cet_fit)
+#' 
+#' #some ways the plot style might be tweaked:
+#' prof.plot(list(par, "R_0"), fit = cet_fit,
+#'           overwrite.param.names = expression("ln"~sigma["Meso"]^2,
+#'                                              "ln"~sigma["Orca"]^2,
+#'                                              "ln"~sigma["Glob"]^2,
+#'                                              "ln"~sigma["Root"]^2),
+#'           breaks = 100,
+#'           col = c('blue','red','green','black'), alpha = 0.1, border.alpha = 0.25,
+#'           add.lines = c(0.25, NA, 0.75), lines.lwd = c(2, 3, 2), lines.lty = c(3, 2, 3),
+#'           bty='n', legend.bty = 'n', legend.inset = c(0.1, 0), lwd = 2)
+#' #may want to "smooth out" profiles!
+#' prof.plot(list(par, "R_0"), fit = cet_fit,
+#'           overwrite.param.names = expression("ln"~sigma["Meso"]^2,
+#'                                              "ln"~sigma["Orca"]^2,
+#'                                              "ln"~sigma["Glob"]^2,
+#'                                              "ln"~sigma["Root"]^2),
+#'           smooth = TRUE, bw = 0.1,
+#'           col = c('blue','red','green','black'), alpha = 0.1, border.alpha = 0.25,
+#'           add.lines = c(0.25, NA, 0.75), lines.lwd = c(2, 3, 2), lines.lty = c(3, 2, 3),
+#'           bty='n', legend.bty = 'n', legend.inset = c(0.1, 0), lwd = 2)
+#' #try some narrower credible intervals?
+#' prof.plot(list(par, "R_0"), fit = cet_fit, p = 0.5,
+#'           overwrite.param.names = expression("ln"~sigma["Meso"]^2,
+#'                                              "ln"~sigma["Orca"]^2,
+#'                                              "ln"~sigma["Glob"]^2,
+#'                                              "ln"~sigma["Root"]^2),
+#'           smooth = TRUE, bw = 0.1,
+#'           col = c('blue','red','green','black'), alpha = 0.1, border.alpha = 0.25,
+#'           add.lines = c(0.25, NA, 0.75), lines.lwd = c(2, 3, 2), lines.lty = c(3, 2, 3),
+#'           bty='n', legend.bty = 'n', legend.inset = c(0.1, 0), lwd = 2)
+#' #or intervals based on highest posterior density regions
+#' #(have to combine chains since different cuts for the same parameters aren't yet allowed)
+#' #(requires HDInterval package)
+#' fit <- combine.chains(cet_fit)
+#' combined.par <- get.bg.rate(fit = fit,
+#'                 node.groups = setNames(list('Mesoplodon','Orcinus',c('Pseudorca','Feresa')),
+#'                                        c('Mesoplodon','Orca','Globicephalinae')),
+#'                 )
+#' tmp <- par.c(combined.par, "R_0", fit = fit)
+#' tmp <- apply(tmp, 2, HDInterval::hdi)
+#' prof.plot(list(combined.par, "R_0"), fit = fit, lower.cut = tmp[1,], upper.cut = tmp[2,],
+#'           overwrite.param.names = expression("ln"~sigma["Meso"]^2,
+#'                                              "ln"~sigma["Orca"]^2,
+#'                                              "ln"~sigma["Glob"]^2,
+#'                                              "ln"~sigma["Root"]^2),
+#'           smooth = TRUE, bw = 0.1,
+#'           col = c('blue','red','green','black'), alpha = 0.1, border.alpha = 0.25,
+#'           add.lines = c(0.25, NA, 0.75), lines.lwd = c(2, 3, 2), lines.lty = c(3, 2, 3),
+#'           bty='n', legend.bty = 'n', legend.inset = c(0.1, 0), lwd = 2)
 #' 
 #' 
 #' @export
@@ -196,7 +322,7 @@ prof.plot<-function(x,smooth=FALSE,p=0.05,
   
   if(make.legend){
     .make.param.plot.legend(param.names,chain.names,
-                            n.params,n.chains,
+                            n.params,n.chains,n.inpar,
                             get.args)
   }
 }

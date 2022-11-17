@@ -7,7 +7,7 @@ using namespace Rcpp ;
 RCPP_MODULE(stan_fit4univar_evorates_mod) {
 
 
-    class_<rstan::stan_fit<stan_model, boost::random::ecuyer1988> >("model_univar_evorates")
+    class_<rstan::stan_fit<stan_model, boost::random::ecuyer1988> >("rstantools_model_univar_evorates")
 
     .constructor<SEXP,SEXP,SEXP>()
 

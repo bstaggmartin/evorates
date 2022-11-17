@@ -2,33 +2,44 @@
 % Please edit documentation in R/OUT_chain.management.R
 \name{select.chains}
 \alias{select.chains}
-\title{Select chains in a fitted evolving rates model}
+\title{Select chains in a fitted evorates model}
 \usage{
 select.chains(fit, chains, simplify = TRUE)
 }
 \arguments{
-\item{fit}{An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.}
+\item{fit}{An object of class "\code{evorates_fit}".}
 
-\item{chains}{A character or numeric vector. If of class character, the given text is matched to names of
-the available chains in \code{fit}. If of class numeric, the function assumes \code{chains} refers to the
-name "chain \code{chains}".}
+\item{chains}{A character or numeric vector specifying which chains to select. Notably, \code{NA}
+(or out of bound) selections are not allowed and automatically ignored with a warning.}
 
-\item{simplify}{TRUE or FALSE value: should the resulting elements of \code{fit} have dimensions of length
-1 collapsed and stored as attributes?}
+\item{simplify}{\code{TRUE} or \code{FALSE}: should the resulting \code{param_block} array(s) in
+\code{fit} be  simplified? If \code{TRUE} (the default), dimensions of length 1 in the result are
+automatically collapsed, with corresponding information stored as attributes (this is the default
+behavior of param_block operators).}
 }
 \value{
-an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
-included.
+An object of class "\code{evorates_fit}". All previously-existing param_block arrays stored
+in \code{fit} will be included.
 }
 \description{
-This function extracts specific chains from the output of the function \code{fit.evorates}.
+This function subsets fitted evorates model to specific chains.
 }
 \examples{
-#requires example fitted model object
-#get chain 1 and 2
-select.chains(example.fit,c('chain 1','chain 2'))
-#or
-select.chains(example.fit,1:2)
+#get whale/dolphin evorates fit
+data("cet_fit")
+
+#three ways to get the second and first chain
+fit <- select.chains(cet_fit, c('chain 1','chain 2'))
+fit <- select.chains(cet_fit, c(1,2))
+fit <- select.chains(cet_fit, -c(3,4))
+
+#note handling of NAs
+fit <- select.chains(cet_fit, c('chain 1', NA))
+fit <- select.chains(cet_fit, c('chain 1', 'chain 5'))
+fit <- select.chains(cet_fit, c(1,5))
+
+#here's what happens when you do vs. don't simplify the result
+select.chains(cet_fit, 1)$means; select.chains(cet_fit, 1, simplify = FALSE)$means
 
 
 }

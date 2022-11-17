@@ -28,8 +28,13 @@ input.evorates(
       Will also use rownames if no string/factor column is found, but this limits data to consist of only 0-1
       observations per tip.}
 }
-In all cases, the associated names must match the tip labels found in \code{tree} (\code{tree$tip.label})
-exactly. Both multiple observations for a single tip and missing observations are allowed.}
+Both multiple observations for a single tip and missing observations are allowed.
+In all cases, the associated names must generally match the tip labels found in \code{tree} (\code{tree$tip.label})
+exactly. The only exception are numbers corresponding to internal node indices (these can be viewed by running:
+\code{plot(tree); nodelabels()}), which are used to assign trait values to internal nodes. As of now, the function
+actually completely ignores \code{tree$node.label}--I should probably fix that and plan to in the future. Be aware
+that this feature slightly alters \code{tree} because it works by grafting extra tips of length 0 to the appropriate
+nodes.}
 
 \item{trait.se}{A vector, matrix, or data.frame of trait value standard errors which must be unambiguously 
 labeled (see \code{trait.data}). Alternatively, a single, unlabeled number that will be applied to all tips in

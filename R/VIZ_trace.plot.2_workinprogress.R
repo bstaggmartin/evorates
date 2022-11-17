@@ -1,4 +1,4 @@
-trace.plot<-function(x,ribbon=TRUE,p=0.05,n.windows=100,window.size=NULL,
+trace.plot<-function(x,p=0.05,n.windows=100,window.size=NULL,
                     lower.quant=NULL,upper.quant=NULL,
                     add.lines=NULL,
                     add=FALSE,make.legend=TRUE,...,
@@ -14,7 +14,7 @@ trace.plot<-function(x,ribbon=TRUE,p=0.05,n.windows=100,window.size=NULL,
   .check.args(param.args,chain.args,inpar.args)
   .x<-.proc.x(x,list(...)[['fit']])
   if(ribbon&is.null(window.size)){
-    window.size<-10*(dim(x)[1]-1)/(n.window-1)
+    window.size<-10*(dim(.x)[1]-1)/(n.windows-1)
   }
   nms<-dimnames(.x)
   param.names<-.get.param.names(nms[[2]],list(...)[['overwrite.param.names']])
@@ -63,14 +63,15 @@ trace.plot<-function(x,ribbon=TRUE,p=0.05,n.windows=100,window.size=NULL,
                                          lines.lty=expression(ribbon.lty)))
   
   ####getting ribbons/lines####
-  add.lines<-matrix(add.lines,nrow=n.tot,ncol=n.inpar,byrow=TRUE)
+  add.lines<-matrix(if(is.null(add.lines)) NA else add.lines,nrow=n.params*n.chains,ncol=n.inpar,byrow=TRUE)
+  ribbons.and.lines<-.get.cuts(.x,p,
+                               lower.quant,upper.quant,
+                               lower.cut=NULL,upper.cut=NULL,
+                               n.params,n.chains,
+                               trace=TRUE,
+                               add.lines=add.lines,
+                               n.windows=n.windows,window.size=window.size)
   if(ribbon){
-    ribbon.quants<-.get.cuts(.x,p,
-                             lower.quant,upper.quant,
-                             lower.cut=NULL,upper.cut=NULL,
-                             n.params,n.chains,
-                             trace=TRUE,
-                             add.lines=add.lines)
   }
   
   ####plotting window####
@@ -78,7 +79,7 @@ trace.plot<-function(x,ribbon=TRUE,p=0.05,n.windows=100,window.size=NULL,
   if(!add){
     tmp.args<-get.args(~(plot|gen)&!recyc)
     do.call(.make.param.plot,
-            c(x=list(tmp),
+            c(x=list(.x),
               param.names=list(param.names),n.params=list(n.params),
               def.xlab=list(deparse(substitute(x))),
               tmp.args))
@@ -86,9 +87,17 @@ trace.plot<-function(x,ribbon=TRUE,p=0.05,n.windows=100,window.size=NULL,
   
   ####plotting profiles####
   
-  yran<-diff(par()$usr[c(3,4)])
+  .x<-asplit(.x,-1)
   for(i in seq_len(n.tot)){
     ii<-if(n.inpar) n.inpar*(i-1)+1 else i
+    #maybe split .x for easier plotting?
+    tmp.args<-get.args(~(poly|gen)&!recyc)
+    tmp.recyc.args<-get.args(~(poly|gen)&recyc,ii)
+    # do.call(polygon,
+    #         )
+    lines(.x[,(i-1)%%n.params+1,(i-1)%/%n.params+1])
+    #need x coords for ribbon.quants...
+    # lines(ribbon.quants[[1]][,1]~)
     prof<-tmp[[i]]
     full.xy<-.trim.prof(prof$x,prof$y,smooth,
                         range(.x[,(i-1)%%n.params+1,(i-1)%/%n.params+1]),

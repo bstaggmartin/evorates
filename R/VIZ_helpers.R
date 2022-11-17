@@ -175,32 +175,38 @@
 
 .get.lines<-function(x,add.lines,quant.lines,n.tot){
   lines<-rep(list(add.lines),n.tot)
-  means<-is.na(add.lines)
-  if(any(means)){
-    tmp.lines<-asplit(.int.means(list(chains=x),
-                                 '.'),
-                      -1)
-    for(i in seq_len(n.tot)){
-      lines[[i]][means]<-tmp.lines[[i]]
+  if(!is.null(add.lines)){
+    means<-is.na(add.lines)
+    if(any(means)){
+      tmp.lines<-asplit(.call.op('means',
+                                 list(chains=x),
+                                 list('.',add.lines[!means])),
+                        -1)
+      for(i in seq_len(n.tot)){
+        lines[[i]][means]<-tmp.lines[[i]]
+      }
     }
-  }
-  if(quant.lines){
-    tmp.lines<-asplit(.int.quantiles(list(chains=x),
-                                     list('.',add.lines[!means])),
-                      -1)
-    for(i in seq_len(n.tot)){
-      lines[[i]][!means]<-tmp.lines[[i]]
+    if(quant.lines){
+      tmp.lines<-asplit(.call.op('quantiles',
+                                 list(chains=x),
+                                 list('.',add.lines[!means])),
+                        -1)
+      for(i in seq_len(n.tot)){
+        lines[[i]][!means]<-tmp.lines[[i]]
+      }
     }
   }
   lines
 }
 
+#this function could definitely use some cleaning up...
 .get.cuts<-function(x,
                     p=0.05,
                     lower.quant=NULL,upper.quant=NULL,
                     lower.cut=NULL,upper.cut=NULL,
                     n.params,n.chains,
-                    trace=FALSE,add.lines=matrix(nrow=1,ncol=0)){
+                    trace=FALSE,add.lines=matrix(nrow=1,ncol=0),
+                    n.windows=NULL,window.size=NULL){
   n<-dim(x)[1]
   p.seq<-seq_len(n.params)
   c.seq<-seq_len(n.chains)
@@ -217,17 +223,25 @@
   for(i in seq_along(cuts.list)){
     if(i==3){
       #not using %quantiles% since probs can differ by parameter!
-      prob2cut<-unlist(lapply(seq_len(n.params),
-                              function(ii) apply(x[,ii,,drop=FALSE],
-                                                 -1,
-                                                 .int.quant,
-                                                 n=n,
-                                                 p=c(lower.prob[ii],
-                                                     upper.prob[ii]),
-                                                 sorted=FALSE)))
-      inds<-2*(rep(c.seq,each=n.params)+(p.seq-1)*n.chains)
-      lower.prob<-pmin(prob2cut[inds-1],prob2cut[inds])
-      upper.prob<-pmax(prob2cut[inds-1],prob2cut[inds])
+      if(!trace){
+        prob2cut<-unlist(lapply(seq_len(n.params),
+                                function(ii) apply(x[,ii,,drop=FALSE],
+                                                   -1,
+                                                   .int.quant,
+                                                   n=n,
+                                                   p=c(lower.prob[ii],
+                                                       upper.prob[ii]),
+                                                   sorted=FALSE)))
+        inds<-2*(rep(c.seq,each=n.params)+(p.seq-1)*n.chains)
+        lower.prob<-pmin(prob2cut[inds-1],prob2cut[inds])
+        upper.prob<-pmax(prob2cut[inds-1],prob2cut[inds])
+      }else{
+        tmp.prob<-matrix(nrow=n.params,ncol=2)
+        tmp.prob[,1]<-pmin(lower.prob,upper.prob)
+        tmp.prob[,2]<-pmax(lower.prob,upper.prob)
+        tmp.prob<-tmp.prob[rep(p.seq,each=n.chains),,drop=FALSE]
+        prob2cut<-.roll.quant(x,nw=n.windows,w=window.size,p=cbind(tmp.prob,add.lines))
+      }
     }
     tmp.cut<-cuts.list[[i]]
     if(!is.null(tmp.cut)){
@@ -243,8 +257,10 @@
   if(!trace){
     lower.prob[is.na(lower.prob)]<-par()$usr[1]-1
     upper.prob[is.na(upper.prob)]<-par()$usr[2]+1
+    cuts<-asplit(matrix(c(pmin(lower.prob,upper.prob),pmax(lower.prob,upper.prob),add.lines),n.params*n.chains,2+ncol(add.lines)),1)
+  }else{
+    cuts<-list(prob2cut[1],prob2cut[-1])
   }
-  cuts<-asplit(matrix(c(pmin(lower.prob,upper.prob),pmax(lower.prob,upper.prob),add.lines),n.params*n.chains,2+ncol(add.lines)),1)
   cuts
 }
 
@@ -256,7 +272,7 @@
   args.ls[['pch']]<-NULL
   if(!hasArg(xlim)){
     if(is.null(smooth)){
-      args.ls[['xlim']]<-range(x,na.rm=TRUE)
+      args.ls[['xlim']]<-range(as.vector(x),na.rm=TRUE)
     }else{
       args.ls[['xlim']]<-range(unlist(lapply(x,'[[','x')),na.rm=TRUE)
     }
@@ -287,12 +303,12 @@
     }
   }
   if(is.null(smooth)){
-    tmp<-xlim
-    xlim<-ylim
-    ylim<-tmp
-    tmp<-xlab
-    xlab<-ylab
-    ylab<-tmp
+    tmp<-args.ls[['xlim']]
+    args.ls[['xlim']]<-args.ls[['ylim']]
+    args.ls[['ylim']]<-tmp
+    tmp<-args.ls[['xlab']]
+    args.ls[['xlab']]<-args.ls[['ylab']]
+    args.ls[['ylab']]<-tmp
   }
   do.call(plot,
           c(x=list(0),
@@ -395,7 +411,7 @@
 }
 
 .make.param.plot.legend<-function(param.names,chain.names,
-                                  n.params,n.chains,
+                                  n.params,n.chains,n.inpar,
                                   get.args){
   legend.args<-get.args(~legend)
   if(is.null(legend.args$x)){
@@ -405,7 +421,7 @@
     add.legend<-TRUE
   }
   if(n.params>1){
-    inds<-seq_len(n.params)
+    inds<-if(n.inpar) n.inpar*(seq_len(n.params)-1)+1 else seq_len(n.params)
     if(add.legend){
       legend.args$legend<-param.names
     }
@@ -413,7 +429,8 @@
     inds<-integer(0)
   }
   if(n.chains>1){
-    inds<-c(inds,seq.int(1,n.params*n.chains,n.params))
+    inds<-c(inds,
+            if(n.inpar) seq.int(1,n.params*n.inpar*n.chains,n.params*n.inpar) else seq.int(1,n.params*n.chains,n.params))
     if(add.legend){
       legend.args$legend<-c(legend.args$legend,chain.names)
     }
@@ -458,7 +475,7 @@
   }
 }
 
-.get.windows<-function(w){
+.get.windows<-function(w,n,nn){
   halfw<-round(w/2)
   inds<-seq.int(-halfw,halfw)
   foo<-function(i){
@@ -469,24 +486,33 @@
 }
 
 .roll.quant<-function(x,p,nw,w){
-  nn<-seq.int(1,dim(x)[1],length.out=nw)
-  winds<-.get.windows(w)
+  n<-dim(x)[1]
+  nn<-round(seq(1,n,length.out=nw))
+  winds<-.get.windows(w,n,nn)
   ws<-lengths(winds)
   x<-asplit(x,-1)
   ranks<-lapply(x,rank)
+  np<-ncol(p)
+  holder<-rep(NA,np)
+  p.seq<-seq_len(np)
   foo<-function(i){
     x<-x[[i]]
     ranks<-ranks[[i]]
+    nas<-is.na(p[i,])
+    means<-nas&p.seq>2
     int.foo<-function(j){
       inds<-winds[[j]]
       x<-x[inds]
       ranks<-ranks[inds]
       sorts<-sort.int(ranks,method='quick',index.return=TRUE)$ix
-      .int.quant(x[sorts],ws[j],p)
+      holder[!nas]<-.int.quant(x[sorts],ws[j],p[i,!nas])
+      holder[means]<-mean(x)
+      holder
     }
-    do.call(rbind,lapply(nn,int.foo))
+    do.call(rbind,lapply(seq_len(nw),int.foo))
   }
-  out<-lapply(seq_along(x),foo)
+  out<-c(list(nn),lapply(seq_along(x),foo))
+  out
 }
 
 #slower

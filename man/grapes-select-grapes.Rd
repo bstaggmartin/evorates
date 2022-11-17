@@ -41,8 +41,8 @@ relies on partial matching, rather than regular expressions, any name will extra
 parameters, samples, quantiles, or diagnostics, depending on whether the name had a clear match
 or not. Furthermore, any number \code{i} will extract that \code{i}th parameter, sample,
 quantile, or diagnostic, rather than using "special" rules (branchwise rate searching, etc.).
-Note that out of bound numbers are ignored, rather than returning \code{NA}s. Other
-\code{param_block} conventionsare still enforced: collapsed dimensions have their information
+Note that out of bound numbers are ignored, rather than returning \code{NA}'s. Other
+\code{param_block} conventions are still enforced: collapsed dimensions have their information
 stored as attributes and specific chains cannot be selected. You still have to use
 \link{select.chains} on \emph{entire} \code{evorates_fit} objects for selecting particular chains.
 }

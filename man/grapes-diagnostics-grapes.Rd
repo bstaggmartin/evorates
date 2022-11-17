@@ -133,7 +133,7 @@ par \%diagnostics\% 1
 \seealso{
 See \link{check.ess} and \link{check.mix} for functions tailored toward
 diagnosing the "healthiness" of a fit as a whole. For the \code{rstan} functions
-this function relies on, see \link{Rhat}.
+this function relies on, see \link[rstan]{Rhat}.
 
 Other param_block operators: 
 \code{\link{\%chains\%}()},

@@ -84,7 +84,7 @@
 #'                 extra.select = 0.5,
 #'                 simplify = FALSE)
 #'                  
-#' #note that all this is pretty much equivalent to running <fit> %<type>% list(<select>, <extra.select>)
+#' #note that all this is equivalent to running <fit> %<type>% list(<select>, <extra.select>)
 #' #at least when <fit> includes branchwise rate parameters
 #' 
 #' 

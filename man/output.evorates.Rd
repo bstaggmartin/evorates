@@ -132,7 +132,7 @@ Parameter definitions:
 #get whale/dolphin tree/trait data
 data("cet_fit")
 tree <- cet_fit$call$tree
-X <- cet_fit$call$trait.data
+trait.data <- cet_fit$call$trait.data
 
 #prepare data for evorates model
 input <- input.evorates(tree = tree, trait.data = trait.data)

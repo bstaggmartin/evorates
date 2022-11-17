@@ -44,7 +44,7 @@ get.clade.edges<-function(tree,node,partial.match=TRUE){
 
 #function to take 2 clades(/edge groups) and cut smaller edge.group out of larger one
 #' @export
-exclude.clade<-function(tree,node1=NULL,node2=NULL,return.both=F,
+exclude.clade<-function(tree,node1=NULL,node2=NULL,return.both=FALSE,
                         edge.group1=NULL,edge.group2=NULL){
   if(is.null(edge.group1)){
     if(!is.null(node1)){
@@ -61,7 +61,7 @@ exclude.clade<-function(tree,node1=NULL,node2=NULL,return.both=F,
     }
   }
   out<-list(edge.group1,edge.group2)
-  out<-out[order(lengths(out),decreasing=T)]
+  out<-out[order(lengths(out),decreasing=TRUE)]
   out[[1]]<-out[[1]][!(out[[1]]%in%out[[2]])]
   if(!return.both){
     out[[1]]

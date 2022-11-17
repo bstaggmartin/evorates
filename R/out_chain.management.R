@@ -1,32 +1,42 @@
 #almost certainly needs cleaning up
 
-#' Select chains in a fitted evolving rates model
+#' Select chains in a fitted evorates model
 #' 
 #' 
-#' This function extracts specific chains from the output of the function \code{fit.evorates}.
+#' This function subsets fitted evorates model to specific chains.
 #' 
 #' 
-#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
-#' @param chains A character or numeric vector. If of class character, the given text is matched to names of
-#' the available chains in \code{fit}. If of class numeric, the function assumes \code{chains} refers to the
-#' name "chain \code{chains}".
-#' @param simplify TRUE or FALSE value: should the resulting elements of \code{fit} have dimensions of length
-#' 1 collapsed and stored as attributes?
+#' @param fit An object of class "\code{evorates_fit}".
+#' @param chains A character or numeric vector specifying which chains to select. Notably, \code{NA}
+#' (or out of bound) selections are not allowed and automatically ignored with a warning.
+#' @param simplify \code{TRUE} or \code{FALSE}: should the resulting \code{param_block} array(s) in
+#' \code{fit} be  simplified? If \code{TRUE} (the default), dimensions of length 1 in the result are
+#' automatically collapsed, with corresponding information stored as attributes (this is the default
+#' behavior of param_block operators).
 #' 
-#' 
-#' @return an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
-#' included.
+#' @return An object of class "\code{evorates_fit}". All previously-existing param_block arrays stored
+#' in \code{fit} will be included.
 #' 
 #' 
 #' @family chain management
 #' 
 #' 
 #' @examples
-#' #requires example fitted model object
-#' #get chain 1 and 2
-#' select.chains(example.fit,c('chain 1','chain 2'))
-#' #or
-#' select.chains(example.fit,1:2)
+#' #get whale/dolphin evorates fit
+#' data("cet_fit")
+#' 
+#' #three ways to get the second and first chain
+#' fit <- select.chains(cet_fit, c('chain 1','chain 2'))
+#' fit <- select.chains(cet_fit, c(1,2))
+#' fit <- select.chains(cet_fit, -c(3,4))
+#' 
+#' #note handling of NAs
+#' fit <- select.chains(cet_fit, c('chain 1', NA))
+#' fit <- select.chains(cet_fit, c('chain 1', 'chain 5'))
+#' fit <- select.chains(cet_fit, c(1,5))
+#' 
+#' #here's what happens when you do vs. don't simplify the result
+#' select.chains(cet_fit, 1)$means; select.chains(cet_fit, 1, simplify = FALSE)$means
 #' 
 #' 
 #' @export
@@ -59,47 +69,43 @@ select.chains<-function(fit,chains,simplify=TRUE){
   fit
 }
 
-#automatically excludes iterations not included in chains and inits--doesn't make sense anymore
-#would break for a BM fit with 1 parameter--need to work on this
-#' Combine chains in a fitted evolving rates model
+#' Combine chains in a fitted evorates model
 #' 
 #' 
-#' This function combines all chains from the output of the function \code{fit.evorates} in sequential order.
+#' This function combines all chains in fitted evorates model sequentially into a single, larger chain.
+#' Generally, this function should only be run after confirming that (via Rhat diagnostics) that each
+#' chain adequately converged!
 #' 
 #' 
-#' @param fit An object of class "\code{evorates_fit}", the output of a call to \code{fit.evorates}.
-#' @param simplify TRUE or FALSE value: should the resulting elements of \code{fit} have dimensions of length
-#' 1 collapsed and stored as attributes?
+#' @param fit An object of class "\code{evorates_fit}".
+#' @param simplify \code{TRUE} or \code{FALSE}: should the resulting \code{param_block} array(s) in
+#' \code{fit} be  simplified? If \code{TRUE} (the default), dimensions of length 1 in the result are
+#' automatically collapsed, with corresponding information stored as attributes (this is the default
+#' behavior of param_block operators).
 #' 
 #' 
-#' @return an object of class "\code{evorates_fit}". All previously-existing elements in \code{fit} will be
-#' included.
+#' @return An object of class "\code{evorates_fit}". All previously-existing \code{param_block} arrays stored
+#' in \code{fit} will be included.
 #' 
 #' 
-#' @details By sequential, I mean that the chains beginning of the second chain will follow the end of the
-#' first chain, and so on. No permutation business is attempted. It is obviously unwise to run this function
-#' with a \code{evorates_fit} including chains that have not yet reached a stationary distribution or include
-#' obvious burn-in/warmup iterations.
-#' 
-#' The resulting chain name will simply be all the previous chain names separated by commas (e.g.,
-#' "chain 1, chain 2, chain 3, ...).
-#' 
-#' Any iterations included in the sampler.params element but not in the chains element are
-#' automatically excluded. Otherwise, issues would result from other functions which assuming any
-#' difference between the number of iterations in sampler.params and chains are due to iterations missing from
-#' the beginning of chains (i.e., burn-in/warmup). Any warmup iterations remaining in the chains element,
-#' however, will be kept.
-#' 
-#' After combining chains, the resulting composite 'markov chain' no longer corresponds to any one set of
-#' initialization values. As such, the 'inits' diagnostic from the param.diags element is set to NA.
+#' @details Chains are combined sequentially, meaning that the beginning of the second chain will follow
+#' the end of the first chain, the third will follow the second, and so on--no permutation business is
+#' attempted. The resulting chain name will simply be all the previous chain names separated by commas
+#' (e.g., "\code{chain 1, chain 2, chain 3, <...>}"). Because of this, initial values in the parameter
+#' diagnostics param_block (if present) are set to \code{NA} and any remaining "warmup iterations"
+#' (defined as iterations present in \code{fit$sampler.params} but not in \code{fit$chains}) are
+#' removed, with all retained iterations reclassified (perhaps misleadingly in some cases)
+#' as non-warmup iterations.
 #' 
 #' 
 #' @family chain management
 #' 
 #' 
 #' @examples
-#' #requires example fitted model object
-#' combine.chains(example.fit)
+#' #get whale/dolphin evorates fit
+#' data("cet_fit")
+#' 
+#' #make sure all chains co
 #' 
 #' 
 #' @export
@@ -109,7 +115,7 @@ combine.chains<-function(fit,simplify=TRUE){
   nchains<-fit$sampler.control$chains
   fit$sampler.control$chains<-1
   fit$sampler.control$warmup<-0
-  #warmup won'ts always be excluded...below is safer
+  #warmup won't always be excluded...below is safer
   fit$chains<-.expand.par(fit$chains)
   fit$sampler.control$iter<-dim(fit$chains)[1]*nchains
   
