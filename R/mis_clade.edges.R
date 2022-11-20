@@ -1,5 +1,8 @@
 #finds most recent common ancestral INTERNAL node of specified nodes (so, if tip, finds node ancestral
 #to tip rather than tip itself) and then gets numbers of all edge descending from that node
+
+#' Get all edge indices in a clade
+#' 
 #' @export
 get.clade.edges<-function(tree,node,partial.match=TRUE){
   attr(tree,'order')<-NULL
@@ -43,6 +46,9 @@ get.clade.edges<-function(tree,node,partial.match=TRUE){
 }
 
 #function to take 2 clades(/edge groups) and cut smaller edge.group out of larger one
+
+#' Exclude edge indices for a nested subclade out of a larger clade
+#' 
 #' @export
 exclude.clade<-function(tree,node1=NULL,node2=NULL,return.both=FALSE,
                         edge.group1=NULL,edge.group2=NULL){

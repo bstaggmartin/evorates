@@ -32,6 +32,8 @@ Ntip.evorates<-function(phy){
 
 ####CUSTOM METHOD: GETTING MATRIX OF EDGE START + END TIMES####
 
+#' Extract start and end times for each edge in a phylogeny
+#' 
 #' @export
 edge.ranges<-function(phy){
   UseMethod('edge.ranges')
@@ -57,6 +59,8 @@ edge.ranges.evorates_fit<-function(phy){
 #"tree-walkers" now avoid for loops for the most part and work with polytomies/non-cladwise trees
 #they are SUPER fast and scale well to large trees!
 
+#' Extract indices for edges corresponding to tips in a phylogeny
+#' 
 #' @export
 tip.edges<-function(phy,include.names=TRUE){
   UseMethod('tip.edges')
@@ -81,6 +85,8 @@ tip.edges.evorates<-function(phy,include.names=TRUE){
   tip.edges(phy$tree,include.names)
 }
 
+#' Extract indices for edges sister to each edge in a phylogeny
+#' 
 #' @export
 sis.edges<-function(phy){
   UseMethod('sis.edges')
@@ -130,6 +136,8 @@ sis.edges.evorates_fit<-function(phy){
   sis.edges(phy$call$tree)
 }
 
+#' Extract indices for edge ancestral to each edge in a phylogeny
+#' 
 #' @export
 anc.edges<-function(phy){
   UseMethod('anc.edges')
@@ -156,6 +164,8 @@ anc.edges.evorates_fit<-function(phy){
   anc.edges(phy$call$tree)
 }
 
+#' Extract indices for edges descending from each edge in a phylogeny
+#' 
 #' @export
 des.edges<-function(phy){
   UseMethod('des.edges')
@@ -183,24 +193,29 @@ des.edges.evorates_fit<-function(phy){
   des.edges(phy$call$tree)
 }
 
-#' @export
-root_edges<-function(phy){
-  UseMethod('root_edges')
+#' Extract indices for edges descending from root node
+#' 
+#' @export root.edges
+root.edges<-function(phy){
+  UseMethod('root.edges')
 }
 
 #' @export
-root_edges.phylo<-function(phy){
+#' @method root.edges phylo
+root.edges.phylo<-function(phy){
   which(phy$edge[,1]==Ntip(phy)+1)
 }
 
 #' @export
-root_edges.evorates<-function(phy){
-  root_edges(phy$tree)
+#' @method root.edges evorates
+root.edges.evorates<-function(phy){
+  root.edges(phy$tree)
 }
 
 #' @export
-root_edges.evorates_fit<-function(phy){
-  root_edges(phy$call$tree)
+#' @method root.edges evorates_fit
+root.edges.evorates_fit<-function(phy){
+  root.edges(phy$call$tree)
 }
 
 ####CUSTOM METHOD: LADDERIZATION####
