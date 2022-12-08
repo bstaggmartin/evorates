@@ -86,7 +86,7 @@ estimated model parameters. Below is a broad overview of the available functions
    model. Edgewise variance-covariance matrices instead describe the covariance structure
    of \emph{average trait values along each branch} expected under a Brownian Motion model.}
    \item{Some functions rely a nice helper function, \code{\link{multi.bind.tip}()}, which
-   wraps and generalizes the \pkg{phytools} function \link[phytools]{bind.tip} to handle
+   wraps and generalizes the \pkg{phytools} function \code{\link[phytools]{bind.tip}()} to handle
    binding multiple tips to a phylogeny at once.}
    \item{There are \code{Ntip()}, \code{Nedge()}, and \code{Nnode()} methods for simulated
    data and fitted models to quickly extract these quantities as necessary.}

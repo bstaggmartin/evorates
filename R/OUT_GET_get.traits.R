@@ -173,7 +173,7 @@ get.post.traits<-function(fit,
   }
   
   #get topology info
-  des.e<-c(list(root_edges(fit$call$tree)),des.edges(fit))
+  des.e<-c(list(root.edges(fit$call$tree)),des.edges(fit))
   names(des.e)<-seq_along(des.e)-1
   des.e<-rev(des.e)
   ndes<-lengths(des.e)
