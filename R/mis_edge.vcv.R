@@ -14,8 +14,9 @@ edge.vcv<-function(tree){
   anc<-anc.edges(tree)
   sis<-sis.edges(tree)
   for(i in seq_len(e)){
-    if(sis[[i]]>i){
-      end.pts[i]<-min(sis[[i]])-1
+    tmp<-sis[[i]]>i
+    if(any(tmp)){
+      end.pts[i]<-min(sis[[i]][tmp])-1
     }else{
       if(length(anc[[i]])){
         end.pts[i]<-end.pts[anc[[i]]]
@@ -26,7 +27,9 @@ edge.vcv<-function(tree){
     inds<-seq.int(i,end.pts[i])
     tmp<-tree$edge.length[i]/2
     mat[inds,inds]<-edge.hgts[i]-tmp
-    mat[inds[-1],inds[-1]]<-mat[inds[-1],inds[-1]]+tmp
+    if(length(inds)>1){
+      mat[inds[-1],inds[-1]]<-mat[inds[-1],inds[-1]]+tmp
+    }
     mat[i,i]<-mat[i,i]-tmp/3
   }
   mat

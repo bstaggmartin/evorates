@@ -463,7 +463,7 @@
     n<-n-sum(nas)
   }
   if(!n){
-    NA
+    rep(NA,length(p))
   }else{
     x<-c(x,0)
     p[p>1]<-1

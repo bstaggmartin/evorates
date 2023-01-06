@@ -126,6 +126,8 @@ get.post.traits<-function(fit,
     tmp.extra.select<-NULL
   }
   R<-get.R(fit,type='chains',extra.select=tmp.extra.select,simplify=FALSE)
+  #convert NAs in R to 0 for any remaining "pesudo branches"
+  R[is.na(R)]<-0
   niter<-dim(R)[1]
   #add in inits
   if(type=='diagnostics'){

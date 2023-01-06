@@ -89,7 +89,11 @@
   node.matches<-unlist(sapply(paste('^',rownames(trait.data),'$',sep=''),
                               function(ii) grep(ii,node.names,value=TRUE)))
   if(length(node.matches)>0){
-    tree<-multi.bind.tip(tree,node.matches,0,as.numeric(node.matches),0)
+    tree<-multi.bind.tip(tree,paste0("t",node.matches),0,as.numeric(node.matches),0)
+    inds<-rownames(trait.data)%in%node.matches
+    rownames(trait.data)[inds]<-paste0("t",rownames(trait.data)[inds])
+    inds<-rownames(trait.se)%in%node.matches
+    rownames(trait.se)[inds]<-paste0("t",rownames(trait.se)[inds])
   }
   attr(tree,'order')<-NULL
   tree<-reorder(tree,'cladewise')
