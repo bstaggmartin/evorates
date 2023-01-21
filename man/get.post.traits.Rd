@@ -10,7 +10,8 @@ get.post.traits(
   type = c("chains", "quantiles", "means", "diagnostics"),
   extra.select = NULL,
   simplify = TRUE,
-  trait.name = colnames(fit$call$trait.data)
+  store.in.fit = FALSE,
+  force.resample = FALSE
 )
 }
 \arguments{
@@ -38,12 +39,7 @@ simplified? If \code{TRUE} (the default), dimensions of length 1 in the result a
 automatically collapsed, with corresponding information stored as attributes (this is the default
 behavior of param_block operators).}
 
-\item{trait.name}{A string controlling the names of the outputted parameters, which follow the format:
-"\code{<trait.name>_i}", where i is the corresponding tip label or internal node index from
-\code{fit$call$tree}. As of now, the function actually completely ignores \code{tree$node.label}--I
-should probably fix that and plan to in the future. Defaults to the column name of
-\code{fit$call$trait.data}, which itself defaults to "X1" if not provided in the original input to
-\code{fit.evorates()} or \code{input.evorates()}.}
+\item{force.resample}{}
 }
 \value{
 An array of class "\code{param_block}" with a \code{param_type} set to whatever
@@ -52,6 +48,12 @@ iterations/quantiles/diagnostics, then parameters, then chains. Any dimensions o
 collapsed and stored as attributes if \code{simplify} is \code{TRUE}. Parameters go by the
 name \code{<trait.name>_i}, where \code{i} is the label or index of the corresponding tip or internal
 node, respectively, in \code{fit$call$tree}.
+
+Names of outputted parameters follow the format: "\code{<trait.name>_i}", where i is the corresponding
+tip label or internal node index from \code{fit$call$tree}. As of now, the function actually completely
+ignores \code{tree$node.label}--I should probably fix that and plan to in the future. The trait name
+corresponds to the column name of \code{fit$call$trait.data}, which is "X1" if not provided in the
+original input to \code{fit.evorates()} or \code{input.evorates()}.
 }
 \description{
 This function samples trait values at tips or internal nodes (a form of stochastic

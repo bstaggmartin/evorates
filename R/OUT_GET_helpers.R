@@ -1,14 +1,20 @@
-.match.type<-function(type,choices=c('chains','quantiles','means','diagnostics')){
-  type<-unlist(type[1],use.names=FALSE)
-  if(is.numeric(type)){
-    type<-choices[type][1]
+.match.arg<-function(input,choices,label){
+  input<-unlist(input[1],use.names=FALSE)
+  if(is.numeric(input)){
+    input<-choices[input][1]
   }
-  matches<-pmatch(type,choices)
-  if(is.na(matches)){
-    stop("Parameter type should be one of ",paste0(choices,collapse=", "))
+  matches<-pmatch(input,choices)
+  if(is.na(input)){
+    stop(label," should be one of ",paste0(choices,collapse=", "))
   }
   choices[matches]
 }
+
+.match.type<-function(type,choices=c('chains','quantiles','means','diagnostics')){
+  .match.arg(type,choices,"Parameter type")
+}
+
+##ARE THE BELOW STILL USED?##
 
 #this can definitely be made simpler!
 .check.edge.indices<-function(select,in.select,Nedges=NULL){

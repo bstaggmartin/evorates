@@ -890,7 +890,9 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
       Rmu<-.call.select(out$chains,'R_mu')
       Rs<-Rs-(-log(abs(Rmu))-log(el)+log(abs(exp(Rmu*er[,2])-exp(Rmu*er[,1]))))
     }
-    bg.rate<-sum(el/sum(el)*Rs)
+    tmp<-Rs
+    tmp[is.na(tmp)]<-0
+    bg.rate<-sum(el/sum(el)*tmp)
     Rs<-Rs-bg.rate
     names(Rs)<-paste0('Rdev_',e.seq)
     out$chains<-.combine.par(list(out$chains,Rs))
@@ -898,8 +900,8 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
     Rs<-Rs>0
     #add rate deviation posterior probabilities
     #should never get instances where deviations are perfectly 0...but just in case
-    out$post.probs<-.call.op('means',list(chains=Rs),'.',FALSE)
-    out$post.probs[is.infinite(out$post.probs)|is.nan(out$post.probs)]<-0.5
+    out$post.probs<-.call.op('means',list(chains=Rs,sampler.params=1),'.',FALSE)
+    out$post.probs[is.na(out$post.probs)]<-0.5
   }
   
   

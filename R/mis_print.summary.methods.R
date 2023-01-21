@@ -135,12 +135,15 @@ summary.evorates_fit<-function(fit,printlen=6,quants=c(0.025,0.5,0.975),
   }
   if(fit$call$trend|!fit$call$constrain.Rsig2){
     bg<-get.bg.rate(fit,remove.trend=remove.trend,geometric=geometric,keep.R=TRUE)
-    post.probs<-(bg$R-bg$bg_rate>0)%means%"."
+    post.probs<-bg$R-bg$bg_rate
+    post.probs[post.probs==0]<-NA
+    post.probs<-(post.probs>0)%means%"."
     if(length(dim(post.probs))==2){
-      post.probs<-rowMeans(post.probs)
+      post.probs<-rowMeans(post.probs,na.rm=TRUE)
     }
     sigs.flag<-FALSE
     sigs<-post.probs<0.05
+    sigs[is.na(sigs)|is.nan(sigs)]<-FALSE
     if(any(sigs)){
       sigs.flag<-TRUE
       nsigs<-sum(sigs)
@@ -155,6 +158,7 @@ summary.evorates_fit<-function(fit,printlen=6,quants=c(0.025,0.5,0.975),
           sep="")
     }
     sigs<-post.probs>0.95
+    sigs[is.na(sigs)|is.nan(sigs)]<-FALSE
     if(any(sigs)){
       sigs.flag<-TRUE
       nsigs<-sum(sigs)

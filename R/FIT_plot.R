@@ -1,18 +1,34 @@
-#later add support for plotting multiple samples from chains
-#okay, can use select.extra to specify a particular iteration from chains too
-#use chain to specify a specific chain using select.chains()
-#if NULL, combine chains (with warning if trying to plot inits)
-#god this function, could be SOOOO much nicer and cleaner-->I have to work on it more
-#in particular, think about accomodating non-default rate and post.probs-->I think there's a better system!
-#totally broken right now, but will fix soon
+#with new drop.tip functionality, might be nice to force using posterior probabilities in fit
+#maybe just set to NA to use post probs in original fit?
 #' @export
 plot.evorates_fit<-function(fit,chain=NULL,
                             type=c('quantiles','chains','means','diagnostics'),extra.select=NULL,
-                            post.probs=TRUE,remove.trend=TRUE,geometric=TRUE,plot.Rdev=FALSE,
+                            post.probs=c("stored","recalculate","none"),devs=c("none","stored","recalculate"),
+                            remove.trend=TRUE,geometric=TRUE,
                             recon.type=NULL,recon.extra.select=NULL,
                             ...,
                             post.probs.args=NULL,
                             sim=NULL){
+  #for backwards compatibility
+  if(is.logical(post.probs)){
+    if(post.probs){
+      post.probs<-"recalculate"
+    }else{
+      post.probs<-"none"
+    }
+  }
+  #may want smarter default that checks for whether devs are stored in fit...
+  post.probs<-.match.arg(post.probs,c("stored","recalculate","none"),"post.probs")
+  #for backwards compatibility
+  if(hasArg(plot.Rdev)){
+    if(plot.Rdev){
+      devs<-"recalculate"
+    }else{
+      devs<-"none"
+    }
+  }
+  devs<-.match.arg(devs,c("none","stored","recalculate"),"devs")
+  
   if(is.null(sim)){ #if no evorates object is supplied, coerce to evorates_fit to evorates
     #check evorates_fit and combine chains, if necessary
     if(!inherits(fit,'evorates_fit')){
@@ -40,20 +56,40 @@ plot.evorates_fit<-function(fit,chain=NULL,
     }
     
     #process post.prob stuff and get branchwise rates
-    if(post.probs|plot.Rdev){
-      R<-get.bg.rate(fit,simplify=FALSE,keep.R=TRUE,
-                     remove.trend=remove.trend,geometric=geometric)
-      R<-R$R-R$bg_rate
-      if(post.probs){
-        pp<-.call.op('means',list(chains=R>0,sampler.params=1),'.',FALSE)
+    if(post.probs!="none"|devs!="none"){
+      #check to see if stored even works here...
+      if(post.probs=="stored"|devs=="stored"){
+        if(!any(grepl('^Rdev_[1-9][0-9]*$',names(fit$chains)))){
+          if(post.probs=="stored"){
+            # warning() #warn that no stored rate deviations found
+            post.probs<-"recalculate"
+          }
+          if(devs=="stored"){
+            # warning() #warn that no stored rate deviations found
+            devs<-"recalculate"
+          }
+        }
+      }
+      #recalculate devs if post.probs or devs need to be recalculated...
+      if(post.probs=="recalculate"|devs=="recalculate"){
+        R<-get.bg.rate(fit,simplify=FALSE,keep.R=TRUE,
+                       remove.trend=remove.trend,geometric=geometric)
+        R<-R$R-R$bg_rate
+      }
+      #recalculate or get post.probs as necessary...
+      if(post.probs=="recalculate"){
+        tmp<-R
+        tmp[tmp==0]<-NA
+        pp<-.call.op('means',list(chains=tmp>0,sampler.params=1),'.',FALSE)
+        pp[is.na(pp)]<-0.5
+      }else if(post.probs=="stored"){
+        pp<-fit$post.probs
       }
     }
-    if(!plot.Rdev){
-      R<-get.R(fit,type=type,extra.select=extra.select,simplify=FALSE)
-    }else{
-      R<-.call.op(type,list(chains=R,sampler.params=1),list('.',extra.select),FALSE)
-    }
-    
+    R<-switch(devs,
+              "none"=get.R(fit,type=type,extra.select=extra.select,simplify=FALSE),
+              "stored"=.call.op(type,fit,select=list('^Rdev_[1-9][0-9]*$',extra.select),FALSE),
+              "recalculate"=.call.op(type,list(chains=R,sampler.params=1),list('.',extra.select),FALSE))
     #trait stuff
     if(is.null(recon.type)){
       if(type=='chains'){
@@ -68,15 +104,14 @@ plot.evorates_fit<-function(fit,chain=NULL,
                                  chains=if(type=='chains') extra.select else sample(niter,1),
                                  quantiles=0.5)
     }
-    X<-get.post.traits(fit,type=recon.type,extra.select=recon.extra.select,trait.name='')
+    X<-get.post.traits(fit,type=recon.type,extra.select=recon.extra.select)
     X<-as.matrix(X)
     colnames(X)<-colnames(fit$call$trait.data)
-    rownames(X)<-gsub('^_','',rownames(X))
-    
+    rownames(X)<-gsub(paste0('^',colnames(X),'_'),'',rownames(X))
     #final coercion
     sim<-list('tree'=fit$call$tree,'R'=as.vector(R),
               'X'=X)
-    if(post.probs){
+    if(post.probs!="none"){
       sim$post.probs<-as.vector(pp)
     }
     class(sim)<-'evorates'
@@ -112,7 +147,7 @@ plot.evorates_fit<-function(fit,chain=NULL,
                            colvec=NULL,
                            plot.args[!(names(plot.args)%in%c('sim','color.element','colvec'))]))
   
-  if(post.probs&!is.null(sim$post.probs)){
+  if(post.probs!='none'&!is.null(sim$post.probs)){
     if(is.null(post.probs.args$col)){
       post.probs.args$col<-c('gray80','gray20')
     }

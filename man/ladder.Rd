@@ -24,16 +24,6 @@ An object of the same class as \code{phy}, with reordered phylogeny and edgewise
 This is a generic that extends the \code{ladderize()} function from \code{ape} to objects of class
 \code{evorates} and \code{evorates_fit}. Use it to make tree plots prettier.
 }
-\examples{
-#requires example simulation object
-ladder(example.sim)
-ladder(example.sim$tree)
-#requires example fitted model object
-ladder(example.fit)
-ladder(example.fit$tree)
-
-
-}
 \seealso{
 \link[ape]{ladderize}
 }

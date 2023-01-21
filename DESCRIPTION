@@ -1,7 +1,7 @@
 Package: evorates
 Type: Package
 Title: Evolving Rate Models of Continuous Trait Evolution
-Version: 0.1.0
+Version: 0.1.1
 Author: person('Martin','Bruce',role=c('aut','cre'))
 Maintainer: <bruce.stagg.martin@gmail.com>
 Description: Methods for fitting "relaxed" models of continuous trait evolution to comparative data (i.e., a phylogeny and associated trait data), whereby the rate of trait evolution itself gradually changes over time and across lineages. Provides additional tools for simulating data, as well as manipulating, analyzing, and visualizing estimated model parameters.
