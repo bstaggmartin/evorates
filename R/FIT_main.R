@@ -321,12 +321,13 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
   des_e<-rbind(root.edges,des_e)
   prune_T<-c(0,tree$edge.length)
   which_0tip<-prune_T[real_e]==0
+  eV<-edge.vcv(tree)
   if(sum(which_0tip)>0){
-    tree<-drop.tip(tree,tree$tip.label[tree$edge[(real_e-1)[which_0tip],2]])
+    tree<-drop.tip(tree,tree$tip.label[tree$edge[(real_e-1)[which_0tip],2]],trim.internal=FALSE,collapse.singles=FALSE)
     real_e<-real_e[!which_0tip]
     e<-length(real_e)
   }
-  eV<-edge.vcv(di2multi(tree,tol=1e-300))
+  eV<-eV[real_e-1,real_e-1]
   #test--below now only works for polytomies, but not necessarily 0 tips
   # edge.quants<-sample(10,e,replace=TRUE)
   # cols=rainbow(10)

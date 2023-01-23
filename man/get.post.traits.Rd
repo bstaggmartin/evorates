@@ -39,34 +39,40 @@ simplified? If \code{TRUE} (the default), dimensions of length 1 in the result a
 automatically collapsed, with corresponding information stored as attributes (this is the default
 behavior of param_block operators).}
 
-\item{force.resample}{}
+\item{store.in.fit}{(new in 0.1.1) \code{TRUE} or \code{FALSE}: should the resulting \code{param_block}
+array be added to the \code{param_block} arrays in \code{fit}? Often makes the \code{fit} object quite a
+bit larger, but makes later computation of trait values faster and more reproducible. Defaults to
+\code{FALSE}. Note that \code{select}, \code{type}, and \code{extra.select} are ignored if this is
+\code{TRUE}.}
+
+\item{force.resample}{(new in 0.1.1) \code{TRUE} or \code{FALSE}: should trait values be resampled
+even if already stored in \code{fit}? Defaults to \code{FALSE}.}
 }
 \value{
-An array of class "\code{param_block}" with a \code{param_type} set to whatever
+If \code{store.in.fit} is \code{FALSE}: an array of class "\code{param_block}" with a
+\code{param_type} set to whatever
 \code{type} is. The dimension of these arrays will generally go in the order of
 iterations/quantiles/diagnostics, then parameters, then chains. Any dimensions of length 1 are
-collapsed and stored as attributes if \code{simplify} is \code{TRUE}. Parameters go by the
+collapsed and stored as attributes if \code{simplify} is \code{TRUE}. 
+If \code{store.in.fit} is \code{TRUE}: an \code{evorates_fit} object including extra parameters corresponding
+to trait values. Parameters go by the
 name \code{<trait.name>_i}, where \code{i} is the label or index of the corresponding tip or internal
-node, respectively, in \code{fit$call$tree}.
-
-Names of outputted parameters follow the format: "\code{<trait.name>_i}", where i is the corresponding
-tip label or internal node index from \code{fit$call$tree}. As of now, the function actually completely
-ignores \code{tree$node.label}--I should probably fix that and plan to in the future. The trait name
+node, respectively, in \code{fit$call$tree}. The trait name
 corresponds to the column name of \code{fit$call$trait.data}, which is "X1" if not provided in the
 original input to \code{fit.evorates()} or \code{input.evorates()}.
 }
 \description{
-This function samples trait values at tips or internal nodes (a form of stochastic
-ancestral state reconstruction) given an \code{evorates_fit} object.
+This function samples (or extracts previously-sampled) trait values at tips
+or internal nodes (a form of stochastic ancestral state reconstruction) given
+an \code{evorates_fit} object.
 }
 \details{
 The tip and node indices of \code{fit$call$tree} can be viewed by running:
 \code{plot(fit$call$tree); tiplabels(); nodelabels()}.
 
 Note that this function does random sampling internally, so you will get different results
-every time you run it unless you use a consistent seed (e.g., using \code{set.seed()}). Depending
-on your goals, it may be simpler and more efficient to initially extract posterior samples for all
-nodes and then do any further extractions on the outputted param_block.
+every time you run it unless you use a consistent seed (e.g., using \code{set.seed()}) or
+store sampled trait values.
 }
 \examples{
 #get whale/dolphin evorates fit
