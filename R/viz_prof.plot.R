@@ -70,6 +70,8 @@
 #' Defaults to \code{FALSE}, meaning that a new plot window is started.
 #' @param make.legend \code{TRUE}or \code{FALSE}: should a legend be automatically generated for the plotted profiles? Defaults to
 #' \code{TRUE}, but automatically suppressed when only a single profile is plotted.
+#' @param include.chain.legend \code{TRUE} or \code{FALSE}: should the automatically-generated legend include a legend for the different
+#' chains? \code{TRUE} by default, but automatically suppressed when profiles from only a single chain are plotted.
 #' @param ... Other arguments, such as graphical parameters or arguments to pass to \code{hist()}/\code{density()} for profile
 #' construction. Here are the some commonly-used ones:
 #' \itemize{
@@ -183,7 +185,8 @@ prof.plot<-function(x,smooth=FALSE,p=0.05,
                     lower.quant=NULL,upper.quant=NULL,
                     lower.cut=NULL,upper.cut=NULL,
                     add.lines=NULL,quant.lines=TRUE,
-                    add=FALSE,make.legend=TRUE,...,
+                    add=FALSE,make.legend=TRUE,include.chain.legend=TRUE,
+                    ...,
                     param.args=c('col','border','lines.col',
                                  'alpha','border.alpha','lines.alpha'),
                     chain.args=c('angle','density'),
@@ -323,6 +326,6 @@ prof.plot<-function(x,smooth=FALSE,p=0.05,
   if(make.legend){
     .make.param.plot.legend(param.names,chain.names,
                             n.params,n.chains,n.inpar,
-                            get.args)
+                            get.args,include.chain.legend)
   }
 }

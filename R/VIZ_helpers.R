@@ -53,8 +53,13 @@
                          param.args,chain.args,inpar.args,
                          n.params,n.chains,n.inpar,
                          inheritance,
-                         defaults){
+                         defaults,
+                         trace=FALSE){
   args.ls<-list(...)
+  if(trace){
+    inds<-names(args.ls)%in%c("border","density","angle","border.alpha")
+    names(args.ls)[inds]<-paste0("ribbon.",names(args.ls)[inds])
+  }
   args.ls<-args.ls[!(names(args.ls)%in%c('x','y',
                                          'x0','y0','x1','y1',
                                          'plot','warn.unused',
@@ -158,8 +163,8 @@
   for(i in seq_along(args.inds)){
     args.inds[[i]]<-names(args.ls)%in%args.nms[[i]]
   }
-  args.inds[['noncol']]<-names(args.ls)!='col'
-  args.inds[['nonborder']]<-names(args.ls)!='border'
+  args.inds[['noncol']]<-!(names(args.ls)%in%c('col','ribbon.col'))
+  args.inds[['nonborder']]<-!(names(args.ls)%in%c('border','ribbon.border'))
   for(i in names(inheritance)){
     names(args.ls)<-gsub(paste0('^',i,'\\.'),'',names(args.ls))
   }
@@ -205,7 +210,7 @@
                     lower.quant=NULL,upper.quant=NULL,
                     lower.cut=NULL,upper.cut=NULL,
                     n.params,n.chains,
-                    trace=FALSE,add.lines=matrix(nrow=1,ncol=0),
+                    trace=FALSE,ribbon=TRUE,add.lines=matrix(nrow=1,ncol=0),
                     n.windows=NULL,window.size=NULL){
   n<-dim(x)[1]
   p.seq<-seq_len(n.params)
@@ -240,7 +245,7 @@
         tmp.prob[,1]<-pmin(lower.prob,upper.prob)
         tmp.prob[,2]<-pmax(lower.prob,upper.prob)
         tmp.prob<-tmp.prob[rep(p.seq,each=n.chains),,drop=FALSE]
-        prob2cut<-.roll.quant(x,nw=n.windows,w=window.size,p=cbind(tmp.prob,add.lines))
+        prob2cut<-.roll.quant(x,nw=n.windows,w=window.size,p=if(ribbon) cbind(tmp.prob,add.lines) else add.lines)
       }
     }
     tmp.cut<-cuts.list[[i]]
@@ -272,43 +277,40 @@
   args.ls[['pch']]<-NULL
   if(!hasArg(xlim)){
     if(is.null(smooth)){
-      args.ls[['xlim']]<-range(as.vector(x),na.rm=TRUE)
+      args.ls[['xlim']]<-c(1,dim(x)[1])
     }else{
       args.ls[['xlim']]<-range(unlist(lapply(x,'[[','x')),na.rm=TRUE)
     }
   }
   if(!hasArg(ylim)){
     if(is.null(smooth)){
-      args.ls[['ylim']]<-c(1,dim(x)[1])
+      args.ls[['ylim']]<-range(as.vector(x),na.rm=TRUE)
     }else{
       args.ls[['ylim']]<-c(0,max(unlist(lapply(x,'[[','y')),na.rm=TRUE))
     }
   }
+  if(n.params>5|any(nchar(param.names)>50)){
+    tmp.lab<-def.xlab
+  }else{
+    tmp.nms<-param.names
+    modes<-unlist(lapply(tmp.nms,mode))
+    not.expr<-modes=='numeric'|modes=='character'
+    tmp.nms[not.expr]<-lapply(tmp.nms[not.expr],function(ii) paste0('"',ii,'"'))
+    tmp.lab<-str2expression(paste(as.character(tmp.nms),collapse="*'; '*"))
+  }
   if(!hasArg(xlab)){
-    if(n.params>5|any(nchar(param.names)>50)){
-      args.ls[['xlab']]<-def.xlab
+    if(is.null(smooth)){
+      args.ls[['xlab']]<-'Iteration'
     }else{
-      tmp.nms<-param.names
-      modes<-unlist(lapply(tmp.nms,mode))
-      not.expr<-modes=='numeric'|modes=='character'
-      tmp.nms[not.expr]<-lapply(tmp.nms[not.expr],function(ii) paste0('"',ii,'"'))
-      args.ls[['xlab']]<-str2expression(paste(as.character(tmp.nms),collapse="*'; '*"))
+      args.ls[['xlab']]<-tmp.lab
     }
   }
   if(!hasArg(ylab)){
     if(is.null(smooth)){
-      args.ls[['ylab']]<-'Iteration'
+      args.ls[['ylab']]<-tmp.lab
     }else{
       args.ls[['ylab']]<-if(smooth) 'Density' else 'Frequency'
     }
-  }
-  if(is.null(smooth)){
-    tmp<-args.ls[['xlim']]
-    args.ls[['xlim']]<-args.ls[['ylim']]
-    args.ls[['ylim']]<-tmp
-    tmp<-args.ls[['xlab']]
-    args.ls[['xlab']]<-args.ls[['ylab']]
-    args.ls[['ylab']]<-tmp
   }
   do.call(plot,
           c(x=list(0),
@@ -412,8 +414,11 @@
 
 .make.param.plot.legend<-function(param.names,chain.names,
                                   n.params,n.chains,n.inpar,
-                                  get.args){
+                                  get.args,
+                                  include.chain.legend,
+                                  trace=FALSE,ribbon=TRUE,ribbon.first=NULL){
   legend.args<-get.args(~legend)
+  legend.args$ribbon.first <- ribbon.first
   if(is.null(legend.args$x)){
     legend.args$x<-'topright'
   }
@@ -428,7 +433,7 @@
   }else{
     inds<-integer(0)
   }
-  if(n.chains>1){
+  if(n.chains>1&include.chain.legend){
     inds<-c(inds,
             if(n.inpar) seq.int(1,n.params*n.inpar*n.chains,n.params*n.inpar) else seq.int(1,n.params*n.chains,n.params))
     if(add.legend){
@@ -437,13 +442,26 @@
   }
   if(!is.null(legend.args$legend)){
     #works for prof.plot--will have to revise for trace.plot
-    tmp.args<-c(get.args(~(gen|poly)&!recyc),get.args(~(gen|poly)&recyc,inds))
+    if(trace){
+      if(ribbon){
+        tmp.args<-c(get.args(~ribbon&!recyc),get.args(~ribbon&recyc,inds))
+      }else{
+        tmp.args<-list()
+      }
+    }else{
+      tmp.args<-c(get.args(~(gen|poly)&!recyc),get.args(~(gen|poly)&recyc,inds))
+    }
     #keep only arguments that CAN be recycled--otherwise you get unexpected inheritance!
     #this should cover all symbol plotting stuff for now, but it may have to be modified in the future!
     tmp.args<-tmp.args[names(tmp.args)%in%.recyclables()]
     names(tmp.args)[names(tmp.args)=='col']<-'fill'
     names(tmp.args)[names(tmp.args)=='lty']<-'fill.lty'
     names(tmp.args)[names(tmp.args)=='lwd']<-'fill.lwd'
+    if(trace){
+      tmp.args<-c(tmp.args,get.args(~gen&!recyc),get.args(~gen&recyc,inds))
+      if(is.null(legend.args$merge)) legend.args$merge<-TRUE
+      if(is.null(legend.args$seg.len)) legend.args$seg.len<-0.8
+    }
     #overwrites
     tmp.args<-tmp.args[!(names(tmp.args)%in%names(legend.args))]
     legend.args<-c(legend.args,tmp.args)

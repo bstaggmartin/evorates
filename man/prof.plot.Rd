@@ -16,6 +16,7 @@ prof.plot(
   quant.lines = TRUE,
   add = FALSE,
   make.legend = TRUE,
+  include.chain.legend = TRUE,
   ...,
   param.args = c("col", "border", "lines.col", "alpha", "border.alpha", "lines.alpha"),
   chain.args = c("angle", "density"),
@@ -65,6 +66,9 @@ Defaults to \code{FALSE}, meaning that a new plot window is started.}
 
 \item{make.legend}{\code{TRUE}or \code{FALSE}: should a legend be automatically generated for the plotted profiles? Defaults to
 \code{TRUE}, but automatically suppressed when only a single profile is plotted.}
+
+\item{include.chain.legend}{\code{TRUE} or \code{FALSE}: should the automatically-generated legend include a legend for the different
+chains? \code{TRUE} by default, but automatically suppressed when profiles from only a single chain are plotted.}
 
 \item{...}{Other arguments, such as graphical parameters or arguments to pass to \code{hist()}/\code{density()} for profile
 construction. Here are the some commonly-used ones:
@@ -175,5 +179,9 @@ prof.plot(list(combined.par, "R_0"), fit = fit, lower.cut = tmp[1,], upper.cut =
           bty='n', legend.bty = 'n', legend.inset = c(0.1, 0), lwd = 2)
 
 
+}
+\seealso{
+Other evorates plotting functions: 
+\code{\link{trace.plot}()}
 }
 \concept{evorates plotting functions}

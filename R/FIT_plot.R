@@ -133,13 +133,21 @@ plot.evorates_fit<-function(fit,chain=NULL,
     }
   }
   if(is.null(plot.args$legend.args$main.side)){
-    plot.args$legend.args$main.side<-3
+    if(grepl('top',plot.args$legend.args$location)){
+      plot.args$legend.args$main.side<-1
+    }else{
+      plot.args$legend.args$main.side<-3
+    }
   }
   if(is.null(plot.args$legend.args$main.srt)){
     plot.args$legend.args$main.srt<-90
   }
   if(is.null(plot.args$legend.args$main.adj)){
-    plot.args$legend.args$main.adj<-c(0,0.5)
+    plot.args$legend.args$main.adj<-switch(plot.args$legend.args$main.side,
+                                           c(1,0.5),
+                                           c(0.5,0),
+                                           c(0,0.5),
+                                           c(0.5,1))
   }
   legend.coords<-do.call(evorates:::plot.evorates,
                          c(sim=list(sim),
@@ -182,14 +190,12 @@ plot.evorates_fit<-function(fit,chain=NULL,
     if(is.null(post.probs.args$legend.args$main)){
       post.probs.args$legend.args$main<-'post. prob.'
     }
-    if(is.null(post.probs.args$legend.args$main.side)){
-      post.probs.args$legend.args$main.side<-3
-    }
-    if(is.null(post.probs.args$legend.args$main.srt)){
-      post.probs.args$legend.args$main.srt<-90
-    }
-    if(is.null(post.probs.args$legend.args$main.adj)){
-      post.probs.args$legend.args$main.adj<-c(0,0.5)
+    if(!is.null(post.probs.args$legend.args$main.side)){
+      post.probs.args$legend.args$main.adj<-switch(post.probs.args$legend.args$main.side,
+                                                   c(1,0.5),
+                                                   c(0.5,0),
+                                                   c(0,0.5),
+                                                   c(0.5,1))
     }
     if(is.null(post.probs.args$legend.args$select.levels)&!is.null(post.probs.args$breaks)){
       break.len<-length(post.probs.args$breaks)

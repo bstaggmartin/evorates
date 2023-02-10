@@ -16,7 +16,7 @@ legend2<-function (x, y = NULL, legend, fill = NULL, col = par("col"),
                    text.font = NULL, merge = do.lines && has.pch, trace = FALSE, 
                    plot = TRUE, ncol = 1, horiz = FALSE, title = NULL, inset = 0, 
                    xpd, title.col = text.col, title.adj = 0.5, seg.len = 2,
-                   fill.lwd = NULL, fill.lty = NULL) 
+                   fill.lwd = NULL, fill.lty = NULL, ribbon.first = TRUE) 
 {
   if (missing(legend) && !missing(y) && (is.character(y) || 
                                          is.expression(y))) {
@@ -81,6 +81,14 @@ legend2<-function (x, y = NULL, legend, fill = NULL, col = par("col"),
     }
     segments(x1, y1, x2, y2, ...)
   }
+  matplot2 <- function(x1, y1, dx, dy, ...){
+    nn <- max(4, round(dx))
+    a <- rep(c(-1, 0), length.out = nn)
+    b <- rep(c(0, 1), length.out = nn)
+    xx <- do.call(cbind,lapply(x1, function(ii) seq(ii, ii + dx, length.out = nn)))
+    yy <- matrix(y1, nn, length(y1), byrow = TRUE) + 0.5 * yc * runif(nn * length(y1), a, b)
+    matplot(x = xx, y = yy, ..., add = TRUE, type = "l")
+  }
   points2 <- function(x, y, ...) {
     if (xlog) 
       x <- 10^x
@@ -138,7 +146,7 @@ legend2<-function (x, y = NULL, legend, fill = NULL, col = par("col"),
   has.pch <- !missing(pch) && length(pch) > 0
   if (do.lines) {
     x.off <- if (merge) 
-      -0.7
+      -0.8
     else 0
   }
   else if (merge) 
@@ -219,17 +227,23 @@ legend2<-function (x, y = NULL, legend, fill = NULL, col = par("col"),
                                               rep.int(n.legpercol, ncol)))[1L:n.leg]
   yt <- top - 0.5 * yextra - ymax - (rep.int(1L:n.legpercol, 
                                              ncol)[1L:n.leg] - 1 + !is.null(title)) * ychar
-  if (mfill) {
-    if (plot) {
-      if (!is.null(fill)) 
-        fill <- rep_len(fill, n.leg)
-      rect2(left = xt, top = yt + ybox/2, dx = xbox, dy = ybox, 
-            col = fill, density = density, angle = angle, 
-            border = border,
-            lwd = fill.lwd,
-            lty = fill.lty)
+  if(ribbon.first){
+    if (mfill) {
+      if (plot) {
+        if (!is.null(fill)) 
+          fill <- rep_len(fill, n.leg)
+        rect2(left = xt, top = yt + ybox/2, dx = xbox, dy = ybox, 
+              col = fill, density = density, angle = angle, 
+              border = border,
+              lwd = fill.lwd,
+              lty = fill.lty)
+      }
+      xt <- xt + dx.fill
     }
-    xt <- xt + dx.fill
+  }else if(mfill){
+    if (plot){
+      xt <- xt + dx.fill
+    }
   }
   if (plot && (has.pch || do.lines)) 
     col <- rep_len(col, n.leg)
@@ -243,13 +257,32 @@ legend2<-function (x, y = NULL, legend, fill = NULL, col = par("col"),
     ok.l <- !is.na(lty) & (is.character(lty) | lty > 0) & 
       !is.na(lwd)
     if (trace) 
-      catn("  segments2(", xt[ok.l] + x.off * xchar, ",", 
+      catn("  matplot2(", xt[ok.l] + x.off * xchar, ",",
            yt[ok.l], ", dx=", seg.len * xchar, ", dy=0, ...)")
+      # catn("  segments2(", xt[ok.l] + x.off * xchar, ",", 
+      #      yt[ok.l], ", dx=", seg.len * xchar, ", dy=0, ...)")
     if (plot) 
-      segments2(xt[ok.l] + x.off * xchar, yt[ok.l], dx = seg.len * 
-                  xchar, dy = 0, lty = lty[ok.l], lwd = lwd[ok.l], 
-                col = col[ok.l])
+      matplot2(xt[ok.l] + x.off * xchar, yt[ok.l], dx = seg.len * xchar,
+               dy = 0, lty = lty[ok.l], lwd = lwd[ok.l],
+               col = col[ok.l])
+      # segments2(xt[ok.l] + x.off * xchar, yt[ok.l], dx = seg.len * 
+      #             xchar, dy = 0, lty = lty[ok.l], lwd = lwd[ok.l], 
+      #           col = col[ok.l])
     xt <- xt + (seg.len + x.off) * xchar
+  }
+  if(!ribbon.first){
+    if (mfill) {
+      if (plot) {
+        if (!is.null(fill)) 
+          fill <- rep_len(fill, n.leg)
+        tmp.xt <- if(merge) xt + x.off * xchar else xt - (x.off + seg.len) * xchar
+        rect2(left = tmp.xt, top = yt + ybox/2, dx = xbox, dy = ybox, 
+              col = fill, density = density, angle = angle, 
+              border = border,
+              lwd = fill.lwd,
+              lty = fill.lty)
+      }
+    }
   }
   if (has.pch) {
     pch <- rep_len(pch, n.leg)

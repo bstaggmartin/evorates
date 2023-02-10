@@ -462,8 +462,8 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
   gen.args<-graphics:::.Pars
   poly.args<-names(formals(polygon))
   poly.args<-poly.args[-which(poly.args=='...')]
-  txt.args<-names(formals(text.default))
-  txt.args<-txt.args[-which(txt.args=='...')]
+  text.args<-names(formals(text.default))
+  text.args<-text.args[-which(text.args=='...')]
   if(is.null(breaks)){
     if(is.null(val.range)){
       val.range<-range(sim[[color.element]],na.rm=TRUE)
@@ -493,7 +493,7 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
   }else if(length(box.offset)==1){
     box.offset<-c(box.offset,NA)
   }
-  box.offset<-ifelse(is.na(box.offset),bds.dims/c(15,15),box.offset)
+  box.offset<-ifelse(is.na(box.offset),bds.dims/c(8,20),box.offset)
   x.offset<-box.offset[1]
   y.offset<-box.offset[2]
   if(grepl('right',location)){
@@ -531,7 +531,7 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
   if(is.na(side)){
     side<-if(grepl('left',location)) 2 else 1
   }
-  txt.args<-list(...)[!(names(list(...))%in%c('x','y','labels'))&names(list(...))%in%c(gen.args,txt.args)]
+  txt.args<-list(...)[!(names(list(...))%in%c('x','y','labels'))&names(list(...))%in%c(gen.args,text.args)]
   if(is.null(txt.args$adj)&is.null(txt.args$pos)){
     txt.args$pos<-side*2
   }
@@ -549,7 +549,7 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
       (diff(val.range))*
       (coords$y[3]-coords$y[2])
     if(exp.txt){
-      labels<-round(exp(labels),3)
+      labels<-format(exp(labels),digits=1)
     }
     do.call(text,
             c(x=coords$x[side],
@@ -588,7 +588,7 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
     main.side<-if(grepl('left',location)) 2 else 4
   }
   main.args<-list(...)[!(names(list(...))%in%paste0('main.',c('x','y','labels','side')))&
-                           names(list(...))%in%paste0('main.',c(gen.args,txt.args))]
+                           names(list(...))%in%paste0('main.',c(gen.args,text.args))]
   names(main.args)<-gsub('main.','',names(main.args))
   txt.args<-txt.args[!names(txt.args)%in%c('srt','pos','adj','offset')]
   txt.args[names(main.args)%in%names(txt.args)]<-main.args[names(main.args)%in%names(txt.args)]
@@ -610,9 +610,19 @@ legend.evorates<-function(sim,location=c('bottomleft','topleft','bottomright','t
   if(main.side%in%c(2,4)){
     x.pos<-coords$x[main.side/2]
     y.pos<-mean(coords$y[2:3])
+    if(main.side==4){
+      x.pos<-x.pos+bds.dims[1]/50
+    }else{
+      x.pos<-x.pos-bds.dims[1]/50
+    }
   }else{
     x.pos<-mean(coords$x[1:2])
     y.pos<-coords$y[main.side/2+1.5]
+    if(main.side==3){
+      y.pos<-y.pos+bds.dims[2]/50
+    }else{
+      y.pos<-y.pos-bds.dims[2]/50
+    }
   }
   do.call(text,
           as.list(c(x=x.pos,
