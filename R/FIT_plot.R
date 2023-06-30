@@ -1,5 +1,10 @@
 #with new drop.tip functionality, might be nice to force using posterior probabilities in fit
 #maybe just set to NA to use post probs in original fit?
+
+#' Plot a fitted evorates model
+#' 
+#' 
+#' This function can plot the results of a fitted evorates model in several different styles
 #' @export
 plot.evorates_fit<-function(fit,chain=NULL,
                             type=c('quantiles','chains','means','diagnostics'),extra.select=NULL,

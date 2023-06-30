@@ -1,20 +1,38 @@
 #simulate trait and rate data under an EvoRates model
 #get rid of intravar, set default intracov to 0
 
-#' Simulate data under an evorates model
+#' Simulate rate/trait data under an evorates model
 #' 
 #' 
-#' This function simulates trait data evolving on a given phylogeny under a model
-#' whereby rates also gradually "evolve" over time.
+#' This function simulates branchwise rates and corresponding trait data on a given phylogeny under an
+#' "evorates"-style model potentially including rate variance ("\code{R_sig2}"), a trend ("\code{R_mu}"),
+#' and/or tip error ("\code{Y_sig2}"). Capable of simulating multivariate trait evolution, but this
+#' feature is not well-tested.
 #' 
 #' 
 #' @param tree An object of class "\code{phylo}".
-#' @param R0 The starting rate at the root of the phylogeny (on natural log scale!).
+#' @param R0 The natural log of the starting rate at the root of the phylogeny.
 #' @param Rsig2 The rate variance parameter, which controls the magnitude of random
 #' changes in rates over time.
+#' @param X0 The starting trait value(s) at the root of the phylogeny. Recycled if
+#' \code{Xsig2} and/or \code{Ysig2} imply more traits.
 #' @param Rmu The trend parameter, which controls whether rates tend to decrease
 #' or increase over time.
-#' @param Xsig2 You probably shouldn't alter this unless you know what
+#' @param Xsig2 The "base" rate of trait evolution, which scales both \code{R0}
+#' and simulated branchwise rates. You should generally leave
+#' this alone unless you want to simulate multivariate trait evolution, in which
+#' case this should be a vector or "rate matrix" describing evolutionary rates
+#' and covariances via its diagonal and off-diagonal elements, respectively. Vectors
+#' are coerced diagonal matrices with 0 off-diagonal entries (i.e., no evolutionary
+#' correlations). After simulation, \code{Xsig2} is normalized to have mean rate
+#' of 1, and \code{R0}/branchwise rates are rescaled accordingly. Diagonal entries
+#' are recycled if \code{X0} and/or \code{Ysig2} imply more traits. Generally speaking,
+#' off-diagonal entries default to 0 if unprovided.
+#' @param trait.names Name(s) of simulated trait(s). If a name is not provided
+#' and/or \code{NA}, defaults to "\code{X<i>}" for the \code{i}th trait.
+#' @param n.obs A vector of the number of observations per tip. Assumed to be
+#' in the same order as \code{tree$tip.label} if unlabeled. Missing and/or
+#' \code{NA} entries default to 1 if labeled.
 #' 
 #' 
 #' @export
@@ -34,9 +52,7 @@ sim.evorates<-function(tree,R0=0,Rsig2=1,X0=0,Rmu=0,Xsig2=1,trait.names=NULL,
   }
   Xsig2<-.coerce.to.cov.mat(Xsig2,k)
   chol.Xsig2<-t(chol(Xsig2))
-  if(is.null(trait.names)){
-    trait.names<-rep(NA,length.out=k)
-  }
+  trait.names<-rep(c(trait.names,NA),length.out=k)
   def.trait.names<-paste('X',1:k,sep='')
   trait.names<-ifelse(is.na(trait.names),def.trait.names,trait.names)
   

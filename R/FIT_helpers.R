@@ -3,10 +3,10 @@
 .make.prior.list<-function(...){
   in.list<-list(...)
   names.table<-cbind(c('^(R[\\._]?0).*((mu)|(mean))','(R[\\._]?0).*((sig)|(sd))',
-                       '^((intra)|(Y))[\\._]?((sig2)|(var))',
+                       '^((intra)|(Y))[\\._]?((sig2)|(var)).*((sig)|(sd))','^((intra)|(Y))[\\._]?((sig2)|(var)).*((nu)|(df))',
                        '^R[\\._]?((sig2)|(var))',
                        '^((R[\\._]?mu)|(trend)).*((mu)|(mean))','^((R[\\._]?mu)|(trend)).*((sig)|(sd))'),
-                     c('R0_prior_mu','R0_prior_sig','Ysig2_prior_sig','Rsig2_prior_sig','Rmu_prior_mu','Rmu_prior_sig'))
+                     c('R0_prior_mu','R0_prior_sig','Ysig2_prior_sig','Ysig2_prior_df','Rsig2_prior_sig','Rmu_prior_mu','Rmu_prior_sig'))
   out.list<-list()
   for(i in 1:nrow(names.table)){
     tmp<-grepl(names.table[i,1],names(in.list))
@@ -34,6 +34,12 @@
               paste(conflicts.negs,collapse=', '),
               ': all negative numbers set to defaults.',
               immediate.=TRUE)
+    }
+  }
+  #convert Inf df to 0 (df <= 0 interpreted as Inf by Stan program)
+  if(!is.null(out.list[["Ysig2_prior_df"]])){
+    if(is.infinite(out.list[["Ysig2_prior_df"]])){
+      out.list[["Ysig2_prior_df"]]<-0
     }
   }
   out.list
@@ -255,9 +261,8 @@
   
   ##FINAL PRIOR/CONSTRAINT SETTINGS##
   dat<-input.evorates.obj$dat
-  #10 is just a bit tight--20 seems just right
   def.priors<-list('R0_prior_mu'=0,'R0_prior_sig'=10,
-                   'Ysig2_prior_sig'=2,
+                   'Ysig2_prior_sig'=2,'Ysig2_prior_df'=1,
                    'Rsig2_prior_sig'=5,
                    'Rmu_prior_mu'=0,'Rmu_prior_sig'=10)
   #we'll need to tweak this for multivariate priors
@@ -293,7 +298,7 @@
   
   ##CHOOSE MODEL/EXCLUDED PARAMETERS##
   #will become more complex/important with multivariate extension
-  exclude.pars<-c('std_R0','std_Ysig2','std_Rsig2','std_Rmu','raw_R','SE','tmp_lik','tmp_mu')
+  exclude.pars<-c('std_R0','tau_Ysig2','std_Ysig2','std_Ysig2_cauchy','std_Rsig2','std_Rmu','raw_R','SE','tmp_lik','tmp_mu')
   if(dat$n_mis_SE==0){
     exclude.pars<-c(exclude.pars,'Ysig2')
   }
@@ -306,7 +311,7 @@
   if(dat$constr_Rsig2&dat$constr_Rmu){
     exclude.pars<-c(exclude.pars,'R')
   }
-  stanobj<-'univar_evorates_normpri'
+  stanobj<-'univar_evorates_normpri_tpri'
   
   ##FORM OUTPUT FOR RUNNING MODEL##
   out<-list(return.as.obj=return.as.obj,stanobj=stanobj,exclude.pars=exclude.pars,out.file=out.file,

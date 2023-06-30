@@ -849,6 +849,13 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
       trans.const$X_sig2
     out$chains[,'Y_sig2',]<-Ysig2
     out$call$Ysig2_prior_sig<-dat$Ysig2_prior_sig*trans.const$X_sig2
+    if(is.null(dat$Ysig2_prior_df)){
+      #if this is a pre-update evorates model, Ysig2 prior was cauchy and df should therefore be 1
+      out$call$Ysig2_prior_df<-1
+    }else{
+      #A negative/0 df indicates Ysig2 prior was normal (infinite df)
+      out$call$Ysig2_prior_df<-if(dat$Ysig2_prior_df>0) dat$Ysig2_prior_df else Inf
+    }
   }
   if(!constrain.Rsig2){
     Rsig2<-extract(stanfit,"Rsig2",permute=FALSE,inc_warmup=TRUE)[-excl.iter,,,drop=FALSE]/
@@ -1170,7 +1177,7 @@ fit.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,trend
   stan.args.list<-list(...)
   if(length(stan.args.list)>0){
     prior.args.names<-c('^(R[\\._]?0).*((mu)|(mean))','(R[\\._]?0).*((sig)|(sd))',
-                        '^((intra)|(Y))[\\._]?((sig2)|(var))',
+                        '^((intra)|(Y))[\\._]?((sig2)|(var))','^((intra)|(Y))[\\._]?((sig2)|(var)).*((nu)|(df))',
                         '^R[\\._]?((sig2)|(var))',
                         '^((R[\\._]?mu)|(trend)).*((mu)|(mean))','^((R[\\._]?mu)|(trend)).*((sig)|(sd))')
     which.prior.args<-apply(do.call(cbind,lapply(prior.args.names,grepl,x=names(stan.args.list))),1,any)

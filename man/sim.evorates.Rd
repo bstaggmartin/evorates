@@ -2,7 +2,7 @@
 % Please edit documentation in R/SIM_generation.R
 \name{sim.evorates}
 \alias{sim.evorates}
-\title{Simulate data under an evorates model}
+\title{Simulate rate/trait data under an evorates model}
 \usage{
 sim.evorates(
   tree,
@@ -23,17 +23,38 @@ sim.evorates(
 \arguments{
 \item{tree}{An object of class "\code{phylo}".}
 
-\item{R0}{The starting rate at the root of the phylogeny (on natural log scale!).}
+\item{R0}{The natural log of the starting rate at the root of the phylogeny.}
 
 \item{Rsig2}{The rate variance parameter, which controls the magnitude of random
 changes in rates over time.}
 
+\item{X0}{The starting trait value(s) at the root of the phylogeny. Recycled if
+\code{Xsig2} and/or \code{Ysig2} imply more traits.}
+
 \item{Rmu}{The trend parameter, which controls whether rates tend to decrease
 or increase over time.}
 
-\item{Xsig2}{You probably shouldn't alter this unless you know what}
+\item{Xsig2}{The "base" rate of trait evolution, which scales both \code{R0}
+and simulated branchwise rates. You should generally leave
+this alone unless you want to simulate multivariate trait evolution, in which
+case this should be a vector or "rate matrix" describing evolutionary rates
+and covariances via its diagonal and off-diagonal elements, respectively. Vectors
+are coerced diagonal matrices with 0 off-diagonal entries (i.e., no evolutionary
+correlations). After simulation, \code{Xsig2} is normalized to have mean rate
+of 1, and \code{R0}/branchwise rates are rescaled accordingly. Diagonal entries
+are recycled if \code{X0} and/or \code{Ysig2} imply more traits. Generally speaking,
+off-diagonal entries default to 0 if unprovided.}
+
+\item{trait.names}{Name(s) of simulated trait(s). If a name is not provided
+and/or \code{NA}, defaults to "\code{X<i>}" for the \code{i}th trait.}
+
+\item{n.obs}{A vector of the number of observations per tip. Assumed to be
+in the same order as \code{tree$tip.label} if unlabeled. Missing and/or
+\code{NA} entries default to 1 if labeled.}
 }
 \description{
-This function simulates trait data evolving on a given phylogeny under a model
-whereby rates also gradually "evolve" over time.
+This function simulates branchwise rates and corresponding trait data on a given phylogeny under an
+"evorates"-style model potentially including rate variance ("\code{R_sig2}"), a trend ("\code{R_mu}"),
+and/or tip error ("\code{Y_sig2}"). Capable of simulating multivariate trait evolution, but this
+feature is not well-tested.
 }

@@ -101,8 +101,9 @@ c.param_block<-function(...,fit=NULL){
       }else{
         pot.sampler<-which(lens==max(lens))
         param.names<-lapply(check[[3]][pot.sampler],'[[',2)
+        sampler.names<-paste0(c('accept_stat','stepsize','treedepth','n_leapfrog','divergent','energy','prior','lik','post'),'__')
         is.sampler.names<-unlist(lapply(param.names,function(ii) 
-          all(grep(.get.sampler.names(),ii))))
+          all(ii%in%sampler.names)))
         if(all(is.sampler.names)){
           target.len<-min(lens)
           diags.len<-max(lens)

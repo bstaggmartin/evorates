@@ -8,6 +8,9 @@ def.color.scheme<-function(){
 #add an option to only exponentiate legend? Done
 #really need to clean these functions up-->chunks of code identical between plot.evorates and pairs, also many of this code
 #should just be internal functions, rather than explicit
+
+#' Plot simulated trait and/or rate data from a
+#' 
 #' @export
 plot.evorates<-function(sim,traits=1:ncol(sim$X),style=c('phenogram','phylogram','cladogram','fan','unrooted','radial'),
                         col=def.color.scheme(),na.col='gray90',val.range=NULL,res=100,

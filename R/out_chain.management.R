@@ -322,7 +322,8 @@ thin.chains<-function(fit,thin=2,simplify=TRUE){
   }
   for(i in c('quantiles','means','diagnostics')){
     if(!is.null(fit[[i]])){
-      extra.select<-dimnames(.make.par.3D(fit[[i]]))[[1]]
+      fit[[i]]<-.make.par.3D(fit[[i]])
+      extra.select<-dimnames(fit[[i]])[[1]]
       if(i=='diagnostics'){
         tmp.inds<-extra.select=='inits'
         inits.save<-fit[[i]][tmp.inds,,,drop=FALSE]

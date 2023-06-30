@@ -7,15 +7,16 @@ Maintainer: <bruce.stagg.martin@gmail.com>
 Description: Methods for fitting "relaxed" models of continuous trait evolution to comparative data (i.e., a phylogeny and associated trait data), whereby the rate of trait evolution itself gradually changes over time and across lineages. Provides additional tools for simulating data, as well as manipulating, analyzing, and visualizing estimated model parameters.
 License: GPL-3  + file LICENSE
 Imports:
-    phytools (>= 0.7-80),
     logspline (>= 2.1.16),
+    methods,
+    phytools (>= 0.7-80),
     Rcpp (>= 1.0.7),
     RcppParallel (>= 5.1.4),
     rstan (>= 2.21.2),
-    rstantools (>= 2.1.1)
+    rstantools (>= 2.3.1)
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.2.2
+RoxygenNote: 7.2.3
 Biarch: true
 Depends: 
     R (>= 4.1.1),
