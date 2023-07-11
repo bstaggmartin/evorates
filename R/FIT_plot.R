@@ -26,7 +26,7 @@ plot.evorates_fit<-function(fit,chain=NULL,
   post.probs<-.match.arg(post.probs,c("stored","recalculate","none"),"post.probs")
   #for backwards compatibility
   if(hasArg(plot.Rdev)){
-    if(plot.Rdev){
+    if(list(...)[["plot.Rdev"]]){
       devs<-"recalculate"
     }else{
       devs<-"none"

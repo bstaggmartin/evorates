@@ -83,9 +83,14 @@ is 1. Defaults to \code{FALSE}, such that prior parameters are interpreted on th
 \item{Prior on rate at the root (\code{R_0}): Follows a normal distribution with adjustable mean and standard deviation.
       By default, mean is set to variance of \code{trait.data} divided by the maximum height of \code{tree} on the
       natural log scale (i.e., 0 on sampling scale), and standard deviation is set to 10 (also 10 on sampling scale).}
-\item{Prior on tip error variance (\code{Y_sig2}): Follows a half-Cauchy distribution (basically a half-normal
-      distribution with extremely fat tails) with adjustable standard deviation. By default, standard deviation is set
-      to 2 times the variance \code{trait.data} (i.e., 2 on the sampling scale).}
+\item{Prior on tip error variance (\code{Y_sig2}): Follows a half-t distribution (basically a half-normal
+      distribution with potentially fatter tails) with adjustable standard deviation and degrees of freedom. By default,
+      standard deviation is set to 2 times the variance \code{trait.data} (i.e., 2 on the sampling scale), and
+      degrees of freedom is set to 1. The degrees of freedom can be tweaked with the argument "Ysig2_df" and may be
+      any positive number, including \code{Inf}, with lower numbers leading to a less informative priors with fatter
+      tails. Notably, setting "Ysig2_df" to \code{Inf} makes this prior half-normal and much more informative!
+      More informative priors are useful in cases where a user lacks precise estimates of tip error, but nonetheless
+      knows that phenotypic divergence is generally higher across, rather than within, tips.}
 }}
 }
 \value{

@@ -131,7 +131,8 @@ row.genera <- rev(sapply(strsplit(rownames(pwc.result), '_'), '[', 1))
 axis(2, at = 1:nrow(pwc.result), labels = row.genera, las = 2)
 col.genera <- sapply(strsplit(colnames(pwc.result), '_'), '[', 1)
 axis(1, at = 1:ncol(pwc.result), labels = col.genera, las = 2)
-#redder colors indicate a row tip likely exhibiting a faster rate than a column tip and vice versa for bluer colors
+#redder colors indicate a row tip likely exhibiting a faster rate than a column tip
+#and vice versa for bluer colors
 
 
 }
