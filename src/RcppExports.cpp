@@ -12,10 +12,10 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 
-RcppExport SEXP _rcpp_module_boot_stan_fit4univar_evorates_normpri_tpri_mod();
+RcppExport SEXP _rcpp_module_boot_stan_fit4univar_evorates_normpri_tpri_new_mod();
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_rcpp_module_boot_stan_fit4univar_evorates_normpri_tpri_mod", (DL_FUNC) &_rcpp_module_boot_stan_fit4univar_evorates_normpri_tpri_mod, 0},
+    {"_rcpp_module_boot_stan_fit4univar_evorates_normpri_tpri_new_mod", (DL_FUNC) &_rcpp_module_boot_stan_fit4univar_evorates_normpri_tpri_new_mod, 0},
     {NULL, NULL, 0}
 };
 

@@ -92,14 +92,14 @@
 #' \item{Prior on rate at the root (\code{R_0}): Follows a normal distribution with adjustable mean and standard deviation.
 #'       By default, mean is set to variance of \code{trait.data} divided by the maximum height of \code{tree} on the
 #'       natural log scale (i.e., 0 on sampling scale), and standard deviation is set to 10 (also 10 on sampling scale).}
-#' \item{Prior on tip error variance (\code{Y_sig2}): Follows a half-t distribution (basically a half-normal
-#'       distribution with potentially fatter tails) with adjustable standard deviation and degrees of freedom. By default,
-#'       standard deviation is set to 2 times the variance \code{trait.data} (i.e., 2 on the sampling scale), and
-#'       degrees of freedom is set to 1. The degrees of freedom can be tweaked with the argument "Ysig2_df" and may be
-#'       any positive number, including \code{Inf}, with lower numbers leading to a less informative priors with fatter
-#'       tails. Notably, setting "Ysig2_df" to \code{Inf} makes this prior half-normal and much more informative!
-#'       More informative priors are useful in cases where a user lacks precise estimates of tip error, but nonetheless
-#'       knows that phenotypic divergence is generally higher across, rather than within, tips.}
+#' \item{Prior on tip error variance (\code{Y_sig2}): Follows a truncated t distribution (basically a normal
+#'       distribution with potentially fatter tails) with adjustable mean, standard deviation, and degrees of freedom.
+#'       The distribution is truncated at 0 to the left such that Y_sig2 estimates are always positive (note that setting
+#'       the mean to 0 results in a half-t distribution). By default, mean is set to 0, standard deviation is set to 2
+#'       times the variance of \code{trait.data} (i.e., 2 on the sampling scale), and degrees of freedom is set to 1. The
+#'       degrees of freedom can be tweaked with the argument "Ysig2_df" and may be any positive number, including \code{Inf},
+#'       with lower numbers leading to a less informative priors with fatter tails. Notably, setting "Ysig2_df" to \code{Inf}
+#'       makes this prior a truncated normal and much more informative!}
 #' }
 #' 
 #' 
@@ -290,8 +290,10 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
     contra<-contra/sqrt(trans.const$X_sig2[1])
   }
   if(!sampling.scale){
-    if(!is.null(prior.list$Ysig2_prior_sig)){
-      prior.list$Ysig2_prior_sig<-prior.list$Ysig2_prior_sig/trans.const$X_sig2
+    for(i in c("Ysig2_prior_mu","Ysig2_prior_sig")){
+      if(!is.null(prior.list[[i]])){
+        prior.list[[i]]<-prior.list[[i]]/trans.const$X_sig2
+      }
     }
     if(!is.null(prior.list$R0_prior_mu)){
       prior.list$R0_prior_mu<-prior.list$R0_prior_mu+log(trans.const$hgt)-log(mean(trans.const$X_sig2))
@@ -436,14 +438,14 @@ input.evorates<-function(tree,trait.data,trait.se=NULL,constrain.Rsig2=FALSE,tre
 #' \item{Prior on rate at the root (\code{R_0}): Follows a normal distribution with adjustable mean and standard deviation.
 #'       By default, mean is set to variance of \code{trait.data} divided by the maximum height of \code{tree} on the
 #'       natural log scale (i.e., 0 on sampling scale), and standard deviation is set to 10 (also 10 on sampling scale).}
-#' \item{Prior on tip error variance (\code{Y_sig2}): Follows a half-t distribution (basically a half-normal
-#'       distribution with potentially fatter tails) with adjustable standard deviation and degrees of freedom. By default,
-#'       standard deviation is set to 2 times the variance \code{trait.data} (i.e., 2 on the sampling scale), and
-#'       degrees of freedom is set to 1. The degrees of freedom can be tweaked with the argument "Ysig2_df" and may be
-#'       any positive number, including \code{Inf}, with lower numbers leading to a less informative priors with fatter
-#'       tails. Notably, setting "Ysig2_df" to \code{Inf} makes this prior half-normal and much more informative!
-#'       More informative priors are useful in cases where a user lacks precise estimates of tip error, but nonetheless
-#'       knows that phenotypic divergence is generally higher across, rather than within, tips.}
+#' \item{Prior on tip error variance (\code{Y_sig2}): Follows a truncated t distribution (basically a normal
+#'       distribution with potentially fatter tails) with adjustable mean, standard deviation, and degrees of freedom.
+#'       The distribution is truncated at 0 to the left such that Y_sig2 estimates are always positive (note that setting
+#'       the mean to 0 results in a half-t distribution). By default, mean is set to 0, standard deviation is set to 2
+#'       times the variance of \code{trait.data} (i.e., 2 on the sampling scale), and degrees of freedom is set to 1. The
+#'       degrees of freedom can be tweaked with the argument "Ysig2_df" and may be any positive number, including \code{Inf},
+#'       with lower numbers leading to a less informative priors with fatter tails. Notably, setting "Ysig2_df" to \code{Inf}
+#'       makes this prior a truncated normal and much more informative!}
 #' }}
 #' \item{Additional arguments to pass to \code{rstan::sampling()}, most commonly:
 #' \itemize{
@@ -860,11 +862,17 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
     out$chains[,'Y_sig2',]<-Ysig2
     out$call$Ysig2_prior_sig<-dat$Ysig2_prior_sig*trans.const$X_sig2
     if(is.null(dat$Ysig2_prior_df)){
-      #if this is a pre-update evorates model, Ysig2 prior was cauchy and df should therefore be 1
+      #if this is a pre-t update evorates model, Ysig2 prior was cauchy and df should therefore be 1
       out$call$Ysig2_prior_df<-1
     }else{
       #A negative/0 df indicates Ysig2 prior was normal (infinite df)
       out$call$Ysig2_prior_df<-if(dat$Ysig2_prior_df>0) dat$Ysig2_prior_df else Inf
+    }
+    if(is.null(dat$Ysig2_prior_mu)){
+      #if this is a pre-truncated update evorates model, Ysig2 prior was half-t and mu should therefore be 0
+      out$call$Ysig2_prior_mu<-0
+    }else{
+      out$call$Ysig2_prior_mu<-dat$Ysig2_prior_mu*trans.const$X_sig2
     }
   }
   if(!constrain.Rsig2){
@@ -1046,14 +1054,14 @@ output.evorates<-function(run.evorates.obj,stanfit=NULL,call=NULL,trans.const=NU
 #' \item{Prior on rate at the root (\code{R_0}): Follows a normal distribution with adjustable mean and standard deviation.
 #'       By default, mean is set to variance of \code{trait.data} divided by the maximum height of \code{tree} on the
 #'       natural log scale (i.e., 0 on sampling scale), and standard deviation is set to 10 (also 10 on sampling scale).}
-#' \item{Prior on tip error variance (\code{Y_sig2}): Follows a half-t distribution (basically a half-normal
-#'       distribution with potentially fatter tails) with adjustable standard deviation and degrees of freedom. By default,
-#'       standard deviation is set to 2 times the variance \code{trait.data} (i.e., 2 on the sampling scale), and
-#'       degrees of freedom is set to 1. The degrees of freedom can be tweaked with the argument "Ysig2_df" and may be
-#'       any positive number, including \code{Inf}, with lower numbers leading to a less informative priors with fatter
-#'       tails. Notably, setting "Ysig2_df" to \code{Inf} makes this prior half-normal and much more informative!
-#'       More informative priors are useful in cases where a user lacks precise estimates of tip error, but nonetheless
-#'       knows that phenotypic divergence is generally higher across, rather than within, tips.}
+#' \item{Prior on tip error variance (\code{Y_sig2}): Follows a truncated t distribution (basically a normal
+#'       distribution with potentially fatter tails) with adjustable mean, standard deviation, and degrees of freedom.
+#'       The distribution is truncated at 0 to the left such that Y_sig2 estimates are always positive (note that setting
+#'       the mean to 0 results in a half-t distribution). By default, mean is set to 0, standard deviation is set to 2
+#'       times the variance of \code{trait.data} (i.e., 2 on the sampling scale), and degrees of freedom is set to 1. The
+#'       degrees of freedom can be tweaked with the argument "Ysig2_df" and may be any positive number, including \code{Inf},
+#'       with lower numbers leading to a less informative priors with fatter tails. Notably, setting "Ysig2_df" to \code{Inf}
+#'       makes this prior a truncated normal and much more informative!}
 #' }}
 #' \item{Additional arguments to pass to \code{rstan::sampling()}, most commonly:
 #' \itemize{

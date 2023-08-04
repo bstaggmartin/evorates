@@ -2,12 +2,12 @@
 
 #include <Rcpp.h>
 using namespace Rcpp ;
-#include "stanExports_univar_evorates_normpri_tpri.h"
+#include "stanExports_univar_evorates_normpri_tpri_new.h"
 
-RCPP_MODULE(stan_fit4univar_evorates_normpri_tpri_mod) {
+RCPP_MODULE(stan_fit4univar_evorates_normpri_tpri_new_mod) {
 
 
-    class_<rstan::stan_fit<stan_model, boost::random::ecuyer1988> >("rstantools_model_univar_evorates_normpri_tpri")
+    class_<rstan::stan_fit<stan_model, boost::random::ecuyer1988> >("rstantools_model_univar_evorates_normpri_tpri_new")
 
     .constructor<SEXP,SEXP,SEXP>()
 

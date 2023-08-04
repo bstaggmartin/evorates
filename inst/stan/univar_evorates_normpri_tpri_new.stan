@@ -1,3 +1,4 @@
+ // set options(pkg.build_extra_flags = FALSE) to prevent -pedantic warnings!!!
 functions {
   //function to combine fixed and unfixed tip SEs
   vector get_SE (int n, vector p_SE, vector inv_n_obs, real[] Ysig2, int[] which_mis_SE, int has_mis_SE){
@@ -110,6 +111,7 @@ data {
 	//prior specification: see below for parameter definitions
   real R0_prior_mu;
   real R0_prior_sig;
+  real Ysig2_prior_mu;
   real Ysig2_prior_sig;
   real Ysig2_prior_df;
   real Rsig2_prior_sig;
@@ -131,6 +133,7 @@ transformed data {
   int Ysig2_prior_cauchy;
   int Ysig2_prior_t;
   int needs_std_Ysig2;
+  real Ysig2_prior_const;
   real half_df;
   int has_contra;
   real sum_sq_scale_contra;
@@ -144,18 +147,22 @@ transformed data {
   Ysig2_prior_cauchy = 0;
   Ysig2_prior_t = 0;
   needs_std_Ysig2 = 0;
+  Ysig2_prior_const = 0;
   if(n_mis_SE == 0){
     has_mis_SE = 0;
   }else{
     has_mis_SE = 1;
     if(Ysig2_prior_df == 1){
       Ysig2_prior_cauchy = 1;
+      Ysig2_prior_const = cauchy_lccdf(0 | Ysig2_prior_mu, Ysig2_prior_sig);
     }else if(Ysig2_prior_df > 0){
       Ysig2_prior_t = 1;
       needs_std_Ysig2 = 1;
       half_df = Ysig2_prior_df / 2;
+      Ysig2_prior_const = student_t_lccdf(0 | Ysig2_prior_df, Ysig2_prior_mu, Ysig2_prior_sig);
     }else{
       needs_std_Ysig2 = 1;
+      Ysig2_prior_const = normal_lccdf(0 | Ysig2_prior_mu, Ysig2_prior_sig);
     }
   }
   
@@ -197,8 +204,8 @@ parameters {
   //parameters on sampling scale: see below for parameter definitions
   real std_R0;
   real<lower=0> tau_Ysig2[Ysig2_prior_t ? 1:0];
-  real<lower=0> std_Ysig2[needs_std_Ysig2 ? 1:0];
-  real<lower=0, upper=pi()/2> std_Ysig2_cauchy[Ysig2_prior_cauchy ? 1:0];
+  real std_Ysig2[needs_std_Ysig2 ? 1:0];
+  real<lower=atan(-Ysig2_prior_mu), upper=pi()/2> std_Ysig2_cauchy[Ysig2_prior_cauchy ? 1:0];
   real<lower=0, upper=pi()/2> std_Rsig2[constr_Rsig2 ? 0:1];
   real std_Rmu[constr_Rmu ? 0:1];
   vector[constr_Rsig2 ? 0:e] raw_R;
@@ -219,11 +226,11 @@ transformed parameters {
   R0 = R0_prior_mu + R0_prior_sig * std_R0; //R0 prior: normal(R0_prior_mu, R0_prior_sig)
   if(has_mis_SE){
     if(Ysig2_prior_cauchy){
-      Ysig2[1] = Ysig2_prior_sig * tan(std_Ysig2_cauchy[1]); //Ysig2 prior: half-cauchy(0, Ysig2_prior_sig)
+      Ysig2[1] = Ysig2_prior_mu + Ysig2_prior_sig * tan(std_Ysig2_cauchy[1]); //Ysig2 prior: cauchy(Ysig2_prior_mu, Ysig2_prior_sig) left-truncated at 0
     }else if(Ysig2_prior_t){
-      Ysig2[1] = Ysig2_prior_sig * std_Ysig2[1] / sqrt(tau_Ysig2[1]); //Ysig2 prior: half-t(Ysig2_prior_df, 0, Ysig2_prior_sig)
+      Ysig2[1] = Ysig2_prior_sig * exp(std_Ysig2[1]) / sqrt(tau_Ysig2[1]); //Ysig2 prior: t(Ysig2_prior_df, Ysig2_prior_mu, Ysig2_prior_sig) left-truncated at 0
     }else{
-      Ysig2[1] = Ysig2_prior_sig * std_Ysig2[1]; //Ysig2 prior: half-normal(0, Ysig2_prior_sig)
+      Ysig2[1] = Ysig2_prior_sig * exp(std_Ysig2[1]); //Ysig2 prior: normal(Ysig2_prior_mu, Ysig2_prior_sig) left-truncated at 0
     }
   }
 	if(!constr_Rsig2){
@@ -266,10 +273,12 @@ model {
   std_R0 ~ std_normal();
   if(has_mis_SE){
     if(needs_std_Ysig2){
-      std_Ysig2[1] ~ std_normal();
-    }
-    if(Ysig2_prior_t){
-      tau_Ysig2[1] ~ gamma(half_df, half_df);
+      if(Ysig2_prior_t){
+        tau_Ysig2[1] ~ gamma(half_df, half_df);
+        target += -0.5 * (exp(std_Ysig2[1]) - Ysig2_prior_mu * sqrt(tau_Ysig2[1]) / Ysig2_prior_sig)^2 + std_Ysig2[1];
+      }else{
+        target += -0.5 * (exp(std_Ysig2[1]) - Ysig2_prior_mu / Ysig2_prior_sig)^2 + std_Ysig2[1];
+      }
     }
   }
   if(!constr_Rmu){
@@ -307,11 +316,11 @@ generated quantities{
   prior = normal_lpdf(R0 | R0_prior_mu, R0_prior_sig);
   if(has_mis_SE){
     if(Ysig2_prior_cauchy){
-      prior += cauchy_lpdf(Ysig2[1] | 0, Ysig2_prior_sig) + log(2);
+      prior += cauchy_lpdf(Ysig2[1] | Ysig2_prior_mu, Ysig2_prior_sig) - Ysig2_prior_const;
     }else if(Ysig2_prior_t){
-      prior += student_t_lpdf(Ysig2[1] | Ysig2_prior_df, 0, Ysig2_prior_sig) + log(2);
+      prior += student_t_lpdf(Ysig2[1] | Ysig2_prior_df, Ysig2_prior_mu, Ysig2_prior_sig) - Ysig2_prior_const;
     }else{
-      prior += normal_lpdf(Ysig2[1] | 0, Ysig2_prior_sig) + log(2);
+      prior += normal_lpdf(Ysig2[1] | Ysig2_prior_mu, Ysig2_prior_sig) - Ysig2_prior_const;
     }
   }
   if(!constr_Rsig2){

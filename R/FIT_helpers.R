@@ -3,10 +3,10 @@
 .make.prior.list<-function(...){
   in.list<-list(...)
   names.table<-cbind(c('^(R[\\._]?0).*((mu)|(mean))','(R[\\._]?0).*((sig)|(sd))',
-                       '^((intra)|(Y))[\\._]?((sig2)|(var)).*((sig)|(sd))','^((intra)|(Y))[\\._]?((sig2)|(var)).*((nu)|(df))',
+                       '^((intra)|(Y))[\\._]?((sig2)|(var)).*((mu)|(mean))','^((intra)|(Y))[\\._]?((sig2)|(var)).*((sig)|(sd))','^((intra)|(Y))[\\._]?((sig2)|(var)).*((nu)|(df))',
                        '^R[\\._]?((sig2)|(var))',
                        '^((R[\\._]?mu)|(trend)).*((mu)|(mean))','^((R[\\._]?mu)|(trend)).*((sig)|(sd))'),
-                     c('R0_prior_mu','R0_prior_sig','Ysig2_prior_sig','Ysig2_prior_df','Rsig2_prior_sig','Rmu_prior_mu','Rmu_prior_sig'))
+                     c('R0_prior_mu','R0_prior_sig','Ysig2_prior_mu','Ysig2_prior_sig','Ysig2_prior_df','Rsig2_prior_sig','Rmu_prior_mu','Rmu_prior_sig'))
   out.list<-list()
   for(i in 1:nrow(names.table)){
     tmp<-grepl(names.table[i,1],names(in.list))
@@ -262,7 +262,7 @@
   ##FINAL PRIOR/CONSTRAINT SETTINGS##
   dat<-input.evorates.obj$dat
   def.priors<-list('R0_prior_mu'=0,'R0_prior_sig'=10,
-                   'Ysig2_prior_sig'=2,'Ysig2_prior_df'=1,
+                   "Ysig2_prior_mu"=0,'Ysig2_prior_sig'=2,'Ysig2_prior_df'=1,
                    'Rsig2_prior_sig'=5,
                    'Rmu_prior_mu'=0,'Rmu_prior_sig'=10)
   #we'll need to tweak this for multivariate priors
@@ -311,7 +311,7 @@
   if(dat$constr_Rsig2&dat$constr_Rmu){
     exclude.pars<-c(exclude.pars,'R')
   }
-  stanobj<-'univar_evorates_normpri_tpri'
+  stanobj<-'univar_evorates_normpri_tpri_new'
   
   ##FORM OUTPUT FOR RUNNING MODEL##
   out<-list(return.as.obj=return.as.obj,stanobj=stanobj,exclude.pars=exclude.pars,out.file=out.file,
